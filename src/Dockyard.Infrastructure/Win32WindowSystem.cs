@@ -47,6 +47,7 @@ public sealed class Win32WindowSystem : IWindowSystem
     {
         GetWindowRect(window, out var wr);
         var vb = Native.GetVisibleBounds(window);
+        if (ToPixel(vb) == target) return;
         int l = vb.Left - wr.Left, t = vb.Top - wr.Top, r = wr.Right - vb.Right, b = wr.Bottom - vb.Bottom;
         SetWindowPos(window, 0, target.Left - l, target.Top - t, target.Width + l + r, target.Height + t + b,
             SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_ASYNCWINDOWPOS);
