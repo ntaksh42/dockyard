@@ -146,6 +146,33 @@ public class SavedLayoutTests
         Assert.Equal(json, JsonSerializer.Serialize(back));
     }
 
+    // ---- the library of saved layouts ------------------------------------------------------------
+
+    private static SavedGroup Named(string name) => new(name, default, new SavedNode());
+
+    [Fact]
+    public void LayoutLibrary_PutReplacesTheSameName()
+    {
+        var layouts = new List<SavedGroup> { Named("A"), Named("B") };
+        Assert.False(LayoutLibrary.Put(layouts, Named("C")));
+        Assert.True(LayoutLibrary.Put(layouts, Named("A") with { Bounds = new PixelRect(1, 1, 2, 2) }));
+        Assert.Equal(["B", "C", "A"], layouts.Select(l => l.Name));
+        Assert.Equal(new PixelRect(1, 1, 2, 2), layouts[^1].Bounds);
+    }
+
+    [Theory]
+    [InlineData("A", " New ", true, "New")]
+    [InlineData("A", "B", false, "A")]
+    [InlineData("A", "  ", false, "A")]
+    [InlineData("A", "A", true, "A")]
+    [InlineData("X", "New", false, "A")]
+    public void LayoutLibrary_RenameKeepsNamesUnique(string from, string to, bool ok, string first)
+    {
+        var layouts = new List<SavedGroup> { Named("A"), Named("B") };
+        Assert.Equal(ok, LayoutLibrary.Rename(layouts, from, to));
+        Assert.Equal([first, "B"], layouts.Select(l => l.Name));
+    }
+
     // ---- matching -------------------------------------------------------------------------------
 
     private static readonly WindowCandidate[] Candidates =

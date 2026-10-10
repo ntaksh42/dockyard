@@ -32,6 +32,7 @@ public partial class App : System.Windows.Application
     private const string SessionFile = "session.json";
     private readonly DispatcherTimer _sessionSave = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private SettingsWindow? _settingsWindow;
+    private LayoutsWindow? _layoutsWindow;
     /// <summary>Windows that appeared without a title; checked against waiting tabs again once they get one.</summary>
     private readonly HashSet<nint> _untitled = [];
 
@@ -84,6 +85,7 @@ public partial class App : System.Windows.Application
         // A placeholder: without any item the menu shows no submenu to open.
         open.DropDownItems.Add("");
         menu.Items.Add(open);
+        menu.Items.Add("Manage Layouts…", null, (_, _) => ShowLayouts());
         menu.Items.Add("Settings…", null, (_, _) => ShowSettings());
         menu.Items.Add("Exit", null, (_, _) => Quit());
         using var iconStream = GetResourceStream(new Uri("pack://application:,,,/Assets/Dockyard.ico"))!.Stream;
@@ -269,10 +271,21 @@ public partial class App : System.Windows.Application
     private void SaveLayout(GroupWindow g)
     {
         var layouts = JsonFile.Read<List<SavedGroup>>(LayoutsFile) ?? [];
-        layouts.RemoveAll(l => l.Name == g.GroupName);
-        layouts.Add(new SavedGroup(g.GroupName, g.FrameBounds, g.Controller.SaveLayout()));
+        var replaced = LayoutLibrary.Put(layouts, new SavedGroup(g.GroupName, g.FrameBounds, g.Controller.SaveLayout()));
         JsonFile.Write(LayoutsFile, layouts);
-        _tray?.ShowBalloonTip(2000, "Dockyard", $"Saved layout \"{g.GroupName}\".", Forms.ToolTipIcon.Info);
+        _tray?.ShowBalloonTip(2000, "Dockyard",
+            replaced ? $"Replaced the saved layout \"{g.GroupName}\"." : $"Saved layout \"{g.GroupName}\".", Forms.ToolTipIcon.Info);
+    }
+
+    private void ShowLayouts()
+    {
+        if (_layoutsWindow is null)
+        {
+            _layoutsWindow = new LayoutsWindow(LayoutsFile, OpenLayout);
+            _layoutsWindow.Closed += (_, _) => _layoutsWindow = null;
+            _layoutsWindow.Show();
+        }
+        _layoutsWindow.Activate();
     }
 
     /// <summary>Opens a saved layout as a new group, filling its tabs with matching windows that are open now.</summary>

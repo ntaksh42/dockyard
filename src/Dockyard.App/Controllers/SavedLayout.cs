@@ -20,6 +20,28 @@ public sealed record SavedGroup(string Name, PixelRect Bounds, SavedNode Layout)
 /// <summary>A window that could fill a saved tab.</summary>
 public sealed record WindowCandidate(nint Handle, string ProcessName, string Title);
 
+/// <summary>Saved layouts are known by their names, which stay unique.</summary>
+public static class LayoutLibrary
+{
+    /// <summary>Adds the layout, replacing one with the same name. Returns true if one was replaced.</summary>
+    public static bool Put(List<SavedGroup> layouts, SavedGroup layout)
+    {
+        var replaced = layouts.RemoveAll(l => l.Name == layout.Name) > 0;
+        layouts.Add(layout);
+        return replaced;
+    }
+
+    /// <summary>Renames a layout. Fails for a blank name or one another layout has.</summary>
+    public static bool Rename(List<SavedGroup> layouts, string from, string to)
+    {
+        to = to.Trim();
+        var index = layouts.FindIndex(l => l.Name == from);
+        if (index < 0 || to.Length == 0 || layouts.Any(l => l.Name == to && l.Name != from)) return false;
+        layouts[index] = layouts[index] with { Name = to };
+        return true;
+    }
+}
+
 public static class WindowMatcher
 {
     /// <summary>
