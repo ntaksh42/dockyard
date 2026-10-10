@@ -26,6 +26,7 @@ public partial class GroupWindow : Window, IGroupView
 
     private readonly Func<nint, bool> _isGrouped;
     private readonly IWindowSystem _windows;
+    private readonly WindowIcons _icons;
     /// <summary>Live thumbnails of the active tabs, by window, drawn while the frame moves or resizes (see BeginLive).</summary>
     private readonly Dictionary<nint, nint> _thumbnails = [];
     /// <summary>Each pane's "+" button as last built, where the keyboard opens that pane's menu.</summary>
@@ -72,6 +73,7 @@ public partial class GroupWindow : Window, IGroupView
         _isGrouped = isGrouped;
         GroupName = name;
         _windows = windows;
+        _icons = new WindowIcons(windows);
         Controller = new GroupController(this, windows, new WpfScheduler(Dispatcher));
         _liveEnd.Tick += (_, _) => EndLive();
         SetTabBarPlacement(placement);
@@ -224,6 +226,7 @@ public partial class GroupWindow : Window, IGroupView
         _visualPanes = snapshot.Layout.Panes.Select(p => p.Pane).ToList();
         _visualSplits = snapshot.Layout.Splitters.Select(s => s.Split).ToList();
         _rendered = snapshot.Layout;
+        _icons.Keep(snapshot.Titles.Keys);
         _visuals.Clear();
         _addButtons.Clear();
         Surface.Children.Clear();
@@ -286,7 +289,7 @@ public partial class GroupWindow : Window, IGroupView
             $"#{snapshot.Layout.Splitters.Count}#{_overlaySurface is not null}";
     }
 
-    private const double TabTitleWidth = 200, TabChrome = 36, TabHeight = 24, TabBarButton = 24;
+    private const double TabTitleWidth = 200, TabChrome = 56, TabHeight = 24, TabBarButton = 24;
 
     /// <summary>
     /// How much room each tab gets along the bar: the title's width in a horizontal bar, the tab's height in a
@@ -404,6 +407,16 @@ public partial class GroupWindow : Window, IGroupView
             // Selecting it from UI Automation does what a click does.
             var announce = active && _shownTabs.TryGetValue(pane, out var shown) && shown != h;
             if (active) _shownTabs[pane] = h;
+            var content = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            if (_icons.Get(h) is { } icon)
+            {
+                var image = new System.Windows.Controls.Image { Source = icon, Width = 16, Height = 16, Margin = new Thickness(0, 0, 4, 0) };
+                RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
+                content.Children.Add(image);
+            }
+            content.Children.Add(new TextBlock { Text = titles[h], MaxWidth = vertical ? Math.Max(0, bounds.Width - 60) : tabSize, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, FontSize = 12,
+                Foreground = active ? ActiveTextBrush : InactiveTextBrush, FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal });
+            content.Children.Add(close);
             var tab = new TabElement(titles[h], active, announce, () => Controller.ActivateTab(h))
             {
                 Background = active ? ActiveTabBrush : TabBrush,
@@ -414,17 +427,7 @@ public partial class GroupWindow : Window, IGroupView
                 Height = vertical ? tabSize : double.NaN,
                 // Titles are cut short in the tab: the whole one on hover.
                 ToolTip = titles[h],
-                Child = new StackPanel
-                {
-                    Orientation = System.Windows.Controls.Orientation.Horizontal,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Children =
-                    {
-                        new TextBlock { Text = titles[h], MaxWidth = vertical ? Math.Max(0, bounds.Width - 40) : tabSize, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, FontSize = 12,
-                            Foreground = active ? ActiveTextBrush : InactiveTextBrush, FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal },
-                        close,
-                    },
-                },
+                Child = content,
             };
             tab.MouseLeftButtonDown += (_, e) =>
             {

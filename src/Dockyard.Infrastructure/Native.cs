@@ -158,6 +158,24 @@ public static class Native
         }
     }
 
+    [DllImport("user32.dll", EntryPoint = "GetClassLongPtrW")] private static extern nint GetClassLongPtr(nint hwnd, int index);
+
+    /// <summary>
+    /// The icon the window shows in its caption, or 0. Owned by the app: not to be destroyed. The app is asked
+    /// first, with a short wait so a hung one cannot stall the caller; the window class's icon is the fallback.
+    /// </summary>
+    public static nint GetWindowIcon(nint hwnd)
+    {
+        const uint WM_GETICON = 0x007F, SMTO_ABORTIFHUNG = 2;
+        const nint ICON_SMALL = 0, ICON_BIG = 1, ICON_SMALL2 = 2;
+        foreach (var kind in new[] { ICON_SMALL2, ICON_SMALL, ICON_BIG })
+            if (SendMessageTimeout(hwnd, WM_GETICON, kind, 0, SMTO_ABORTIFHUNG, 50, out var icon) != 0 && icon != 0)
+                return icon;
+        const int GCLP_HICON = -14, GCLP_HICONSM = -34;
+        var fromClass = GetClassLongPtr(hwnd, GCLP_HICONSM);
+        return fromClass != 0 ? fromClass : GetClassLongPtr(hwnd, GCLP_HICON);
+    }
+
     public static string GetWindowText(nint hwnd)
     {
         var sb = new StringBuilder(512);
