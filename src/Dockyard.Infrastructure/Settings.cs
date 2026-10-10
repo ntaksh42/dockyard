@@ -22,6 +22,9 @@ public sealed class Settings
     /// <summary>When a layout is opened, start the apps whose windows are missing (from the exe paths saved with it).</summary>
     public bool LaunchMissingApps { get; set; }
 
+    /// <summary>At startup, open the groups that were open when Dockyard last exited (matched like a layout).</summary>
+    public bool OpenLastGroups { get; set; }
+
     public static Settings Load() => JsonFile.Read<Settings>(FileName) ?? new();
 
     public void Save() => JsonFile.Write(FileName, this);

@@ -32,6 +32,10 @@ public partial class App : System.Windows.Application
     /// windows back. Finding it at startup means Dockyard went down without doing so.
     /// </summary>
     private const string SessionFile = "session.json";
+    /// <summary>The groups open at the last exit, kept like saved layouts to open them again at startup.</summary>
+    private const string LastGroupsFile = "last-groups.json";
+    /// <summary>Set while quitting: the groups are closed one by one then, which must not empty the last groups.</summary>
+    private bool _quitting;
     private readonly DispatcherTimer _sessionSave = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private SettingsWindow? _settingsWindow;
     private LayoutsWindow? _layoutsWindow;
@@ -109,7 +113,7 @@ public partial class App : System.Windows.Application
             _sessionSave.Stop();
             SaveSession();
         };
-        if (!RestoreSession()) NewGroup();
+        if (!RestoreSession() && !(_settings.OpenLastGroups && OpenLastGroups())) NewGroup();
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -370,10 +374,25 @@ public partial class App : System.Windows.Application
 
     private void SaveSession()
     {
+        if (_quitting) return;
         var groups = _groups.Where(g => g.Controller.Members.Any())
             .Select(g => g.Save()).ToList();
         if (groups.Count == 0) JsonFile.Delete(SessionFile);
         else JsonFile.Write(SessionFile, groups);
+        // Groups still waiting for all their apps (e.g. just opened at login) count as open too.
+        JsonFile.Write(LastGroupsFile, _groups.Where(g => g.Controller.Members.Any() || g.Controller.WaitingTabs.Count > 0)
+            .Select(g => g.Save()).ToList());
+    }
+
+    /// <summary>
+    /// Opens the groups from the last run with the rules of a saved layout (exe and title), since after a
+    /// restart their windows are new ones. Returns false if there were none.
+    /// </summary>
+    private bool OpenLastGroups()
+    {
+        if (JsonFile.Read<List<SavedGroup>>(LastGroupsFile) is not { Count: > 0 } groups) return false;
+        foreach (var g in groups) OpenLayout(g);
+        return true;
     }
 
     /// <summary>
@@ -406,6 +425,7 @@ public partial class App : System.Windows.Application
 
     private void Quit()
     {
+        _quitting = true;
         foreach (var g in _groups.ToList()) g.Close();
         Shutdown();
     }

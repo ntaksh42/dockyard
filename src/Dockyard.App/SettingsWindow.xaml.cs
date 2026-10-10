@@ -33,6 +33,7 @@ internal partial class SettingsWindow : Window
         _settings = settings;
         _settingsChanged = settingsChanged;
         LaunchMissingAppsBox.IsChecked = settings.LaunchMissingApps;
+        OpenLastGroupsBox.IsChecked = settings.OpenLastGroups;
         TitleBarAppsBox.Text = _titleBarAppsText = string.Join(", ", titleBarApps);
         _titleBarAppsChanged = titleBarAppsChanged;
         // Closing with the box focused does not always move the focus first.
@@ -134,6 +135,7 @@ internal partial class SettingsWindow : Window
     private void Options_Click(object sender, RoutedEventArgs e)
     {
         _settings.LaunchMissingApps = LaunchMissingAppsBox.IsChecked == true;
+        _settings.OpenLastGroups = OpenLastGroupsBox.IsChecked == true;
         _settingsChanged();
     }
 
