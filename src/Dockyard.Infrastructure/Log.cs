@@ -19,7 +19,7 @@ public static class Log
             Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
             File.AppendAllText(Path.ChangeExtension(FilePath, ".trace.log"), $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}");
         }
-        catch (IOException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
         }
     }
@@ -31,7 +31,7 @@ public static class Log
             Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
             File.AppendAllText(FilePath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{context}] {ex}{Environment.NewLine}");
         }
-        catch (IOException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             // Logging must never take the app down.
         }

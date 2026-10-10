@@ -88,8 +88,11 @@ public sealed class LayoutTree
         return pane;
     }
 
-    /// <summary>Removes the window. An emptied pane is collapsed unless it is the last one.</summary>
-    public void Remove(nint window)
+    /// <summary>
+    /// Removes the window. An emptied pane is collapsed unless it is the last one, or <paramref name="collapse"/>
+    /// is false because something else still belongs there.
+    /// </summary>
+    public void Remove(nint window, bool collapse = true)
     {
         var pane = FindPane(window) ?? throw new ArgumentException("Window is not in this layout.", nameof(window));
         var index = pane.Windows.IndexOf(window);
@@ -97,7 +100,7 @@ public sealed class LayoutTree
         if (pane.ActiveIndex > index || pane.ActiveIndex >= pane.Windows.Count)
             pane.ActiveIndex = Math.Max(0, pane.ActiveIndex - 1);
 
-        if (pane.Windows.Count > 0 || pane.Parent is null) return;
+        if (pane.Windows.Count > 0 || pane.Parent is null || !collapse) return;
 
         var split = pane.Parent;
         var sibling = split.First == pane ? split.Second : split.First;

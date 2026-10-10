@@ -101,6 +101,36 @@ public class SavedLayoutTests
     }
 
     [Fact]
+    public void RemovingThePaneLastWindow_KeepsThePaneWhileTabsStillWaitThere()
+    {
+        var saved = BuildSample().SaveLayout();
+        var restored = NewGroup(1001);
+        restored.RestoreLayout(saved, t => t.Title == "w3" ? 0 : (nint)t.Handle);
+
+        restored.Remove(B);
+
+        Assert.Equal(2, restored.Layout!.Panes.Count);
+        Assert.Equal(["w3"], restored.WaitingTabs.Select(t => t.Title));
+        Assert.True(restored.FillWaiting(Window(21, "cmd"), "cmd", "w3"));
+        Assert.Equal([21], restored.Layout.Panes[1].Pane.Windows);
+    }
+
+    [Fact]
+    public void RestoreLayout_WithAnotherWindowOfTheApp_PutsThatWindowBackWhereItWas()
+    {
+        var saved = BuildSample().SaveLayout();
+        var restored = NewGroup(1001);
+        var elsewhere = new PixelRect(700, 300, 900, 500);
+        _ws.Add(30, elsewhere, "w1");
+        _ws.Windows[30].ProcessName = "code";
+
+        restored.RestoreLayout(saved, t => t.ProcessName == "code" ? 30 : 0);
+        restored.ReleaseAll();
+
+        Assert.Equal(elsewhere, _ws.GetBounds(30));
+    }
+
+    [Fact]
     public void FillWaiting_PutsANewWindowOfTheAppInItsPane_PreferringTheSameTitle()
     {
         var saved = BuildSample().SaveLayout();

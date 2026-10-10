@@ -50,9 +50,21 @@ public partial class App : System.Windows.Application
 
     private Dictionary<ShortcutAction, ShortcutKey> _shortcuts = null!;
 
+    /// <summary>Held while this is the user's Dockyard; null in a second copy, which only exits.</summary>
+    private Mutex? _instance;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        // Two copies would both take the same windows and write the same session file.
+        var instance = new Mutex(true, @"Local\Dockyard", out var first);
+        if (!first)
+        {
+            instance.Dispose();
+            Shutdown();
+            return;
+        }
+        _instance = instance;
         // Hardware rendering costs some 250 MB of driver memory (D3D9On12 on the GPU's D3D12 driver) for a frame that
         // draws flat rectangles and text; software rendering keeps the process near 150 MB.
         System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
@@ -127,6 +139,11 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (_instance is null)
+        {
+            base.OnExit(e);
+            return;
+        }
         _keyboardHook?.Dispose();
         _externalDragPoll.Stop();
         _dockDrag.Finish(true);
@@ -134,6 +151,7 @@ public partial class App : System.Windows.Application
         _hook?.Dispose();
         _tray?.Dispose();
         _trayIcon?.Dispose();
+        _instance.Dispose();
         base.OnExit(e);
     }
 
@@ -450,6 +468,9 @@ public partial class App : System.Windows.Application
 
     private void Quit()
     {
+        // A change made just now may still wait for the session timer: the next start opens what is saved here.
+        _sessionSave.Stop();
+        SaveSession();
         _quitting = true;
         foreach (var g in _groups.ToList()) g.Close();
         Shutdown();

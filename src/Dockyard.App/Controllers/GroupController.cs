@@ -118,7 +118,8 @@ public sealed class GroupController
             if (_windows.IsMinimized(h) || _windows.IsMaximized(h)) _windows.Restore(h);
             // A group minimized when Dockyard went down left its windows hidden.
             _windows.Show(h);
-            _members[h] = new Member(h, tabs[i].OriginalBounds ?? _windows.GetBounds(h)) 
+            // The saved place to go back to belongs to the saved window: another window of the same app keeps its own.
+            _members[h] = new Member(h, (h == tabs[i].Handle ? tabs[i].OriginalBounds : null) ?? _windows.GetBounds(h))
             {
                 Title = _windows.GetTitle(h),
                 ProcessName = _windows.GetProcessName(h),
@@ -134,6 +135,9 @@ public sealed class GroupController
     public IReadOnlyList<SavedTab> WaitingTabs => _tree.Panes.SelectMany(Waiting).ToList();
 
     private IEnumerable<SavedTab> Waiting(Pane pane) => _waiting.TryGetValue(pane, out var tabs) ? tabs : [];
+
+    /// <summary>Takes the window out of the tree, keeping its pane while restored tabs still wait there.</summary>
+    private void Detach(nint window) => _tree.Remove(window, collapse: !Waiting(_tree.FindPane(window)!).Any());
 
     /// <summary>
     /// A window just opened: if a restored tab waits for its app, the window takes that tab's place, preferring
@@ -191,7 +195,7 @@ public sealed class GroupController
             }
         }
         var member = source._members[window];
-        source._tree.Remove(window);
+        source.Detach(window);
         source._members.Remove(window);
         source._dragged = 0;
         member.DragStart = null;
@@ -436,7 +440,7 @@ public sealed class GroupController
         if (!Accepts(window, out _)) return;
         if (_dragged == window) _dragged = 0;
         _members.Remove(window);
-        _tree.Remove(window);
+        Detach(window);
         Refresh(raise: false);
         RestackAtFrame();
     }
@@ -449,7 +453,7 @@ public sealed class GroupController
     {
         var m = _members[window];
         _members.Remove(window);
-        _tree.Remove(window);
+        Detach(window);
         if (!_windows.Exists(window)) return;
         _windows.Show(window);
         _windows.SetBounds(window, m.OriginalBounds);

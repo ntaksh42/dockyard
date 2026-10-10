@@ -617,7 +617,20 @@ public partial class GroupWindow : Window, IGroupView
     internal void ShowAt(PixelRect? bounds)
     {
         Show();
-        if (bounds is { } b) SetWindowPos(_hwnd, 0, b.Left, b.Top, b.Width, b.Height, SWP_NOZORDER | SWP_NOACTIVATE);
+        if (bounds is { } b)
+        {
+            SetWindowPos(_hwnd, 0, b.Left, b.Top, b.Width, b.Height, SWP_NOZORDER | SWP_NOACTIVATE);
+            // Saved on a monitor that is gone or has moved: without enough of its caption on screen the frame
+            // cannot be dragged back, so bring it onto the nearest monitor.
+            var work = GetWorkArea(_hwnd);
+            var captionShown = Math.Min(b.Right, work.Right) - Math.Max(b.Left, work.Left);
+            if (b.Top < work.Top || b.Top + CaptionHeight > work.Bottom || captionShown < Math.Min(120, b.Width))
+            {
+                int width = Math.Min(b.Width, work.Width), height = Math.Min(b.Height, work.Height);
+                SetWindowPos(_hwnd, 0, Math.Clamp(b.Left, work.Left, work.Right - width), Math.Clamp(b.Top, work.Top, work.Bottom - height),
+                    width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+            }
+        }
         // Lay out now, so a layout restored right after this is placed against the final size.
         UpdateLayout();
     }

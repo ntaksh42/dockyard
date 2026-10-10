@@ -25,7 +25,13 @@ public sealed class Settings
     /// <summary>At startup, open the groups that were open when Dockyard last exited (matched like a layout).</summary>
     public bool OpenLastGroups { get; set; }
 
-    public static Settings Load() => JsonFile.Read<Settings>(FileName) ?? new();
+    public static Settings Load()
+    {
+        var settings = JsonFile.Read<Settings>(FileName) ?? new();
+        // A number in the file reads as a placement that does not exist.
+        if (!Enum.IsDefined(settings.TabBarPlacement)) settings.TabBarPlacement = default;
+        return settings;
+    }
 
     public void Save() => JsonFile.Write(FileName, this);
 }

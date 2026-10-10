@@ -50,7 +50,11 @@ public static class JsonFile
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(PathOf(name))!);
-            File.WriteAllText(PathOf(name), JsonSerializer.Serialize(value, Options));
+            // Written beside and then moved over the old file: a crash halfway leaves the previous contents, not
+            // a truncated file (the session file is what restores the groups after a crash).
+            var temporary = PathOf(name) + ".tmp";
+            File.WriteAllText(temporary, JsonSerializer.Serialize(value, Options));
+            File.Move(temporary, PathOf(name), overwrite: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
