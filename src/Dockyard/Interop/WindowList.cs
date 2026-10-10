@@ -3,9 +3,11 @@ using static Dockyard.Interop.Native;
 
 namespace Dockyard.Interop;
 
-internal sealed record WindowInfo(nint Handle, string Title, string ProcessName)
+/// <param name="Controllable">False for windows Windows will not let this process move, such as elevated apps.</param>
+internal sealed record WindowInfo(nint Handle, string Title, string ProcessName, bool Controllable)
 {
-    public override string ToString() => $"{Title}  —  {ProcessName}";
+    public override string ToString() =>
+        Controllable ? $"{Title}  —  {ProcessName}" : $"{Title}  —  {ProcessName}（管理者権限のアプリは追加できません）";
 }
 
 internal static class WindowList
@@ -26,11 +28,18 @@ internal static class WindowList
             if (title.Length == 0 || ShellClasses.Contains(GetClassName(hwnd))) return true;
             GetWindowThreadProcessId(hwnd, out var pid);
             if (pid == ownPid) return true;
-            result.Add(new WindowInfo(hwnd, title, ProcessName(pid)));
+            result.Add(new WindowInfo(hwnd, title, ProcessName(pid), CanControl(hwnd)));
             return true;
         }, 0);
         return result;
     }
+
+    /// <summary>
+    /// A no-op SetWindowPos fails with access denied when User Interface Privilege Isolation blocks us, which
+    /// is the case for windows of elevated processes while Dockyard runs unelevated.
+    /// </summary>
+    private static bool CanControl(nint hwnd) =>
+        SetWindowPos(hwnd, 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
 
     private static string ProcessName(uint pid)
     {
