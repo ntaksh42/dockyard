@@ -542,14 +542,41 @@ public partial class GroupWindow : Window, IGroupView
                 Close();
                 break;
             case ShortcutAction.OpenMenu:
-                // The pane of the window in use; the menu takes the keyboard, so the frame has to come forward.
-                var pane = _rendered?.Panes.FirstOrDefault(p => Controller.LastActive is { } w && p.Pane.Windows.Contains(w))?.Pane
-                    ?? _rendered?.Panes.FirstOrDefault()?.Pane;
-                if (pane is null || !_addButtons.TryGetValue(pane, out var add)) break;
-                Activate();
-                OpenPaneMenu(pane, add);
+                OnActivePane(OpenPaneMenu);
+                break;
+            case ShortcutAction.OpenLayout:
+                OnActivePane((_, add) => OpenLayoutPopup(add));
+                break;
+            case ShortcutAction.AddTab:
+                OnActivePane((pane, _) => PickAndAdopt(pane, null));
+                break;
+            case ShortcutAction.SplitRight:
+                OnActivePane((pane, _) => PickAndAdopt(pane, DockSide.Right));
+                break;
+            case ShortcutAction.SplitDown:
+                OnActivePane((pane, _) => PickAndAdopt(pane, DockSide.Bottom));
                 break;
         }
+    }
+
+    /// <summary>
+    /// Runs <paramref name="run"/> on the pane of the window in use and its "+" button. The frame comes forward
+    /// first: the menus and the picker take the keyboard.
+    /// </summary>
+    private void OnActivePane(Action<Pane, Button> run)
+    {
+        var pane = _rendered?.Panes.FirstOrDefault(p => Controller.LastActive is { } w && p.Pane.Windows.Contains(w))?.Pane
+            ?? _rendered?.Panes.FirstOrDefault()?.Pane;
+        if (pane is null || !_addButtons.TryGetValue(pane, out var add)) return;
+        Activate();
+        run(pane, add);
+    }
+
+    private void OpenLayoutPopup(Button anchor)
+    {
+        var menu = new ContextMenu { PlacementTarget = anchor, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        foreach (var item in OpenLayoutItems()) menu.Items.Add(item);
+        menu.IsOpen = true;
     }
 
     private void PickAndAdopt(Pane pane, DockSide? side)
@@ -830,10 +857,16 @@ object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
     private MenuItem OpenLayoutMenu()
     {
         var open = new MenuItem { Header = "Open Layout" };
-        foreach (var layout in SavedLayouts().OrderBy(l => l.Name, StringComparer.CurrentCultureIgnoreCase))
-            open.Items.Add(MenuItem(layout.Name, () => OpenLayoutRequested?.Invoke(this, layout)));
-        if (open.Items.Count == 0) open.Items.Add(new MenuItem { Header = "(No saved layouts)", IsEnabled = false });
+        foreach (var item in OpenLayoutItems()) open.Items.Add(item);
         return open;
+    }
+
+    private List<MenuItem> OpenLayoutItems()
+    {
+        var items = SavedLayouts().OrderBy(l => l.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Select(layout => MenuItem(layout.Name, () => OpenLayoutRequested?.Invoke(this, layout))).ToList();
+        if (items.Count == 0) items.Add(new MenuItem { Header = "(No saved layouts)", IsEnabled = false });
+        return items;
     }
 
     /// <summary>A cheat sheet of the shortcuts; choosing one opens the settings to change it.</summary>

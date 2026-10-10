@@ -10,6 +10,7 @@ public enum ShortcutAction
     Tab1, Tab2, Tab3, Tab4, Tab5, Tab6, Tab7, Tab8, Tab9,
     MoveTabLeft, MoveTabRight, MoveTabUp, MoveTabDown, GrowPane, ShrinkPane,
     SaveLayout, RenameGroup, ChangeTabBar, MaximizeGroup, MinimizeGroup, CloseGroup, OpenMenu,
+    AddTab, SplitRight, SplitDown, OpenLayout, NewGroup, ManageLayouts, OpenSettings, Quit,
 }
 
 /// <summary>A key with the modifiers that must be held. Written as e.g. "Ctrl+Alt+Left".</summary>
@@ -101,6 +102,15 @@ public static class Shortcuts
         [ShortcutAction.MinimizeGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x28),
         [ShortcutAction.CloseGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Shift, 0x57),
         [ShortcutAction.OpenMenu] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x4D),
+        [ShortcutAction.AddTab] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x54),
+        // V and H as in vim's :vsplit and :split: a vertical divider puts the new window to the right.
+        [ShortcutAction.SplitRight] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x56),
+        [ShortcutAction.SplitDown] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x48),
+        [ShortcutAction.OpenLayout] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x4F),
+        [ShortcutAction.NewGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x4E),
+        [ShortcutAction.ManageLayouts] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x4C),
+        [ShortcutAction.OpenSettings] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0xBC),
+        [ShortcutAction.Quit] = new(KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Shift, 0x51),
     };
 
     /// <summary>How the actions are called in the settings and menus.</summary>
@@ -135,12 +145,22 @@ public static class Shortcuts
         [ShortcutAction.MinimizeGroup] = "Minimize group",
         [ShortcutAction.CloseGroup] = "Close group",
         [ShortcutAction.OpenMenu] = "Open the + menu",
+        [ShortcutAction.AddTab] = "Add window as tab",
+        [ShortcutAction.SplitRight] = "Add window in a split to the right",
+        [ShortcutAction.SplitDown] = "Add window in a split below",
+        [ShortcutAction.OpenLayout] = "Open saved layout",
+        [ShortcutAction.NewGroup] = "New group",
+        [ShortcutAction.ManageLayouts] = "Manage layouts",
+        [ShortcutAction.OpenSettings] = "Open settings",
+        [ShortcutAction.Quit] = "Exit Dockyard",
     };
 
     /// <summary>Actions on the frame itself rather than on the focused window: they work in an empty group too.</summary>
     public static bool IsFrameAction(ShortcutAction action) =>
         action is ShortcutAction.SaveLayout or ShortcutAction.RenameGroup or ShortcutAction.ChangeTabBar or ShortcutAction.MaximizeGroup
-            or ShortcutAction.MinimizeGroup or ShortcutAction.CloseGroup or ShortcutAction.OpenMenu;
+            or ShortcutAction.MinimizeGroup or ShortcutAction.CloseGroup or ShortcutAction.OpenMenu
+            or ShortcutAction.AddTab or ShortcutAction.SplitRight or ShortcutAction.SplitDown or ShortcutAction.OpenLayout
+            or ShortcutAction.NewGroup or ShortcutAction.ManageLayouts or ShortcutAction.OpenSettings or ShortcutAction.Quit;
 
     /// <summary>The action bound to the key, or null if it is not a shortcut.</summary>
     public static ShortcutAction? Match(IReadOnlyDictionary<ShortcutAction, ShortcutKey> bindings, int virtualKey, KeyModifiers modifiers)

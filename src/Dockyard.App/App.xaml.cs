@@ -177,7 +177,17 @@ public partial class App : System.Windows.Application
             System.Windows.Input.Keyboard.FocusedElement is System.Windows.Controls.TextBox)) return false;
         if (Shortcuts.IsFrameAction(action))
         {
-            Dispatcher.BeginInvoke(() => group.RunShortcut(action));
+            Dispatcher.BeginInvoke(() =>
+            {
+                switch (action)
+                {
+                    case ShortcutAction.NewGroup: NewGroup(); break;
+                    case ShortcutAction.ManageLayouts: ShowLayouts(); break;
+                    case ShortcutAction.OpenSettings: ShowSettings(); break;
+                    case ShortcutAction.Quit: Quit(); break;
+                    default: group.RunShortcut(action); break;
+                }
+            });
             return true;
         }
         var window = group.Controller.Owns(foreground) ? foreground : group.Controller.LastActive;
