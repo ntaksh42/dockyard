@@ -8,7 +8,7 @@
   IgnorableNamespaces="uap uap5 rescap">
 
   <!-- Publisher must match the Subject of the signing certificate exactly, or signing fails. -->
-  <Identity Name="Dockyard" Publisher="CN=Dockyard Dev" Version="$Version$" ProcessorArchitecture="x64" />
+  <Identity Name="Dockyard" Publisher="CN=Dockyard Dev" Version="$Version$" ProcessorArchitecture="$Architecture$" />
 
   <Properties>
     <DisplayName>Dockyard</DisplayName>

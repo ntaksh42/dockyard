@@ -17,14 +17,16 @@ dotnet test
 pwsh installer/build.ps1
 ```
 
-`artifacts/msix/Dockyard.msix` と、署名に使った自己署名証明書 `Dockyard.cer` ができる。初回だけ、管理者の PowerShell で証明書を信頼させてからインストールする。
+`artifacts/msix/Dockyard.msix` と、署名に使った自己署名証明書 `Dockyard.cer` ができる。パッケージはビルドした PC のアーキテクチャ（arm64 か x64）向けになる。別のアーキテクチャ向けは `-Runtime x64` / `-Runtime arm64` で指定する（x64 版も ARM64 の PC に入るが、エミュレーションで動くので遅く重い）。初回だけ、管理者の PowerShell で証明書を信頼させてからインストールする。
 
 ```
 Import-Certificate -FilePath artifacts\msix\Dockyard.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
 Add-AppxPackage artifacts\msix\Dockyard.msix
 ```
 
-実行には .NET 10 Desktop Runtime が別途必要。
+実行には、パッケージと同じアーキテクチャの .NET 10 Desktop Runtime が別途必要。
+
+アンインストールは `Get-AppxPackage Dockyard | Remove-AppxPackage`。Dockyard を終了してから行う（終了時にグループのウィンドウを元の位置に戻すため）。信頼させた証明書は、管理者の PowerShell で `Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object Subject -eq 'CN=Dockyard Dev' | Remove-Item` で消せる。
 
 開発中は `pwsh installer/build.ps1 -Dev` で、署名せずに layout フォルダをそのまま登録できる（開発者モードが必要）。はまりポイントは [AGENTS.md](AGENTS.md)。
 
@@ -39,8 +41,9 @@ Add-AppxPackage artifacts\msix\Dockyard.msix
 - メンバーウィンドウの端をドラッグすると、その辺の仕切り線が動く。外周の辺なら枠がリサイズされる
 - アプリの最小サイズを観測し、そこで仕切り線を止める（Q9）
 - タブの × またはグループを閉じると、ウィンドウを追加前の位置とサイズに戻す
-- 設定画面（トレイメニューまたはタブバーの「+」→「Settings…」）でタブバーの位置を切り替える（Q2）。A: ウィンドウの上（既定）、B: ウィンドウのタイトルバーに重ねる、C: 左に縦タブ。B でも、タイトルバーにタブやメニューを持つアプリ（既定は chrome / msedge / firefox / brave / opera / vivaldi / Code / WindowsTerminal / explorer、設定画面で変更可）を含むペインは A の位置にタブを出す。設定は `%LOCALAPPDATA%\Dockyard\settings.json`。キャプションの右クリックメニューの「Tab Bar」でグループごとに変えられ、その配置はレイアウトの保存・復元にも含まれる
+- 設定画面（トレイメニュー、タブバーの歯車ボタン、またはタブバーの「+」→「Settings…」）でタブバーの位置を切り替える（Q2）。A: ウィンドウの上（既定）、B: ウィンドウのタイトルバーに重ねる、C: 左に縦タブ。B でも、タイトルバーにタブやメニューを持つアプリ（既定は chrome / msedge / firefox / brave / opera / vivaldi / Code / WindowsTerminal / explorer、設定画面で変更可）を含むペインは A の位置にタブを出す。設定は `%LOCALAPPDATA%\Dockyard\settings.json`。キャプションの右クリックメニューの「Tab Bar」でグループごとに変えられ、その配置はレイアウトの保存・復元にも含まれる
 - レイアウトの保存と復元（Q3）。枠のキャプションの保存ボタンで、グループ名をキーに分割の構成と各タブのアプリ（exe 名・タイトル）を `%LOCALAPPDATA%\Dockyard\layouts.json` に保存する。トレイメニューの「Open Layout」で新しいグループとして開く。タブバーの「+」やキャプションの右クリックメニューの「Open Layout」では、ウィンドウの無いグループならそのグループに読み込む。いま開いているウィンドウを同じウィンドウ → 同じ exe と同じタイトル → 同じ exe の順に割り当てる。見つからないタブは「Waiting for: exe — タイトル」と表示して待ち、その exe のウィンドウが新しく開いたら（同じタイトルを優先して）そのペインに入れる。各タブの exe のパスも保存し、設定で「When opening a layout, start apps that are not open」をオンにすると、開くときに足りないアプリを起動する（起動したウィンドウは待機中のタブに入る）。同じ名前で保存すると上書きし、その旨を通知する。トレイメニューの「Manage Layouts…」で保存済みレイアウトを開く・名前変更・削除できる
+- 同時に動く Dockyard は 1 つだけ。2 つ目を起動してもすぐ終了する（同じウィンドウや保存ファイルを取り合わないため）
 - Dockyard が強制終了・異常終了したあとの起動では、前回のグループを同じウィンドウで組み直す（`session.json`）。閉じれば各ウィンドウは追加前の位置に戻る
 - 設定の「Start Dockyard when Windows starts」で Windows 起動時に自動で起動する（MSIX 版はスタートアップ タスク、それ以外は HKCU の Run キー）
 - 設定の「When Dockyard starts, open the groups from last time」をオンにすると、起動時に前回終了時のグループ（`last-groups.json`）をレイアウトと同じ規則（exe・タイトル）で開く。PC の再起動後でも使える

@@ -116,7 +116,8 @@ public partial class App : System.Windows.Application
         menu.Items.Add("Settings…", null, (_, _) => ShowSettings());
         menu.Items.Add("Exit", null, (_, _) => Quit());
         using var iconStream = GetResourceStream(new Uri("pack://application:,,,/Assets/Dockyard.ico"))!.Stream;
-        using var icon = new System.Drawing.Icon(iconStream);
+        // The small entry the tray draws at this DPI (16 px at 100%), rather than a larger one scaled down.
+        using var icon = new System.Drawing.Icon(iconStream, Forms.SystemInformation.SmallIconSize);
         _trayIcon = (System.Drawing.Icon)icon.Clone();
         _tray = new Forms.NotifyIcon
         {
