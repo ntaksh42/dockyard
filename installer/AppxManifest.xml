@@ -3,8 +3,9 @@
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap rescap">
+  IgnorableNamespaces="uap uap5 rescap">
 
   <!-- Publisher must match the Subject of the signing certificate exactly, or signing fails. -->
   <Identity Name="Dockyard" Publisher="CN=Dockyard Dev" Version="$Version$" ProcessorArchitecture="x64" />
@@ -32,6 +33,12 @@
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <!-- Off until turned on in Dockyard's settings (Autostart.cs) or in Task Manager's startup apps. -->
+        <uap5:Extension Category="windows.startupTask">
+          <uap5:StartupTask TaskId="DockyardStartup" Enabled="false" DisplayName="Dockyard" />
+        </uap5:Extension>
+      </Extensions>
     </Application>
   </Applications>
 

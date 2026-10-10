@@ -32,7 +32,7 @@ internal static class Program
         var root = AppContext.BaseDirectory;
         while (!File.Exists(Path.Combine(root, "Dockyard.slnx"))) root = Path.GetDirectoryName(root)!;
         _dragOnly = args.Contains("--drag-only") || args.Contains("--external-only");
-        var exe = Path.Combine(root, _dragOnly ? @"src\Dockyard.App\bin\DragValidation\Dockyard.exe" : @"src\Dockyard.App\bin\Debug\net10.0-windows\Dockyard.exe");
+        var exe = Path.Combine(root, _dragOnly ? @"src\Dockyard.App\bin\DragValidation\Dockyard.exe" : @"src\Dockyard.App\bin\Debug\net10.0-windows10.0.19041.0\Dockyard.exe");
         if (!_dragOnly && File.Exists(LogPath)) File.Delete(LogPath);
 
         _app = Process.Start(exe)!;

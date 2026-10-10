@@ -42,6 +42,7 @@ Add-AppxPackage artifacts\msix\Dockyard.msix
 - 設定画面（トレイメニューまたはタブバーの「+」→「Settings…」）でタブバーの位置を切り替える（Q2）。A: ウィンドウの上（既定）、B: ウィンドウのタイトルバーに重ねる、C: 左に縦タブ。B でも、タイトルバーにタブやメニューを持つアプリ（既定は chrome / msedge / firefox / brave / opera / vivaldi / Code / WindowsTerminal / explorer、設定画面で変更可）を含むペインは A の位置にタブを出す。設定は `%LOCALAPPDATA%\Dockyard\settings.json`。キャプションの右クリックメニューの「Tab Bar」でグループごとに変えられ、その配置はレイアウトの保存・復元にも含まれる
 - レイアウトの保存と復元（Q3）。枠のキャプションの保存ボタンで、グループ名をキーに分割の構成と各タブのアプリ（exe 名・タイトル）を `%LOCALAPPDATA%\Dockyard\layouts.json` に保存する。トレイメニューの「Open Layout」で新しいグループとして開く。タブバーの「+」やキャプションの右クリックメニューの「Open Layout」では、ウィンドウの無いグループならそのグループに読み込む。いま開いているウィンドウを同じウィンドウ → 同じ exe と同じタイトル → 同じ exe の順に割り当てる。見つからないタブは「Waiting for: exe — タイトル」と表示して待ち、その exe のウィンドウが新しく開いたら（同じタイトルを優先して）そのペインに入れる。各タブの exe のパスも保存し、設定で「When opening a layout, start apps that are not open」をオンにすると、開くときに足りないアプリを起動する（起動したウィンドウは待機中のタブに入る）。同じ名前で保存すると上書きし、その旨を通知する。トレイメニューの「Manage Layouts…」で保存済みレイアウトを開く・名前変更・削除できる
 - Dockyard が強制終了・異常終了したあとの起動では、前回のグループを同じウィンドウで組み直す（`session.json`）。閉じれば各ウィンドウは追加前の位置に戻る
+- 設定の「Start Dockyard when Windows starts」で Windows 起動時に自動で起動する（MSIX 版はスタートアップ タスク、それ以外は HKCU の Run キー）
 - 設定の「When Dockyard starts, open the groups from last time」をオンにすると、起動時に前回終了時のグループ（`last-groups.json`）をレイアウトと同じ規則（exe・タイトル）で開く。PC の再起動後でも使える
 - 枠のグループ名とアクティブなタブのタイトルは、キャプションにマウスを乗せたときだけ表示する
 - 枠のグループ名をダブルクリックして名前を変更（Enter で確定、Esc で取り消し）。枠のキャプションの右クリックメニューからも、名前の変更・レイアウトの保存・設定を開ける

@@ -34,6 +34,11 @@ internal partial class SettingsWindow : Window
         _settingsChanged = settingsChanged;
         LaunchMissingAppsBox.IsChecked = settings.LaunchMissingApps;
         OpenLastGroupsBox.IsChecked = settings.OpenLastGroups;
+        Loaded += async (_, _) =>
+        {
+            AutostartBox.IsChecked = await Autostart.IsEnabledAsync();
+            AutostartBox.IsEnabled = true;
+        };
         TitleBarAppsBox.Text = _titleBarAppsText = string.Join(", ", titleBarApps);
         _titleBarAppsChanged = titleBarAppsChanged;
         // Closing with the box focused does not always move the focus first.
@@ -130,6 +135,14 @@ internal partial class SettingsWindow : Window
         _titleBarAppsText = TitleBarAppsBox.Text;
         _titleBarAppsChanged(TitleBarAppsBox.Text.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
             .Select(name => name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name).ToList());
+    }
+
+    private async void Autostart_Click(object sender, RoutedEventArgs e)
+    {
+        AutostartBox.IsEnabled = false;
+        // Windows may refuse (the user turned it off in Task Manager, or a policy): show what it is now.
+        AutostartBox.IsChecked = await Autostart.SetAsync(AutostartBox.IsChecked == true);
+        AutostartBox.IsEnabled = true;
     }
 
     private void Options_Click(object sender, RoutedEventArgs e)
