@@ -98,6 +98,8 @@ public sealed class GroupController
             var h = resolve(tabs[i]);
             if (h == 0 || _members.ContainsKey(h) || !_windows.Exists(h)) continue;
             if (_windows.IsMinimized(h) || _windows.IsMaximized(h)) _windows.Restore(h);
+            // A group minimized when Dockyard went down left its windows hidden.
+            _windows.Show(h);
             _members[h] = new Member(h, tabs[i].OriginalBounds ?? _windows.GetBounds(h)) { Title = _windows.GetTitle(h) };
             if (i == node.ActiveIndex) pane.ActiveIndex = pane.Windows.Count;
             pane.Windows.Add(h);

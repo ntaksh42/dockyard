@@ -84,6 +84,19 @@ public class SavedLayoutTests
     }
 
     [Fact]
+    public void RestoreLayout_ShowsWindowsLeftHiddenByAMinimizedGroup()
+    {
+        var c = BuildSample();
+        c.OnFrameMinimized();
+        var saved = c.SaveLayout();
+        Assert.False(_ws.IsVisible(B));
+
+        NewGroup(1001).RestoreLayout(saved, t => (nint)t.Handle);
+
+        Assert.All(new[] { A, B, C }, w => Assert.True(_ws.IsVisible(w)));
+    }
+
+    [Fact]
     public void RestoreLayout_RefusesAGroupThatAlreadyHasWindows()
     {
         var c = BuildSample();

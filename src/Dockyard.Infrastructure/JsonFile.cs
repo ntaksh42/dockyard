@@ -33,6 +33,18 @@ public static class JsonFile
         }
     }
 
+    public static void Delete(string name)
+    {
+        try
+        {
+            File.Delete(PathOf(name));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Error($"Delete {name}", ex);
+        }
+    }
+
     public static void Write<T>(string name, T value)
     {
         try

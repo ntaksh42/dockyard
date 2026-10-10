@@ -25,6 +25,12 @@ public partial class App : System.Windows.Application
     private (nint Window, PixelRect Bounds)? _dragOrigin;
     private readonly Settings _settings = Settings.Load();
     private const string LayoutsFile = "layouts.json";
+    /// <summary>
+    /// The open groups with their exact windows, kept current while Dockyard runs and removed when it puts the
+    /// windows back. Finding it at startup means Dockyard went down without doing so.
+    /// </summary>
+    private const string SessionFile = "session.json";
+    private readonly DispatcherTimer _sessionSave = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private SettingsWindow? _settingsWindow;
 
     private Dictionary<ShortcutAction, ShortcutKey> _shortcuts = null!;
@@ -90,7 +96,12 @@ public partial class App : System.Windows.Application
         };
         _tray.DoubleClick += (_, _) => NewGroup();
 
-        NewGroup();
+        _sessionSave.Tick += (_, _) =>
+        {
+            _sessionSave.Stop();
+            SaveSession();
+        };
+        if (!RestoreSession()) NewGroup();
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -212,10 +223,16 @@ public partial class App : System.Windows.Application
     {
         var g = new GroupWindow(name ?? $"Group {++_groupCount}", _windows, IsGrouped, _settings.TabBarPlacement);
         g.SaveLayoutRequested += SaveLayout;
+        g.Controller.Changed += _sessionSave.Start;
+        g.LocationChanged += (_, _) => _sessionSave.Start();
         g.TabDragStarted += (source, window) => _dockDrag.Begin(window, source);
         g.TabDragEnded += cancel => _dockDrag.Finish(cancel);
         g.SettingsRequested += ShowSettings;
-        g.Closed += (_, _) => _groups.Remove(g);
+        g.Closed += (_, _) =>
+        {
+            _groups.Remove(g);
+            _sessionSave.Start();
+        };
         _groups.Add(g);
         g.ShowAt(bounds);
         return g;
@@ -265,10 +282,47 @@ public partial class App : System.Windows.Application
     }
 
     private void ReleaseAll()
-
     {
         foreach (var g in _groups) g.Controller.ReleaseAll();
+        _sessionSave.Stop();
+        JsonFile.Delete(SessionFile);
     }
+
+    private void SaveSession()
+    {
+        var groups = _groups.Where(g => g.Controller.Members.Any())
+            .Select(g => new SavedGroup(g.GroupName, g.FrameBounds, g.Controller.SaveLayout())).ToList();
+        if (groups.Count == 0) JsonFile.Delete(SessionFile);
+        else JsonFile.Write(SessionFile, groups);
+    }
+
+    /// <summary>
+    /// After a crash or a forced exit the grouped windows are still where the panes were: put them back into
+    /// their groups, keeping where each was before it joined. Only the very same windows are taken (a handle
+    /// still owned by the same app); windows hidden by a minimized group count too. Returns false if nothing
+    /// was restored.
+    /// </summary>
+    private bool RestoreSession()
+    {
+        if (JsonFile.Read<List<SavedGroup>>(SessionFile) is not { Count: > 0 } saved) return false;
+        var claimed = new HashSet<nint>();
+        var restored = false;
+        foreach (var s in saved)
+        {
+            var g = NewGroup(s.Name, s.Bounds);
+            var count = g.Controller.RestoreLayout(s.Layout, tab =>
+            {
+                var h = (nint)tab.Handle;
+                return _windows.Exists(h)
+                    ? WindowMatcher.Match(tab, [new WindowCandidate(h, _windows.GetProcessName(h), "")], claimed, sameWindowOnly: true)
+                    : 0;
+            });
+            if (count == 0) g.Close();
+            restored |= count > 0;
+        }
+        return restored;
+    }
+
 
     private void Quit()
     {
