@@ -23,7 +23,16 @@ internal sealed class WinEventHook : IDisposable
     private void OnEvent(nint hook, uint eventType, nint hwnd, int idObject, int idChild, uint thread, uint time)
     {
         if (hwnd == 0 || idObject != OBJID_WINDOW || idChild != CHILDID_SELF) return;
-        WindowEvent?.Invoke(eventType, hwnd);
+        // This runs inside a native callback: an exception escaping here kills the process outright,
+        // without reaching WPF's unhandled-exception handler.
+        try
+        {
+            WindowEvent?.Invoke(eventType, hwnd);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"WinEvent 0x{eventType:X} hwnd=0x{hwnd:X}", ex);
+        }
     }
 
     public void Dispose()

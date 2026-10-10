@@ -17,8 +17,18 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // Put grouped windows back before dying, so they are not left stuck behind a dead frame.
-        DispatcherUnhandledException += (_, _) => ReleaseAll();
+        // A bug in one handler should not take every grouped window down with it: log and keep running.
+        DispatcherUnhandledException += (_, e) =>
+        {
+            Log.Error("UI", e.Exception);
+            e.Handled = true;
+        };
+        // Exceptions off the UI thread cannot be recovered; put grouped windows back before the process dies.
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            Log.Error("Fatal", (Exception)e.ExceptionObject);
+            Dispatcher.Invoke(ReleaseAll);
+        };
 
         _hook = new WinEventHook();
         _hook.WindowEvent += (evt, hwnd) => _groups.FirstOrDefault(g => g.Owns(hwnd))?.OnMemberEvent(evt, hwnd);

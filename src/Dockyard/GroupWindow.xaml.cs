@@ -45,6 +45,7 @@ public partial class GroupWindow : Window
     private nint _dragged;
     private bool _dragUpdatePending;
     private bool _raising;
+    private bool _closing;
 
     public GroupWindow(string name)
     {
@@ -63,7 +64,12 @@ public partial class GroupWindow : Window
         // Windows finishes bringing the frame to the top after Activated fires; raise the tabs once it has.
         Activated += (_, _) => Dispatcher.BeginInvoke(() => Raise(null), DispatcherPriority.Input);
         StateChanged += OnStateChanged;
-        Closing += (_, _) => ReleaseAll();
+        Closing += (_, _) =>
+        {
+            _closing = true;
+            _settleTimer.Stop();
+            ReleaseAll();
+        };
         Surface.MouseMove += Surface_MouseMove;
         Surface.MouseLeftButtonUp += (_, _) => { _dragging = null; Surface.ReleaseMouseCapture(); };
         _settleTimer.Tick += (_, _) => { _settleTimer.Stop(); CheckSettled(); };
@@ -107,7 +113,8 @@ public partial class GroupWindow : Window
                     Dispatcher.BeginInvoke(() =>
                     {
                         _dragUpdatePending = false;
-                        if (_dragged != hwnd) return;
+                        // The drag may have ended, the window gone or the frame closed while this was queued.
+                        if (_dragged != hwnd || _closing || !_members.ContainsKey(hwnd)) return;
                         ApplyMemberDrag(m);
                         Refresh(raise: false);
                     }, DispatcherPriority.Render);
@@ -130,6 +137,7 @@ public partial class GroupWindow : Window
                 UpdateTitle();
                 break;
             case EVENT_OBJECT_DESTROY:
+                if (_dragged == hwnd) _dragged = 0;
                 _members.Remove(hwnd);
                 _tree.Remove(hwnd);
                 Refresh(raise: false);
@@ -167,6 +175,7 @@ public partial class GroupWindow : Window
 
     private void Refresh(bool raise, nint? top = null)
     {
+        if (_closing) return;
         RenderVisuals();
         SyncWindows(raise, top);
         UpdateTitle();
@@ -296,7 +305,7 @@ public partial class GroupWindow : Window
     /// </summary>
     private void ApplyMemberDrag(Member m)
     {
-        if (m.LastTarget is not { } t || _layout is null) return;
+        if (m.LastTarget is not { } t || _layout is null || !IsOnScreen) return;
         var pane = _tree.FindPane(m.Handle)!;
         var content = _layout.Panes.First(p => p.Pane == pane).Content;
         var vb = GetVisibleBounds(m.Handle);
@@ -370,7 +379,7 @@ public partial class GroupWindow : Window
 
     private void SyncWindows(bool raise, nint? top = null)
     {
-        if (_layout is null || _hwnd == 0 || WindowState == WindowState.Minimized) return;
+        if (_layout is null || !IsOnScreen) return;
         foreach (var p in _layout.Panes)
         {
             var target = ToScreen(p.Content);
@@ -447,6 +456,7 @@ public partial class GroupWindow : Window
     /// </summary>
     private void CheckSettled()
     {
+        if (!IsOnScreen) return;
         var scale = PresentationSource.FromVisual(this)?.CompositionTarget.TransformToDevice.M11 ?? 1;
         bool moved = false, learned = false;
         foreach (var m in _members.Values)
@@ -482,6 +492,10 @@ public partial class GroupWindow : Window
             SyncWindows(raise: false);
         }
     }
+
+    /// <summary>False while closing, minimized or before the window has a handle; screen mapping throws then.</summary>
+    private bool IsOnScreen =>
+        !_closing && _hwnd != 0 && WindowState != WindowState.Minimized && PresentationSource.FromVisual(Surface) is not null;
 
     private RECT ToScreen(CoreRect r)
     {
