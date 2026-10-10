@@ -7,7 +7,7 @@ namespace Dockyard.Infrastructure;
 public sealed record WindowInfo(nint Handle, string Title, string ProcessName, bool Controllable)
 {
     public override string ToString() =>
-        Controllable ? $"{Title}  —  {ProcessName}" : $"{Title}  —  {ProcessName}（管理者権限のアプリは追加できません）";
+        Controllable ? $"{Title}  —  {ProcessName}" : $"{Title}  —  {ProcessName}  (can't add apps running as administrator)";
 }
 
 /// <summary>Windows the user can add to a group.</summary>

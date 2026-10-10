@@ -144,7 +144,7 @@ internal sealed class DockDrag(Func<IEnumerable<GroupWindow>> groups)
         Canvas.SetTop(highlight, preview.Y - drop.Layout.Bounds.Y);
         canvas.Children.Add(highlight);
         var r = drop.Layout.Bounds;
-        foreach (var (text, x, y) in new[] { ("タブ", .5, .5), ("←", .125, .5), ("→", .875, .5), ("↑", .5, .125), ("↓", .5, .875) })
+        foreach (var (text, x, y) in new[] { ("Tab", .5, .5), ("←", .125, .5), ("→", .875, .5), ("↑", .5, .125), ("↓", .5, .875) })
         {
             var guide = new TextBlock
             {

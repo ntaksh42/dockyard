@@ -46,8 +46,8 @@ public partial class App : System.Windows.Application
         _foregroundPoll.Start();
 
         var menu = new Forms.ContextMenuStrip();
-        menu.Items.Add("新しいグループ", null, (_, _) => NewGroup());
-        menu.Items.Add("終了", null, (_, _) => Quit());
+        menu.Items.Add("New Group", null, (_, _) => NewGroup());
+        menu.Items.Add("Exit", null, (_, _) => Quit());
         _tray = new Forms.NotifyIcon
         {
             Icon = System.Drawing.SystemIcons.Application,
@@ -104,7 +104,7 @@ public partial class App : System.Windows.Application
 
     private void NewGroup()
     {
-        var g = new GroupWindow($"グループ {++_groupCount}", _windows, IsGrouped);
+        var g = new GroupWindow($"Group {++_groupCount}", _windows, IsGrouped);
         g.TabDragStarted += (source, window) => _dockDrag.Begin(window, source);
         g.TabDragEnded += cancel => _dockDrag.Finish(cancel);
         g.Closed += (_, _) => _groups.Remove(g);

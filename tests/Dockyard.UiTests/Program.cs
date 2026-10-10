@@ -110,14 +110,14 @@ internal static class Program
             var task = new Subject("タスク マネージャー", tm, WindowRect(tm));
             Step("Task Manager is refused when it runs elevated", () =>
             {
-                Invoke(FindIn(_frame, "ウィンドウを追加…"));
+                Invoke(FindIn(_frame, "Add Window…"));
                 var item = PickerItem(task);
-                if (!item.Current.Name.Contains("管理者権限")) throw new Exception("not marked; this machine runs it unelevated");
+                if (!item.Current.Name.Contains("administrator")) throw new Exception("not marked; this machine runs it unelevated");
                 Select(item);
-                Invoke(PickerButton("追加"));
+                Invoke(PickerButton("Add"));
                 Thread.Sleep(500);
-                Invoke(PickerButton("キャンセル")); // throws if the picker closed, i.e. it accepted the window
-            }, members: [], active: [], extra: () => FindWindow(h => Pid(h) == _app.Id && Title(h) == "ウィンドウを選ぶ" && IsWindowVisible(h)) != 0
+                Invoke(PickerButton("Cancel")); // throws if the picker closed, i.e. it accepted the window
+            }, members: [], active: [], extra: () => FindWindow(h => Pid(h) == _app.Id && Title(h) == "Choose a Window" && IsWindowVisible(h)) != 0
                 ? "picker still open" : null);
         }
 
@@ -129,7 +129,7 @@ internal static class Program
             var front = Spawn("dyt-f", ProcessWindowStyle.Normal); // in front of everything, Paint included
             Step("add a Win11 app while another app is in front", () =>
             {
-                Invoke(FindIn(_frame, "ウィンドウを追加…"));
+                Invoke(FindIn(_frame, "Add Window…"));
                 Pick(paint);
             }, members: [paint], active: [paint], below: [front]);
             Step("remove the Win11 app again", () => ClickTabClose(paint), members: [], active: [],
@@ -138,17 +138,17 @@ internal static class Program
 
         Step("add a window to the empty group", () =>
         {
-            Invoke(FindIn(_frame, "ウィンドウを追加…"));
+            Invoke(FindIn(_frame, "Add Window…"));
             Pick(a);
         }, members: [a], active: [a], below: [e]);
 
-        Step("add a minimized window as a tab", () => AddVia(a, "タブとして追加…", b), members: [a, b], active: [b]);
+        Step("add a minimized window as a tab", () => AddVia(a, "Add as Tab…", b), members: [a, b], active: [b]);
 
         Step("switch tabs by clicking a tab", () => ClickTab(a), members: [a, b], active: [a]);
 
-        Step("add a maximized window split to the right", () => AddVia(a, "右に分割して追加…", c), members: [a, b, c], active: [a, c]);
+        Step("add a maximized window split to the right", () => AddVia(a, "Split Right…", c), members: [a, b, c], active: [a, c]);
 
-        Step("split below", () => AddVia(c, "下に分割して追加…", d), members: [a, b, c, d], active: [a, c, d]);
+        Step("split below", () => AddVia(c, "Split Down…", d), members: [a, b, c, d], active: [a, c, d]);
 
         Step("click the frame while another app is in front", () =>
         {
@@ -412,7 +412,7 @@ internal static class Program
     private static void Pick(Subject s)
     {
         Select(PickerItem(s));
-        Invoke(PickerButton("追加"));
+        Invoke(PickerButton("Add"));
     }
 
     private static void Select(AutomationElement item) =>
@@ -454,8 +454,8 @@ internal static class Program
 
     // Elements of pickers closed earlier can linger there, so only take the one backed by a live window.
     private static AutomationElement PickerElement() => Wait(() =>
-        AutomationElement.FromHandle(_frame).FindAll(TreeScope.Children, Named("ウィンドウを選ぶ")).Cast<AutomationElement>()
-            .Concat(AutomationElement.RootElement.FindAll(TreeScope.Children, Named("ウィンドウを選ぶ")).Cast<AutomationElement>())
+        AutomationElement.FromHandle(_frame).FindAll(TreeScope.Children, Named("Choose a Window")).Cast<AutomationElement>()
+            .Concat(AutomationElement.RootElement.FindAll(TreeScope.Children, Named("Choose a Window")).Cast<AutomationElement>())
             .FirstOrDefault(e => e.Current.NativeWindowHandle is var h && h != 0 && IsWindow(h) && IsWindowVisible(h) && Pid(h) == _app.Id),
         "picker");
 

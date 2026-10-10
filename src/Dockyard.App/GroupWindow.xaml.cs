@@ -145,7 +145,7 @@ public partial class GroupWindow : Window, IGroupView
             Place(BuildTabBar(p.Pane, snapshot.Titles), p.TabBar);
             if (p.Pane.Windows.Count == 0)
             {
-                var add = new Button { Content = "ウィンドウを追加…", Padding = new Thickness(12, 4, 12, 4) };
+                var add = new Button { Content = "Add Window…", Padding = new Thickness(12, 4, 12, 4) };
                 add.Click += (_, _) => PickAndAdopt(p.Pane, null);
                 var host = new Grid { Background = PlaceholderBrush };
                 host.Children.Add(new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Children = { add } });
@@ -217,14 +217,14 @@ public partial class GroupWindow : Window, IGroupView
     {
         var bar = new DockPanel { Background = TabBarBrush, LastChildFill = false };
 
-        var add = new Button { Content = "+", Width = 28, BorderThickness = new Thickness(0), Background = Brushes.Transparent, ToolTip = "ウィンドウを追加" };
+        var add = new Button { Content = "+", Width = 28, BorderThickness = new Thickness(0), Background = Brushes.Transparent, ToolTip = "Add Window" };
         // Built on click: tab bars are rebuilt on every layout change, including each step of a drag.
         add.Click += (_, _) =>
         {
             var menu = new ContextMenu { PlacementTarget = add, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
-            menu.Items.Add(MenuItem("タブとして追加…", () => PickAndAdopt(pane, null)));
-            menu.Items.Add(MenuItem("右に分割して追加…", () => PickAndAdopt(pane, DockSide.Right)));
-            menu.Items.Add(MenuItem("下に分割して追加…", () => PickAndAdopt(pane, DockSide.Bottom)));
+            menu.Items.Add(MenuItem("Add as Tab…", () => PickAndAdopt(pane, null)));
+            menu.Items.Add(MenuItem("Split Right…", () => PickAndAdopt(pane, DockSide.Right)));
+            menu.Items.Add(MenuItem("Split Down…", () => PickAndAdopt(pane, DockSide.Bottom)));
             menu.IsOpen = true;
         };
         DockPanel.SetDock(add, Dock.Right);
@@ -233,7 +233,7 @@ public partial class GroupWindow : Window, IGroupView
         foreach (var h in pane.Windows)
         {
             var active = pane.ActiveWindow == h;
-            var close = new Button { Content = "×", BorderThickness = new Thickness(0), Background = Brushes.Transparent, Padding = new Thickness(4, 0, 4, 0), ToolTip = "グループから外す" };
+            var close = new Button { Content = "×", BorderThickness = new Thickness(0), Background = Brushes.Transparent, Padding = new Thickness(4, 0, 4, 0), ToolTip = "Remove from Group" };
             close.Click += (_, _) => Controller.Remove(h);
             var tab = new Border
             {
