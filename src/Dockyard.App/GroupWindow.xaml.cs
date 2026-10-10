@@ -28,6 +28,11 @@ public partial class GroupWindow : Window, IGroupView
     private SplitterLayout? _dragging;
     private nint _hwnd;
     private bool _closing;
+    private nint _tabWindow;
+    private Point _tabStart;
+    private bool _tabDragging;
+    internal event Action<GroupWindow, nint>? TabDragStarted;
+    internal event Action<bool>? TabDragEnded;
     /// <summary>The open window picker. Tabs must stay below it, so raising starts there instead of at the top.</summary>
     private WindowPicker? _picker;
 
@@ -64,12 +69,38 @@ public partial class GroupWindow : Window, IGroupView
         };
         Surface.MouseMove += (_, e) =>
         {
+            if (_tabWindow != 0 && !_tabDragging && e.LeftButton == MouseButtonState.Pressed)
+            {
+                var point = e.GetPosition(Surface);
+                if (Math.Abs(point.X - _tabStart.X) >= SystemParameters.MinimumHorizontalDragDistance ||
+                    Math.Abs(point.Y - _tabStart.Y) >= SystemParameters.MinimumVerticalDragDistance)
+                {
+                    _tabDragging = true;
+                    TabDragStarted?.Invoke(this, _tabWindow);
+                }
+            }
             if (_dragging is not { } s) return;
             var pos = e.GetPosition(Surface);
             Controller.DragSplitter(s, s.Split.Orientation == Orientation.Horizontal ? pos.X : pos.Y);
         };
-        Surface.MouseLeftButtonUp += (_, _) => { _dragging = null; Surface.ReleaseMouseCapture(); };
-        Surface.LostMouseCapture += (_, _) => _dragging = null;
+        Surface.MouseLeftButtonUp += (_, _) =>
+        {
+            var window = _tabWindow;
+            var dragged = _tabDragging;
+            _tabWindow = 0;
+            _tabDragging = false;
+            if (dragged) TabDragEnded?.Invoke(false);
+            else if (window != 0) Controller.ActivateTab(window);
+            _dragging = null;
+            Surface.ReleaseMouseCapture();
+        };
+        Surface.LostMouseCapture += (_, _) =>
+        {
+            if (_tabDragging) TabDragEnded?.Invoke(true);
+            _tabWindow = 0;
+            _tabDragging = false;
+            _dragging = null;
+        };
     }
 
     public string GroupName { get; }
@@ -90,6 +121,7 @@ public partial class GroupWindow : Window, IGroupView
     public double Scale => PresentationSource.FromVisual(this)?.CompositionTarget.TransformToDevice.M11 ?? 1;
 
     public nint ZAnchor => _picker is { } p ? new WindowInteropHelper(p).Handle : 0;
+    internal bool CanDock => IsOnScreen && _picker is null;
 
     public PixelRect ToScreen(DomainRect r)
     {
@@ -221,7 +253,15 @@ public partial class GroupWindow : Window, IGroupView
                     },
                 },
             };
-            tab.MouseLeftButtonDown += (_, _) => Controller.ActivateTab(h);
+            tab.MouseLeftButtonDown += (_, e) =>
+            {
+                if (e.OriginalSource is DependencyObject source)
+                    for (var current = source; current is not null; current = VisualTreeHelper.GetParent(current))
+                        if (current is Button) return;
+                _tabStart = e.GetPosition(Surface);
+                if (Surface.CaptureMouse()) _tabWindow = h;
+                e.Handled = true;
+            };
             DockPanel.SetDock(tab, Dock.Left);
             bar.Children.Add(tab);
         }

@@ -21,22 +21,25 @@ internal static class Program
     /// <summary>Windows opened through the shell (no process handle to kill); closed with WM_CLOSE.</summary>
     private static readonly List<nint> SpawnedWindows = [];
     private static readonly List<string> Failures = [];
+    private static bool _dragOnly;
 
     private sealed record Subject(string Name, nint Hwnd, RECT Original);
 
-    private static int Main()
+    private static int Main(string[] args)
     {
         var root = AppContext.BaseDirectory;
         while (!File.Exists(Path.Combine(root, "Dockyard.slnx"))) root = Path.GetDirectoryName(root)!;
-        var exe = Path.Combine(root, @"src\Dockyard.App\bin\Debug\net10.0-windows\Dockyard.exe");
-        if (File.Exists(LogPath)) File.Delete(LogPath);
+        _dragOnly = args.Contains("--drag-only");
+        var exe = Path.Combine(root, _dragOnly ? @"src\Dockyard.App\bin\DragValidation\Dockyard.exe" : @"src\Dockyard.App\bin\Debug\net10.0-windows\Dockyard.exe");
+        if (!_dragOnly && File.Exists(LogPath)) File.Delete(LogPath);
 
         _app = Process.Start(exe)!;
         try
         {
             _frame = Wait(() => FindWindow(h => Pid(h) == _app.Id && IsWindowVisible(h) && Title(h).StartsWith("[")), "group frame");
             SetWindowPos(_frame, 0, 100, 60, 1400, 850, SWP_NOZORDER);
-            Run();
+            if (_dragOnly) RunDockDrag();
+            else Run();
         }
         catch (Exception ex)
         {
@@ -52,6 +55,42 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine(Failures.Count == 0 ? "ALL PASSED" : $"{Failures.Count} FAILED:\n  " + string.Join("\n  ", Failures));
         return Failures.Count == 0 ? 0 : 1;
+    }
+
+    private static void RunDockDrag()
+    {
+        var a = Spawn("dyt-drag-a", ProcessWindowStyle.Normal);
+        var b = Spawn("dyt-drag-b", ProcessWindowStyle.Normal);
+        void External(Subject subject)
+        {
+            Activate(subject.Hwnd);
+            Thread.Sleep(200);
+            var r = Visible(subject.Hwnd);
+            var f = Visible(_frame);
+            keybd_event(0x10, 0, 0, 0);
+            try { Drag(r.Left + r.Width / 2, r.Top + 12, f.Left + f.Width / 2, f.Top + f.Height / 2); }
+            finally { keybd_event(0x10, 0, 2, 0); }
+        }
+        void Tab(Subject subject, int x, int y, bool cancel = false)
+        {
+            Activate(_frame);
+            Thread.Sleep(200);
+            var tab = TabText(subject).Current.BoundingRectangle;
+            Drag((int)(tab.Left + tab.Width / 2), (int)(tab.Top + tab.Height / 2), x, y, cancel: cancel);
+        }
+        Step("Shift external drag into empty frame", () => External(a), [a], [a]);
+        Step("Shift external drag adds a tab", () => External(b), [a, b], [b]);
+        var frame = Visible(_frame);
+        Step("Escape cancels tab docking", () => Tab(a, frame.Right - 30, frame.Top + frame.Height / 2, true), [a, b], [b]);
+        Step("tab drag splits right", () => Tab(a, frame.Right - 30, frame.Top + frame.Height / 2), [a, b], [a, b]);
+        Step("tab drag merges panes", () =>
+        {
+            var r = Visible(b.Hwnd);
+            Tab(a, r.Left + r.Width / 2, r.Top + r.Height / 2);
+        }, [a, b], [a]);
+        Step("tab drag outside releases original bounds", () => Tab(a, frame.Left - 40, frame.Top + 100),
+            [b], [b], extra: () => Restored(a));
+        Step("close releases external drag at pre-drag bounds", () => ClickTabClose(b), [], [], extra: () => Restored(b));
     }
 
     private static void Run()
@@ -280,7 +319,7 @@ internal static class Program
     }
 
     private static string? LogProblem() =>
-        File.Exists(LogPath) && new FileInfo(LogPath).Length > 0 ? "error log: " + File.ReadLines(LogPath).First() : null;
+        !_dragOnly && File.Exists(LogPath) && new FileInfo(LogPath).Length > 0 ? "error log: " + File.ReadLines(LogPath).First() : null;
 
     private static bool Overlaps(RECT a, RECT b) => Area(Intersect(a, b)) > 0;
 

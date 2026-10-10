@@ -15,6 +15,19 @@ public static class Native
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    public struct POINT { public int X, Y; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MSLLHOOKSTRUCT
+    {
+        public POINT point;
+        public uint mouseData, flags, time;
+        public nuint extraInfo;
+    }
+
+    public delegate nint MouseHookProc(int code, nint message, nint data);
+
+    [StructLayout(LayoutKind.Sequential)]
     public struct WINDOWPOS
     {
         public nint hwnd, hwndInsertAfter;
@@ -66,10 +79,19 @@ public static class Native
     [DllImport("user32.dll")] public static extern bool SetWindowPos(nint hwnd, nint insertAfter, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] public static extern bool ShowWindow(nint hwnd, int cmd);
     [DllImport("user32.dll")] public static extern nint GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT point);
+    [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] public static extern nint SetWindowLongPtr(nint hwnd, int index, nint value);
+    [DllImport("user32.dll")] private static extern nint SendMessageTimeout(nint hwnd, uint msg, nint wParam, nint lParam, uint flags, uint timeout, out nint result);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowTextW(nint hwnd, StringBuilder text, int max);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(nint hwnd, StringBuilder text, int max);
     [DllImport("user32.dll")] public static extern nint SetWinEventHook(uint min, uint max, nint module, WinEventProc proc, uint pid, uint thread, uint flags);
     [DllImport("user32.dll")] public static extern bool UnhookWinEvent(nint hook);
+    [DllImport("user32.dll")] public static extern nint SetWindowsHookEx(int hook, MouseHookProc proc, nint module, uint thread);
+    [DllImport("user32.dll")] public static extern bool UnhookWindowsHookEx(nint hook);
+    [DllImport("user32.dll")] public static extern nint CallNextHookEx(nint hook, int code, nint message, nint data);
+    [DllImport("user32.dll")] public static extern nint WindowFromPoint(POINT point);
+    [DllImport("user32.dll")] public static extern nint GetAncestor(nint hwnd, uint flags);
     [DllImport("user32.dll")] private static extern nint MonitorFromWindow(nint hwnd, uint flags);
     [DllImport("user32.dll")] private static extern bool GetMonitorInfo(nint monitor, ref MONITORINFO info);
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(nint hwnd, int attr, out RECT value, int size);
@@ -80,6 +102,14 @@ public static class Native
         var sb = new StringBuilder(512);
         GetWindowTextW(hwnd, sb, sb.Capacity);
         return sb.ToString();
+    }
+
+    public static bool IsCaptionDrag(nint hwnd)
+    {
+        if (!GetCursorPos(out var point)) return false;
+        var coordinates = (nint)((point.X & 0xffff) | ((point.Y & 0xffff) << 16));
+        return SendMessageTimeout(hwnd, 0x0084 /* WM_NCHITTEST */, 0, coordinates,
+            2 /* SMTO_ABORTIFHUNG */, 50, out var hit) != 0 && hit == 2 /* HTCAPTION */;
     }
 
     public static string GetClassName(nint hwnd)

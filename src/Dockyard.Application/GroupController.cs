@@ -57,17 +57,61 @@ public sealed class GroupController
     // ---- user commands ------------------------------------------------------------------------
 
     /// <summary>Adds a window as a tab of <paramref name="pane"/>, or in a new pane split off it on <paramref name="side"/>.</summary>
-    public bool Adopt(nint window, Pane pane, DockSide? side)
+    public bool Adopt(nint window, Pane pane, DockSide? side, PixelRect? originalBounds = null)
     {
         // The picker is modal and pumps events: the window or its target pane may have gone away meanwhile.
         if (_closing || !_windows.Exists(window) || _members.ContainsKey(window) || !_tree.Panes.Contains(pane)) return false;
         if (_windows.IsMinimized(window) || _windows.IsMaximized(window)) _windows.Restore(window);
-        _members[window] = new Member(window, _windows.GetBounds(window)) { Title = _windows.GetTitle(window) };
+        _members[window] = new Member(window, originalBounds ?? _windows.GetBounds(window)) { Title = _windows.GetTitle(window) };
         if (side is { } s) _tree.Split(pane, s, window);
         else _tree.AddTab(pane, window);
         _lastActive = window;
         Refresh(raise: true, top: window);
         return true;
+    }
+
+    /// <summary>Moves a tab without losing its original bounds or learned minimum size.</summary>
+    public bool Dock(nint window, Pane pane, DockSide? side, GroupController? source = null, PixelRect? originalBounds = null)
+    {
+        source ??= this;
+        if (!source.Owns(window)) return Adopt(window, pane, side, originalBounds);
+        if (_closing || source._closing || !_windows.Exists(window) || !_tree.Panes.Contains(pane)) return false;
+        var oldPane = source._tree.FindPane(window)!;
+        if (source == this && oldPane == pane)
+        {
+            if (side is null || pane.Windows.Count == 1)
+            {
+                ActivateTab(window);
+                return true;
+            }
+        }
+        var member = source._members[window];
+        source._tree.Remove(window);
+        source._members.Remove(window);
+        source._dragged = 0;
+        member.DragStart = null;
+        _members.Add(window, member);
+        if (side is { } s) _tree.Split(pane, s, window);
+        else _tree.AddTab(pane, window);
+        _lastActive = window;
+        if (source != this)
+        {
+            source.Refresh(raise: false);
+            source.RestackAtFrame();
+        }
+        Refresh(raise: true, top: window);
+        return true;
+    }
+
+    public void BeginDockDrag(nint window)
+    {
+        if (Owns(window)) _dragged = window;
+    }
+
+    public void EndDockDrag()
+    {
+        _dragged = 0;
+        Refresh(raise: true);
     }
 
     /// <summary>Takes a tab out of the group (its × button).</summary>

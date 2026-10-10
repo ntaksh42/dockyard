@@ -42,6 +42,104 @@ public class GroupControllerTests
 
     // ---- adding and removing ----------------------------------------------------------------------
 
+    [Theory]
+    [InlineData(DockSide.Left)]
+    [InlineData(DockSide.Right)]
+    [InlineData(DockSide.Top)]
+    [InlineData(DockSide.Bottom)]
+    public void Dock_SplitsExistingTabAndPreservesOriginalBounds(DockSide side)
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.Adopt(Window(B), RootPane, null);
+        Assert.True(_c.Dock(A, RootPane, side));
+        Assert.Equal(2, _c.Layout!.Panes.Count);
+        AssertPlaced(A);
+        AssertPlaced(B);
+        Assert.Equal(2, _c.Members.Count());
+        _c.Remove(A);
+        Assert.Equal(Initial, _ws.GetBounds(A));
+    }
+
+    [Fact]
+    public void Dock_MovesOnlyTabToAnotherPaneAndCollapsesSource()
+    {
+        SplitAC();
+        var target = PaneOf(C).Pane;
+        Assert.True(_c.Dock(A, target, null));
+        Assert.Single(_c.Layout!.Panes);
+        Assert.Equal(new nint[] { C, A }, target.Windows);
+        AssertPlaced(A);
+        _c.Remove(A);
+        Assert.Equal(Initial, _ws.GetBounds(A));
+    }
+
+    [Fact]
+    public void Dock_OnlyTabOnItsOwnPaneDoesNotCreateEmptySplit()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        Assert.True(_c.Dock(A, RootPane, DockSide.Right));
+        Assert.Single(_c.Layout!.Panes);
+        Assert.Single(RootPane.Windows);
+    }
+
+    [Fact]
+    public void Dock_TransfersBetweenGroupsAndKeepsOriginalBounds()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.Adopt(Window(B), RootPane, null);
+        _c.ActivateTab(A);
+        var view = new FakeView(2000);
+        _ws.AddToZOrder(view.Handle);
+        var target = new GroupController(view, _ws, _scheduler);
+        target.OnSurfaceResized();
+        Assert.True(target.Dock(A, target.Layout!.Panes[0].Pane, null, _c));
+        Assert.False(_c.Owns(A));
+        Assert.True(target.Owns(A));
+        Assert.Equal(B, RootPane.ActiveWindow);
+        Assert.True(_ws.Z(B) < _ws.Z(Frame));
+        AssertPlaced(B);
+        target.Remove(A);
+        Assert.Equal(Initial, _ws.GetBounds(A));
+    }
+
+    [Fact]
+    public void Dock_RefusesStalePaneWithoutRemovingSource()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        Assert.False(_c.Dock(A, new Pane(), null));
+        Assert.True(_c.Owns(A));
+        Assert.Single(RootPane.Windows);
+    }
+
+    [Fact]
+    public void Dock_CancelResynchronizesTheDraggedWindow()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.BeginDockDrag(A);
+        _ws.SetBounds(A, Initial);
+        _c.OnFrameMoved();
+        Assert.Equal(Initial, _ws.GetBounds(A));
+        _c.EndDockDrag();
+        AssertPlaced(A);
+    }
+
+    [Fact]
+    public void Adopt_RefusesPaneOutsideTheLayout()
+    {
+        Assert.False(_c.Adopt(Window(A), new Pane(), null));
+        Assert.Empty(_c.Members);
+    }
+
+    [Fact]
+    public void Dock_ExternalWindowRestoresBoundsFromBeforeDrag()
+    {
+        Window(A);
+        _ws.SetBounds(A, new PixelRect(300, 300, 900, 700));
+        Assert.True(_c.Dock(A, RootPane, null, originalBounds: Initial));
+        _c.Remove(A);
+        Assert.Equal(Initial, _ws.GetBounds(A));
+    }
+
     [Fact]
     public void Adopt_PlacesWindowOverItsPaneAboveTheFrame()
     {

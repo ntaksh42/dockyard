@@ -1,4 +1,6 @@
 using static Dockyard.Infrastructure.Native;
+using System.Runtime.InteropServices;
+using Dockyard.Application;
 
 namespace Dockyard.Infrastructure;
 
@@ -23,12 +25,17 @@ public sealed class WinEventHook : IDisposable
     private readonly WinEventProc _proc; // kept alive so the GC does not collect the callback
     private readonly List<nint> _hooks = [];
     private nint _lastForeground;
+    private readonly MouseHookProc _mouseProc;
+    private readonly nint _mouseHook;
 
     public event Action<WindowEvent, nint>? Received;
+    public event Action<nint, PixelRect>? ShiftMouseDown;
 
     public WinEventHook()
     {
         _proc = OnEvent;
+        _mouseProc = OnMouse;
+        _mouseHook = SetWindowsHookEx(14 /* WH_MOUSE_LL */, _mouseProc, 0, 0);
         foreach (var e in Events.Keys)
         {
             // Foreground changes can be attributed to this process (e.g. when it is the one giving up the
@@ -36,6 +43,27 @@ public sealed class WinEventHook : IDisposable
             var flags = e == EVENT_SYSTEM_FOREGROUND ? WINEVENT_OUTOFCONTEXT : WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS;
             _hooks.Add(SetWinEventHook(e, e, 0, _proc, 0, 0, flags));
         }
+    }
+
+    private nint OnMouse(int code, nint message, nint data)
+    {
+        // Capture before Windows moves the caption: out-of-context move-start events can arrive late.
+        if (code >= 0 && message == 0x0201)
+        {
+            try
+            {
+                if ((GetAsyncKeyState(0x10) & 0x8000) == 0) ShiftMouseDown?.Invoke(0, default);
+                else
+                {
+                    var mouse = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(data);
+                    var window = GetAncestor(WindowFromPoint(mouse.point), 2 /* GA_ROOT */);
+                    if (window != 0 && GetWindowRect(window, out var r))
+                        ShiftMouseDown?.Invoke(window, new PixelRect(r.Left, r.Top, r.Right, r.Bottom));
+                }
+            }
+            catch (Exception ex) { Log.Error("Mouse hook", ex); }
+        }
+        return CallNextHookEx(_mouseHook, code, message, data);
     }
 
     /// <summary>
@@ -75,6 +103,7 @@ public sealed class WinEventHook : IDisposable
 
     public void Dispose()
     {
+        if (_mouseHook != 0) UnhookWindowsHookEx(_mouseHook);
         foreach (var h in _hooks) UnhookWinEvent(h);
         _hooks.Clear();
     }

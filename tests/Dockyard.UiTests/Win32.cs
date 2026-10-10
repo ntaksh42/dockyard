@@ -121,7 +121,7 @@ internal static class Win32
         mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
     }
 
-    public static void Drag(int x1, int y1, int x2, int y2, int steps = 25)
+    public static void Drag(int x1, int y1, int x2, int y2, int steps = 25, bool cancel = false)
     {
         SetCursorPos(x1, y1);
         Thread.Sleep(80);
@@ -133,6 +133,12 @@ internal static class Win32
             Thread.Sleep(20);
         }
         Thread.Sleep(100);
+        if (cancel)
+        {
+            keybd_event(0x1B, 0, 0, 0);
+            Thread.Sleep(100);
+            keybd_event(0x1B, 0, 2, 0);
+        }
         mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
     }
 

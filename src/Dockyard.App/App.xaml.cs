@@ -15,6 +15,9 @@ public partial class App : System.Windows.Application
     private WinEventHook? _hook;
     private Forms.NotifyIcon? _tray;
     private int _groupCount;
+    private DockDrag _dockDrag = null!;
+    private nint _externalDrag;
+    private (nint Window, PixelRect Bounds)? _dragOrigin;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -33,8 +36,10 @@ public partial class App : System.Windows.Application
             Dispatcher.Invoke(ReleaseAll);
         };
         Diagnostics.Trace = Log.Trace;
+        _dockDrag = new DockDrag(() => _groups);
 
         _hook = new WinEventHook();
+        _hook.ShiftMouseDown += (window, bounds) => _dragOrigin = window == 0 ? null : (window, bounds);
         _hook.Received += Dispatch;
         // Safety net for foreground changes Windows does not report (see WinEventHook.CheckForeground).
         _foregroundPoll.Tick += (_, _) => _hook.CheckForeground();
@@ -57,6 +62,7 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _dockDrag.Finish(true);
         ReleaseAll();
         _hook?.Dispose();
         _tray?.Dispose();
@@ -67,6 +73,23 @@ public partial class App : System.Windows.Application
 
     private void Dispatch(WindowEvent evt, nint window)
     {
+        if (evt == WindowEvent.MoveSizeStart && (Native.GetAsyncKeyState(0x10) & 0x8000) != 0 &&
+            (Native.GetAsyncKeyState(0x01) & 0x8000) != 0 &&
+            Native.IsCaptionDrag(window) &&
+            WindowCatalog.GetCandidates().Any(w => w.Handle == window && w.Controllable))
+        {
+            _externalDrag = window;
+            _dockDrag.Begin(window, _groups.FirstOrDefault(g => g.Controller.Owns(window)),
+                _dragOrigin is { } origin && origin.Window == window ? origin.Bounds : null);
+            return;
+        }
+        if (_externalDrag == window && evt is WindowEvent.MoveSizeEnd or WindowEvent.Destroyed)
+        {
+            _externalDrag = 0;
+            _dockDrag.Finish(evt == WindowEvent.Destroyed);
+            if (evt != WindowEvent.Destroyed) return;
+        }
+        if (_externalDrag == window && evt is WindowEvent.LocationChanged or WindowEvent.Foreground) return;
         if (_groups.Select(g => g.Controller).FirstOrDefault(c => c.Owns(window)) is not { } controller) return;
         switch (evt)
         {
@@ -82,6 +105,8 @@ public partial class App : System.Windows.Application
     private void NewGroup()
     {
         var g = new GroupWindow($"グループ {++_groupCount}", _windows, IsGrouped);
+        g.TabDragStarted += (source, window) => _dockDrag.Begin(window, source);
+        g.TabDragEnded += cancel => _dockDrag.Finish(cancel);
         g.Closed += (_, _) => _groups.Remove(g);
         _groups.Add(g);
         g.Show();
