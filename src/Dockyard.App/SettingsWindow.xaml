@@ -16,11 +16,11 @@
         <TextBox x:Name="TitleBarAppsBox" LostKeyboardFocus="TitleBarAppsBox_LostKeyboardFocus" />
 
         <TextBlock Text="Startup" FontWeight="SemiBold" Margin="0,20,0,8" />
-        <CheckBox x:Name="AutostartBox" Content="Start Dockyard when Windows starts" IsEnabled="False" Click="Autostart_Click" />
+        <CheckBox x:Name="AutostartBox" Content="Start Dockyard when Windows starts" IsEnabled="False" />
 
         <TextBlock Text="Layouts" FontWeight="SemiBold" Margin="0,20,0,8" />
-        <CheckBox x:Name="OpenLastGroupsBox" Content="When Dockyard starts, open the groups from last time" Margin="0,0,0,6" Click="Options_Click" />
-        <CheckBox x:Name="LaunchMissingAppsBox" Content="When opening a layout, start apps that are not open" Click="Options_Click" />
+        <CheckBox x:Name="OpenLastGroupsBox" Content="When Dockyard starts, open the groups from last time" Margin="0,0,0,6" />
+        <CheckBox x:Name="LaunchMissingAppsBox" Content="When opening a layout, start apps that are not open" />
 
         <TextBlock Text="Keyboard shortcuts" FontWeight="SemiBold" Margin="0,20,0,4" />
         <TextBlock Text="Click a shortcut, then press the new keys (Ctrl, Alt or Win plus a key). Esc cancels."

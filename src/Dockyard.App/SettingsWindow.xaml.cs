@@ -34,10 +34,19 @@ internal partial class SettingsWindow : Window
         _settingsChanged = settingsChanged;
         LaunchMissingAppsBox.IsChecked = settings.LaunchMissingApps;
         OpenLastGroupsBox.IsChecked = settings.OpenLastGroups;
+        // Checked/Unchecked rather than Click: toggling through UI Automation (screen readers) raises no Click.
+        // Subscribed after the initial state is set, so showing it is not taken for a change.
+        foreach (var box in new[] { LaunchMissingAppsBox, OpenLastGroupsBox })
+        {
+            box.Checked += Options_Changed;
+            box.Unchecked += Options_Changed;
+        }
         Loaded += async (_, _) =>
         {
             AutostartBox.IsChecked = await Autostart.IsEnabledAsync();
             AutostartBox.IsEnabled = true;
+            AutostartBox.Checked += Autostart_Changed;
+            AutostartBox.Unchecked += Autostart_Changed;
         };
         TitleBarAppsBox.Text = _titleBarAppsText = string.Join(", ", titleBarApps);
         _titleBarAppsChanged = titleBarAppsChanged;
@@ -137,15 +146,16 @@ internal partial class SettingsWindow : Window
             .Select(name => name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name).ToList());
     }
 
-    private async void Autostart_Click(object sender, RoutedEventArgs e)
+    private async void Autostart_Changed(object sender, RoutedEventArgs e)
     {
+        if (!AutostartBox.IsEnabled) return; // our own update below
         AutostartBox.IsEnabled = false;
         // Windows may refuse (the user turned it off in Task Manager, or a policy): show what it is now.
         AutostartBox.IsChecked = await Autostart.SetAsync(AutostartBox.IsChecked == true);
         AutostartBox.IsEnabled = true;
     }
 
-    private void Options_Click(object sender, RoutedEventArgs e)
+    private void Options_Changed(object sender, RoutedEventArgs e)
     {
         _settings.LaunchMissingApps = LaunchMissingAppsBox.IsChecked == true;
         _settings.OpenLastGroups = OpenLastGroupsBox.IsChecked == true;
