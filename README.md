@@ -28,6 +28,10 @@ Add-AppxPackage artifacts\msix\Dockyard.msix
 
 アンインストールは `Get-AppxPackage Dockyard | Remove-AppxPackage`。Dockyard を終了してから行う（終了時にグループのウィンドウを元の位置に戻すため）。信頼させた証明書は、管理者の PowerShell で `Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object Subject -eq 'CN=Dockyard Dev' | Remove-Item` で消せる。
 
+本番用の証明書で署名するときは、`Cert:\CurrentUser\My` にある証明書を `-CertificateThumbprint` で指定する（マニフェストの Publisher は証明書の Subject になる）。`-TimestampUrl` に RFC 3161 のタイムスタンプサーバーを渡すと、証明書の期限が切れても署名が有効なままになる。
+
+`pwsh installer/test.ps1` は、ビルドしたパッケージを実際にインストールし、起動・上書き更新・アンインストールまで確かめる（証明書を信頼させてあり、Dockyard のパッケージが入っていないこと）。
+
 開発中は `pwsh installer/build.ps1 -Dev` で、署名せずに layout フォルダをそのまま登録できる（開発者モードが必要）。はまりポイントは [AGENTS.md](AGENTS.md)。
 
 ## 実装済み
@@ -48,5 +52,5 @@ Add-AppxPackage artifacts\msix\Dockyard.msix
 - 設定の「Start Dockyard when Windows starts」で Windows 起動時に自動で起動する（MSIX 版はスタートアップ タスク、それ以外は HKCU の Run キー）
 - 設定の「When Dockyard starts, open the groups from last time」をオンにすると、起動時に前回終了時のグループ（`last-groups.json`）をレイアウトと同じ規則（exe・タイトル）で開く。PC の再起動後でも使える
 - 枠のグループ名をダブルクリックして名前を変更（Enter で確定、Esc で取り消し）。枠のキャプションの右クリックメニューからも、名前の変更・レイアウトの保存・設定を開ける
-- キーボードショートカット（Q7）：Ctrl+Alt+←/→ でタブ切替、Ctrl+Alt+Shift+矢印で隣接ペインへ移動、Ctrl+Alt+W でグループから解除。グループ内のウィンドウまたは枠にフォーカスがあるときのみ有効。設定画面で割り当てを変更できる（Ctrl / Alt / Win のいずれかを含む組み合わせ）。いまの割り当てはタブバーの「+」→「Keyboard Shortcuts」で一覧できる
+- キーボードショートカット（Q7）：Ctrl+Alt+←/→ でタブ切替、Ctrl+Alt+1〜8 でその番号のタブ、Ctrl+Alt+9 で最後のタブ、Ctrl+Alt+Shift+矢印で隣接ペインへ移動、Ctrl+Alt+Win+矢印でタブを隣のペインへ移す（隣が無ければその向きに分割）、Ctrl+Alt+] / [ でペインを広げる・狭める、Ctrl+Alt+W でグループから解除。枠の操作は Ctrl+Alt+S で保存、Ctrl+Alt+R で名前の変更、Ctrl+Alt+B でタブバーの位置を切り替え、Ctrl+Alt+↑ で最大化・元に戻す、Ctrl+Alt+↓ で最小化、Ctrl+Alt+Shift+W でグループを閉じる、Ctrl+Alt+M で「+」メニュー（ウィンドウの追加・分割・レイアウトを開く・設定）。グループ内のウィンドウまたは枠にフォーカスがあるときのみ有効。設定画面で割り当てを変更できる（Ctrl / Alt / Win のいずれかを含む組み合わせ）。いまの割り当てはタブバーの「+」→「Keyboard Shortcuts」で一覧できる
 

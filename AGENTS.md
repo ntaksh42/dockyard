@@ -6,7 +6,8 @@
 
 ### はまりポイント
 
-- **Publisher と証明書の Subject は完全一致させる。** `AppxManifest.xml` の `Identity/@Publisher`（`CN=Dockyard Dev`）と署名証明書の Subject が 1 文字でも違うと `signtool` が失敗する。どちらかを変えるときは両方変える。
+- **Publisher と証明書の Subject は完全一致させる。** 1 文字でも違うと `signtool` が失敗する。`AppxManifest.xml` の `Identity/@Publisher` は `$Publisher$` で、`build.ps1` が署名に使う証明書の Subject（既定は自己署名の `CN=Dockyard Dev`）を入れる。Publisher が変わるとパッケージファミリー名も変わり、別のアプリとして入る。
+- **未署名の MSIX では Dockyard は入らない。** `Add-AppxPackage -AllowUnsigned` は、実行ファイルを起動するアプリを含むパッケージを拒否する（0x80073D2B）。インストールの確認（`installer/test.ps1`）は署名付きで行う。
 - **未署名の .msix はインストールできない。** 自己署名証明書は `Cert:\CurrentUser\My` に作って署名に使うが、インストールする側では `Cert:\LocalMachine\TrustedPeople` に入れて信頼させる必要がある（管理者権限が要る）。
 - **`runFullTrust` と `Windows.FullTrustApplication` は外せない。** Dockyard は他のアプリのウィンドウを `SetWindowPos` で動かし WinEvent をフックするので、サンドボックス（AppContainer）では動かない。
 - **.NET ランタイムへの依存はマニフェストに書けない。** framework-dependent で publish しているので、.NET 10 Desktop Runtime がない PC では起動時に .NET 側のダイアログが出るだけになる。
