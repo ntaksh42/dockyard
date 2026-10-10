@@ -352,9 +352,14 @@ public partial class GroupWindow : Window, IGroupView
 
             menu.IsOpen = true;
         };
-        // Added first so it keeps its room when the tabs overflow; over a member it follows the tabs instead.
+        var settings = new Button { Content = "", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 12,
+            Width = vertical ? double.NaN : 28, Height = vertical ? 28 : double.NaN, BorderThickness = new Thickness(0),
+            Background = overMember ? TabBarBrush : Brushes.Transparent, ToolTip = "Settings" };
+        settings.Click += (_, _) => SettingsRequested?.Invoke();
+        // Added first so they keep their room when the tabs overflow; over a member they follow the tabs instead.
         DockPanel.SetDock(add, vertical ? Dock.Bottom : overMember ? Dock.Left : Dock.Right);
-        if (!overMember) bar.Children.Add(add);
+        DockPanel.SetDock(settings, DockPanel.GetDock(add));
+        if (!overMember) { bar.Children.Add(settings); bar.Children.Add(add); }
 
         foreach (var h in pane.Windows)
         {
@@ -392,7 +397,7 @@ public partial class GroupWindow : Window, IGroupView
             DockPanel.SetDock(tab, vertical ? Dock.Top : Dock.Left);
             bar.Children.Add(tab);
         }
-        if (overMember) bar.Children.Add(add);
+        if (overMember) { bar.Children.Add(add); bar.Children.Add(settings); }
         return bar;
     }
 
