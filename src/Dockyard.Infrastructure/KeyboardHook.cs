@@ -14,7 +14,6 @@ public enum KeyModifiers { None = 0, Ctrl = 1, Alt = 2, Shift = 4, Win = 8 }
 public sealed class KeyboardHook : IDisposable
 {
     private const int VK_SHIFT = 0x10, VK_CONTROL = 0x11, VK_MENU = 0x12, VK_LWIN = 0x5B, VK_RWIN = 0x5C;
-    private const uint LLKHF_INJECTED = 0x10;
 
     private readonly MouseHookProc _proc; // kept alive so the GC does not collect the callback
     private readonly nint _hook;
@@ -36,7 +35,9 @@ public sealed class KeyboardHook : IDisposable
             try
             {
                 var key = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(data);
-                if ((key.flags & LLKHF_INJECTED) != 0) return CallNextHookEx(_hook, code, message, data);
+                // Only our own synthetic keys are skipped: keys remapped by tools such as PowerToys or AutoHotkey
+                // arrive injected too, and must still work as shortcuts.
+                if (key.extraInfo == OwnInput) return CallNextHookEx(_hook, code, message, data);
                 var down = message is 0x0100 or 0x0104; // WM_KEYDOWN, WM_SYSKEYDOWN
                 // The key-up of a key we took goes too, or the app would see a release without a press.
                 if (!down && _swallowed.Remove(key.vkCode)) return 1;
@@ -45,8 +46,7 @@ public sealed class KeyboardHook : IDisposable
                 {
                     _swallowed.Add(key.vkCode);
                     // Releasing Win after a combination Windows did not see would open the Start menu.
-                    keybd_event(0xE8, 0, 0, 0);
-                    keybd_event(0xE8, 0, 2 /* KEYEVENTF_KEYUP */, 0);
+                    SendDummyKey();
                     return 1;
                 }
                 if (down && _swallowed.Contains(key.vkCode)) return 1;

@@ -89,6 +89,19 @@ public static class Native
     [DllImport("user32.dll")] public static extern nint GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(nint hwnd);
     [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, nuint extraInfo);
+
+    /// <summary>Marks the key presses Dockyard sends itself, so its keyboard hook can tell them apart.</summary>
+    public const nuint OwnInput = 0x444B5944; // "DKYD"
+
+    /// <summary>
+    /// A press of an unassigned key: makes this process the one that received the last input, and keeps a
+    /// release of Win from opening the Start menu.
+    /// </summary>
+    public static void SendDummyKey()
+    {
+        keybd_event(0xE8, 0, 0, OwnInput);
+        keybd_event(0xE8, 0, 2 /* KEYEVENTF_KEYUP */, OwnInput);
+    }
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT point);
     [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] public static extern nint SetWindowLongPtr(nint hwnd, int index, nint value);

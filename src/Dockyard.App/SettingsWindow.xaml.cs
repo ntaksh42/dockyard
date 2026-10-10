@@ -44,19 +44,8 @@ internal partial class SettingsWindow : Window
         {
             if (_capturing is null) return;
             e.Handled = true;
-            var key = e.Key == Key.System ? e.SystemKey : e.Key;
-            if (key == Key.Escape)
-            {
-                StopCapture();
-                return;
-            }
-            // Keys the hook did not take (e.g. synthetic input) still arrive here, at least those without Win.
-            var modifiers = (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) ? KeyModifiers.Ctrl : 0) |
-                (Keyboard.Modifiers.HasFlag(ModifierKeys.Alt) ? KeyModifiers.Alt : 0) |
-                (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? KeyModifiers.Shift : 0) |
-                (Keyboard.Modifiers.HasFlag(ModifierKeys.Windows) ? KeyModifiers.Win : 0);
-            var isModifier = key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin;
-            if (!isModifier && (modifiers & ~KeyModifiers.Shift) != 0) Capture(new ShortcutKey(modifiers, KeyInterop.VirtualKeyFromKey(key)));
+            // Shortcut keys come from the keyboard hook (see IsCapturing); here only Esc, which cancels.
+            if (e.Key == Key.Escape) StopCapture();
         };
     }
 

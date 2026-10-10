@@ -32,8 +32,7 @@ public sealed class Win32WindowSystem : IWindowSystem
         if (SetForegroundWindow(window)) return;
         // Windows only hands the foreground to the process that received the last input. A synthetic press of
         // an unassigned key makes that this process.
-        keybd_event(0xE8, 0, 0, 0);
-        keybd_event(0xE8, 0, 2 /* KEYEVENTF_KEYUP */, 0);
+        SendDummyKey();
         SetForegroundWindow(window);
     }
 
