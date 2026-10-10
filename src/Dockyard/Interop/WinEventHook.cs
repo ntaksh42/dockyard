@@ -17,12 +17,20 @@ internal sealed class WinEventHook : IDisposable
     {
         _proc = OnEvent;
         foreach (var e in Events)
-            _hooks.Add(SetWinEventHook(e, e, 0, _proc, 0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS));
+        {
+            // Foreground changes can be attributed to this process (e.g. when it is the one giving up the
+            // foreground), and SKIPOWNPROCESS then drops them. Our own windows are filtered out by the receiver.
+            var flags = e == EVENT_SYSTEM_FOREGROUND ? WINEVENT_OUTOFCONTEXT : WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS;
+            _hooks.Add(SetWinEventHook(e, e, 0, _proc, 0, 0, flags));
+        }
     }
 
     private void OnEvent(nint hook, uint eventType, nint hwnd, int idObject, int idChild, uint thread, uint time)
     {
-        if (hwnd == 0 || idObject != OBJID_WINDOW || idChild != CHILDID_SELF) return;
+        if (eventType == EVENT_SYSTEM_FOREGROUND) Log.Trace($"raw foreground hwnd=0x{hwnd:X} obj={idObject} child={idChild}");
+        // Object events fire for every child element too; only the window itself matters. System events
+        // (foreground, move/size) always concern the window, and console windows report them with other ids.
+        if (hwnd == 0 || (eventType >= 0x8000 && (idObject != OBJID_WINDOW || idChild != CHILDID_SELF))) return;
         // This runs inside a native callback: an exception escaping here kills the process outright,
         // without reaching WPF's unhandled-exception handler.
         try

@@ -8,6 +8,22 @@ internal static class Log
     public static string FilePath { get; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Dockyard", "dockyard.log");
 
+    private static readonly bool Tracing = Environment.GetEnvironmentVariable("DOCKYARD_TRACE") == "1";
+
+    /// <summary>Diagnostic trace, written only when DOCKYARD_TRACE=1.</summary>
+    public static void Trace(string message)
+    {
+        if (!Tracing) return;
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+            File.AppendAllText(Path.ChangeExtension(FilePath, ".trace.log"), $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}");
+        }
+        catch (IOException)
+        {
+        }
+    }
+
     public static void Error(string context, Exception ex)
     {
         try

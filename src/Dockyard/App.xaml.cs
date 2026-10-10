@@ -10,6 +10,8 @@ public partial class App : Application
     private WinEventHook? _hook;
     private Forms.NotifyIcon? _tray;
     private int _groupCount;
+    private nint _lastForeground;
+    private readonly System.Windows.Threading.DispatcherTimer _foregroundPoll = new() { Interval = TimeSpan.FromMilliseconds(200) };
 
     public static bool IsGrouped(nint hwnd) => ((App)Current)._groups.Any(g => g.Owns(hwnd));
 
@@ -31,7 +33,21 @@ public partial class App : Application
         };
 
         _hook = new WinEventHook();
-        _hook.WindowEvent += (evt, hwnd) => _groups.FirstOrDefault(g => g.Owns(hwnd))?.OnMemberEvent(evt, hwnd);
+        _hook.WindowEvent += (evt, hwnd) =>
+        {
+            if (evt == Native.EVENT_SYSTEM_FOREGROUND) _lastForeground = hwnd;
+            _groups.FirstOrDefault(g => g.Owns(hwnd))?.OnMemberEvent(evt, hwnd);
+        };
+        // Safety net: Windows does not always deliver EVENT_SYSTEM_FOREGROUND (seen when switching between
+        // console windows). Without it a clicked member comes forward alone and the rest of its group stays behind.
+        _foregroundPoll.Tick += (_, _) =>
+        {
+            var fg = Native.GetForegroundWindow();
+            if (fg == _lastForeground) return;
+            _lastForeground = fg;
+            _groups.FirstOrDefault(g => g.Owns(fg))?.OnMemberEvent(Native.EVENT_SYSTEM_FOREGROUND, fg);
+        };
+        _foregroundPoll.Start();
 
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("新しいグループ", null, (_, _) => NewGroup());

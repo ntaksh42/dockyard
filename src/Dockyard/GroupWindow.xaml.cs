@@ -49,6 +49,8 @@ public partial class GroupWindow : Window
     private bool _dragUpdatePending;
     private bool _raising;
     private bool _closing;
+    /// <summary>The open window picker. Tabs must stay below it, so raising starts there instead of at the top.</summary>
+    private WindowPicker? _picker;
 
     public GroupWindow(string name)
     {
@@ -64,6 +66,8 @@ public partial class GroupWindow : Window
         };
         LocationChanged += (_, _) => SyncWindows(raise: false);
         Surface.SizeChanged += (_, _) => Refresh(raise: false);
+        // The maximized window rect is only final after the state change; re-measure the overhang on resize.
+        SizeChanged += (_, _) => UpdateMaximizedMargin();
         // Windows finishes bringing the frame to the top after Activated fires; raise the tabs once it has.
         Activated += (_, _) => Dispatcher.BeginInvoke(() => Raise(null), DispatcherPriority.Input);
         StateChanged += OnStateChanged;
@@ -75,6 +79,7 @@ public partial class GroupWindow : Window
         };
         Surface.MouseMove += Surface_MouseMove;
         Surface.MouseLeftButtonUp += (_, _) => { _dragging = null; Surface.ReleaseMouseCapture(); };
+        Surface.LostMouseCapture += (_, _) => _dragging = null;
         _settleTimer.Tick += (_, _) => { _settleTimer.Stop(); CheckSettled(); };
     }
 
@@ -84,7 +89,8 @@ public partial class GroupWindow : Window
 
     public void OnMemberEvent(uint evt, nint hwnd)
     {
-        var m = _members[hwnd];
+        if (_closing || !_members.TryGetValue(hwnd, out var m)) return;
+        if (evt != EVENT_OBJECT_LOCATIONCHANGE) Log.Trace($"event 0x{evt:X} {m.Title}");
         switch (evt)
         {
             case EVENT_SYSTEM_FOREGROUND:
@@ -146,6 +152,7 @@ public partial class GroupWindow : Window
                 _members.Remove(hwnd);
                 _tree.Remove(hwnd);
                 Refresh(raise: false);
+                RestackAtFrame();
                 break;
         }
     }
@@ -157,8 +164,10 @@ public partial class GroupWindow : Window
 
     private void Adopt(nint hwnd, Pane pane, DockSide? side)
     {
+        // The modal picker pumps events: the window or its target pane may have gone away.
+        if (_closing || !IsWindow(hwnd) || App.IsGrouped(hwnd) || !_tree.Panes.Contains(pane)) return;
         if (IsIconic(hwnd) || IsZoomed(hwnd)) ShowWindow(hwnd, SW_RESTORE);
-        GetWindowRect(hwnd, out var original);
+        if (!GetWindowRect(hwnd, out var original)) return;
         _members[hwnd] = new Member(hwnd, original) { Title = GetWindowText(hwnd) };
         if (side is { } s) _tree.Split(pane, s, hwnd);
         else _tree.AddTab(pane, hwnd);
@@ -192,7 +201,9 @@ public partial class GroupWindow : Window
     private void RenderVisuals()
     {
         Surface.Children.Clear();
-        _layout = LayoutEngine.Arrange(_tree.Root, new CoreRect(0, 0, Surface.ActualWidth, Surface.ActualHeight), Metrics);
+        var bounds = new CoreRect(0, 0, Surface.ActualWidth, Surface.ActualHeight);
+        LayoutEngine.ClampAll(_tree.Root, bounds, Metrics, MinSizeOf);
+        _layout = LayoutEngine.Arrange(_tree.Root, bounds, Metrics);
 
         foreach (var p in _layout.Panes)
         {
@@ -222,8 +233,7 @@ public partial class GroupWindow : Window
             bar.MouseLeave += (_, _) => bar.Background = SplitterBrush;
             bar.MouseLeftButtonDown += (_, e) =>
             {
-                _dragging = s;
-                Surface.CaptureMouse();
+                if (Surface.CaptureMouse()) _dragging = s;
                 e.Handled = true;
             };
             Place(bar, s.Bounds);
@@ -289,7 +299,19 @@ public partial class GroupWindow : Window
     private void PickAndAdopt(Pane pane, DockSide? side)
     {
         var picker = new WindowPicker { Owner = this };
-        if (picker.ShowDialog() == true && picker.Selected is { } w) Adopt(w.Handle, pane, side);
+        _picker = picker;
+        bool picked;
+        try
+        {
+            picked = picker.ShowDialog() == true;
+        }
+        finally
+        {
+            // Cleared before adopting: the dialog's window is gone now and cannot anchor the z-order.
+            _picker = null;
+        }
+        if (picked && picker.Selected is { } w) Adopt(w.Handle, pane, side);
+        else Raise(_lastActive);
     }
 
     private void Surface_MouseMove(object sender, MouseEventArgs e)
@@ -418,18 +440,43 @@ public partial class GroupWindow : Window
     /// </summary>
     private void Raise(nint? top)
     {
-        if (_hwnd == 0 || WindowState == WindowState.Minimized) return;
+        Log.Trace($"Raise top={(top is { } x && _members.TryGetValue(x, out var tm) ? tm.Title : "-")} onScreen={IsOnScreen}");
+        if (!IsOnScreen) return;
         var actives = _tree.Panes.Select(p => p.ActiveWindow).OfType<nint>().ToList();
         if (top is { } t && actives.Remove(t)) actives.Insert(0, t);
         var order = actives.Append(_hwnd).Concat(_tree.Windows.Except(actives)).ToList();
 
         _raising = true;
-        SetWindowPos(order[0], HWND_TOP, 0, 0, 0, 0, ZOrderFlags);
+        var anchor = _picker is { } p ? new WindowInteropHelper(p).Handle : HWND_TOP;
+        SetWindowPos(order[0], anchor, 0, 0, 0, 0, ZOrderFlags);
         for (var i = 1; i < order.Count; i++) SetWindowPos(order[i], order[i - 1], 0, 0, 0, 0, ZOrderFlags);
         _raising = false;
     }
 
     private const uint ZOrderFlags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER;
+
+    /// <summary>Expose replacement tabs at the frame's current position without raising a background group.</summary>
+    private void RestackAtFrame()
+    {
+        if (!IsOnScreen) return;
+        var actives = _tree.Panes.Select(p => p.ActiveWindow).OfType<nint>().ToList();
+        if (actives.Count == 0) return;
+        _raising = true;
+        try
+        {
+            var after = _hwnd;
+            foreach (var h in actives)
+            {
+                SetWindowPos(h, after, 0, 0, 0, 0, ZOrderFlags);
+                after = h;
+            }
+            SetWindowPos(_hwnd, after, 0, 0, 0, 0, ZOrderFlags);
+        }
+        finally
+        {
+            _raising = false;
+        }
+    }
 
     /// <summary>
     /// When Windows moves the frame up in z-order (e.g. the user clicks its tab bar), put the active tabs there
@@ -440,6 +487,7 @@ public partial class GroupWindow : Window
     {
         if (msg != WM_WINDOWPOSCHANGING || _raising || !IsOnScreen) return 0;
         var pos = Marshal.PtrToStructure<WINDOWPOS>(lParam);
+        if ((pos.flags & SWP_NOZORDER) == 0) Log.Trace($"frame z-change after=0x{pos.hwndInsertAfter:X} flags=0x{pos.flags:X}");
         var actives = _tree.Panes.Select(p => p.ActiveWindow).OfType<nint>().ToList();
         if (!ZOrderPolicy.ShouldCarryTabs(pos.hwndInsertAfter, pos.flags, _members.Keys) || actives.Count == 0) return 0;
 
@@ -516,8 +564,7 @@ public partial class GroupWindow : Window
 
     private void OnStateChanged(object? sender, EventArgs e)
     {
-        // With WindowChrome a maximized window overhangs the screen by its resize border.
-        Root.Margin = WindowState == WindowState.Maximized ? SystemParameters.WindowResizeBorderThickness : new Thickness(0);
+        UpdateMaximizedMargin();
         if (WindowState == WindowState.Minimized)
         {
             foreach (var h in _members.Keys) ShowWindow(h, SW_HIDE);
@@ -527,6 +574,25 @@ public partial class GroupWindow : Window
             foreach (var h in _members.Keys) ShowWindow(h, SW_SHOWNOACTIVATE);
             Refresh(raise: true);
         }
+    }
+
+    /// <summary>
+    /// With WindowChrome a maximized window overhangs the monitor's work area. Pad the content by exactly that
+    /// overhang; SystemParameters.WindowResizeBorderThickness misses the padded border and is off by a few pixels.
+    /// </summary>
+    private void UpdateMaximizedMargin()
+    {
+        if (WindowState != WindowState.Maximized || _hwnd == 0)
+        {
+            Root.Margin = new Thickness(0);
+            return;
+        }
+        GetWindowRect(_hwnd, out var w);
+        var work = GetWorkArea(_hwnd);
+        var scale = PresentationSource.FromVisual(this)?.CompositionTarget.TransformToDevice.M11 ?? 1;
+        Root.Margin = new Thickness(
+            Math.Max(0, work.Left - w.Left) / scale, Math.Max(0, work.Top - w.Top) / scale,
+            Math.Max(0, w.Right - work.Right) / scale, Math.Max(0, w.Bottom - work.Bottom) / scale);
     }
 
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
