@@ -53,11 +53,6 @@ public partial class GroupWindow : Window, IGroupView
         SetTabBarPlacement(placement);
         _captionHide.Tick += (_, _) => HideCaptionInfoIfLeft();
 
-        SourceInitialized += (_, _) =>
-        {
-            _hwnd = new WindowInteropHelper(this).Handle;
-            HwndSource.FromHwnd(_hwnd).AddHook(WndProc);
-        };
         LocationChanged += (_, _) =>
         {
             PositionOverlay();
@@ -121,6 +116,17 @@ public partial class GroupWindow : Window, IGroupView
             _tabDragging = false;
             _dragging = null;
         };
+    }
+
+    /// <summary>
+    /// Hooks the window procedure before calling the base, which lets WindowChrome add its own hook: ours then
+    /// runs first and can take right-clicks on the caption, which WindowChrome would answer with the system menu.
+    /// </summary>
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        _hwnd = new WindowInteropHelper(this).Handle;
+        HwndSource.FromHwnd(_hwnd).AddHook(WndProc);
+        base.OnSourceInitialized(e);
     }
 
     public string GroupName
@@ -410,6 +416,12 @@ public partial class GroupWindow : Window, IGroupView
     {
         // The caption is non-client area: WPF gets no mouse events there, only the window does.
         if (msg == 0x00A0 /* WM_NCMOUSEMOVE */) ShowCaptionInfo();
+        if (msg == 0x00A5 /* WM_NCRBUTTONUP */ && wParam == 2 /* HTCAPTION */)
+        {
+            ShowCaptionMenu();
+            handled = true;
+            return 0;
+        }
         if (msg != WM_WINDOWPOSCHANGING) return 0;
         var pos = Marshal.PtrToStructure<WINDOWPOS>(lParam);
         if ((pos.flags & SWP_NOZORDER) != 0) return 0;
@@ -449,15 +461,35 @@ public partial class GroupWindow : Window, IGroupView
             Math.Max(0, w.Right - work.Right) / scale, Math.Max(0, w.Bottom - work.Bottom) / scale);
     }
 
+    /// <summary>The caption's right-click menu, so renaming and saving can be found without knowing the double-click.</summary>
+    private void ShowCaptionMenu()
+    {
+        var menu = new ContextMenu { PlacementTarget = this, Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint };
+        // After the menu has closed: it takes the keyboard focus back as it goes, which would end the rename.
+        menu.Items.Add(MenuItem("Rename Group", () => Dispatcher.BeginInvoke(BeginRename, System.Windows.Threading.DispatcherPriority.Input)));
+        menu.Items.Add(MenuItem("Save Layout", () => SaveLayoutRequested?.Invoke(this)));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(MenuItem("Settings…", () => SettingsRequested?.Invoke()));
+        menu.IsOpen = true;
+    }
+
     private void GroupChip_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ClickCount != 2 || GroupNameEdit.IsVisible) return;
+        BeginRename();
+        e.Handled = true;
+    }
+
+    private void BeginRename()
+    {
+        if (_closing || GroupNameEdit.IsVisible) return;
+        ShowCaptionInfo();
+        Activate();
         GroupNameEdit.Text = GroupName;
         GroupNameText.Visibility = Visibility.Hidden;
         GroupNameEdit.Visibility = Visibility.Visible;
         GroupNameEdit.Focus();
         GroupNameEdit.SelectAll();
-        e.Handled = true;
     }
 
     private void GroupNameEdit_KeyDown(object sender, KeyEventArgs e)
