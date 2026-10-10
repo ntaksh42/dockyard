@@ -250,8 +250,12 @@ public partial class App : System.Windows.Application
 
     private GroupWindow NewGroup(string? name = null, PixelRect? bounds = null)
     {
-        var g = new GroupWindow(name ?? $"Group {++_groupCount}", _windows, IsGrouped, _settings.TabBarPlacement);
+        var g = new GroupWindow(name ?? $"Group {++_groupCount}", _windows, IsGrouped, _settings.TabBarPlacement)
+        {
+            SavedLayouts = () => JsonFile.Read<List<SavedGroup>>(LayoutsFile) ?? [],
+        };
         g.SaveLayoutRequested += SaveLayout;
+        g.OpenLayoutRequested += (target, saved) => OpenLayout(saved, target);
         g.Controller.Changed += RequestSessionSave;
         g.LocationChanged += (_, _) => RequestSessionSave();
         g.TabDragStarted += (source, window) => _dockDrag.Begin(window, source);
@@ -281,20 +285,24 @@ public partial class App : System.Windows.Application
     {
         if (_layoutsWindow is null)
         {
-            _layoutsWindow = new LayoutsWindow(LayoutsFile, OpenLayout);
+            _layoutsWindow = new LayoutsWindow(LayoutsFile, saved => OpenLayout(saved));
             _layoutsWindow.Closed += (_, _) => _layoutsWindow = null;
             _layoutsWindow.Show();
         }
         _layoutsWindow.Activate();
     }
 
-    /// <summary>Opens a saved layout as a new group, filling its tabs with matching windows that are open now.</summary>
-    private void OpenLayout(SavedGroup saved)
+    /// <summary>
+    /// Opens a saved layout, filling its tabs with matching windows that are open now: into
+    /// <paramref name="into"/> if that group has no windows (keeping where it is), otherwise as a new group.
+    /// </summary>
+    private void OpenLayout(SavedGroup saved, GroupWindow? into = null)
     {
         var claimed = _groups.SelectMany(g => g.Controller.Members).ToHashSet();
         var candidates = WindowCatalog.GetCandidates().Where(w => w.Controllable)
             .Select(w => new WindowCandidate(w.Handle, w.ProcessName, w.Title)).ToList();
-        var g = NewGroup(saved.Name, saved.Bounds);
+        var g = into is not null && !into.Controller.Members.Any() ? into : NewGroup(saved.Name, saved.Bounds);
+        g.GroupName = saved.Name;
         g.Controller.RestoreLayout(saved.Layout, tab => WindowMatcher.Match(tab, candidates, claimed, sameWindowOnly: false));
     }
 

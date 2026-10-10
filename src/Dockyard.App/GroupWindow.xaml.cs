@@ -35,6 +35,9 @@ public partial class GroupWindow : Window, IGroupView
     internal event Action<bool>? TabDragEnded;
     internal event Action? SettingsRequested;
     internal event Action<GroupWindow>? SaveLayoutRequested;
+    internal event Action<GroupWindow, SavedGroup>? OpenLayoutRequested;
+    /// <summary>The saved layouts, read when a menu offering them opens.</summary>
+    internal Func<IReadOnlyList<SavedGroup>> SavedLayouts { get; init; } = () => [];
     /// <summary>The open window picker. Tabs must stay below it, so raising starts there instead of at the top.</summary>
     private WindowPicker? _picker;
     /// <summary>Draws the tab bars above the member windows with tab bar placement B; null otherwise.</summary>
@@ -293,6 +296,7 @@ public partial class GroupWindow : Window, IGroupView
             menu.Items.Add(MenuItem("Split Right…", () => PickAndAdopt(pane, DockSide.Right)));
             menu.Items.Add(MenuItem("Split Down…", () => PickAndAdopt(pane, DockSide.Bottom)));
             menu.Items.Add(new Separator());
+            menu.Items.Add(OpenLayoutMenu());
             menu.Items.Add(MenuItem("Settings…", () => SettingsRequested?.Invoke()));
 
             menu.IsOpen = true;
@@ -468,6 +472,7 @@ public partial class GroupWindow : Window, IGroupView
         // After the menu has closed: it takes the keyboard focus back as it goes, which would end the rename.
         menu.Items.Add(MenuItem("Rename Group", () => Dispatcher.BeginInvoke(BeginRename, System.Windows.Threading.DispatcherPriority.Input)));
         menu.Items.Add(MenuItem("Save Layout", () => SaveLayoutRequested?.Invoke(this)));
+        menu.Items.Add(OpenLayoutMenu());
         menu.Items.Add(new Separator());
         menu.Items.Add(MenuItem("Settings…", () => SettingsRequested?.Invoke()));
         menu.IsOpen = true;
@@ -562,6 +567,16 @@ object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
+
+    /// <summary>Saved layouts to open: into this group while it has no windows, otherwise as a new group.</summary>
+    private MenuItem OpenLayoutMenu()
+    {
+        var open = new MenuItem { Header = "Open Layout" };
+        foreach (var layout in SavedLayouts().OrderBy(l => l.Name, StringComparer.CurrentCultureIgnoreCase))
+            open.Items.Add(MenuItem(layout.Name, () => OpenLayoutRequested?.Invoke(this, layout)));
+        if (open.Items.Count == 0) open.Items.Add(new MenuItem { Header = "(No saved layouts)", IsEnabled = false });
+        return open;
+    }
 
     private static MenuItem MenuItem(string header, Action action)
     {
