@@ -18,7 +18,11 @@ internal static class Autostart
     {
         try
         {
-            if (!IsPackaged) return Registry.CurrentUser.OpenSubKey(RunKey)?.GetValue("Dockyard") is not null;
+            if (!IsPackaged)
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(RunKey);
+                return key?.GetValue("Dockyard") is not null;
+            }
             var task = await StartupTask.GetAsync(TaskId);
             return task.State is StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy;
         }

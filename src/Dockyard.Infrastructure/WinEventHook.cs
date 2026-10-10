@@ -37,6 +37,8 @@ public sealed class WinEventHook : IDisposable
         _proc = OnEvent;
         _mouseProc = OnMouse;
         _mouseHook = SetWindowsHookEx(14 /* WH_MOUSE_LL */, _mouseProc, 0, 0);
+        // Without it Shift-dragging a title bar does nothing; the rest still works, so log and go on.
+        if (_mouseHook == 0) Log.Error("Mouse hook", new System.ComponentModel.Win32Exception());
         foreach (var e in Events.Keys)
         {
             // Foreground changes can be attributed to this process (e.g. when it is the one giving up the

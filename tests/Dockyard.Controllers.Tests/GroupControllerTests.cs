@@ -455,6 +455,65 @@ public class GroupControllerTests
     }
 
     [Fact]
+    public void TabNumberShortcuts_GoToThatTab_AndTheLastNumberToTheLastTab()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.Adopt(Window(B), RootPane, null);
+        _c.Adopt(Window(C), RootPane, null);
+
+        _c.Execute(ShortcutAction.Tab1, C);
+        Assert.Equal(A, RootPane.ActiveWindow);
+        _c.Execute(ShortcutAction.Tab9, A);
+        Assert.Equal(C, RootPane.ActiveWindow);
+        Assert.Equal(C, _ws.Focused);
+        _c.Execute(ShortcutAction.Tab5, C);
+        Assert.Equal(C, RootPane.ActiveWindow);
+    }
+
+    [Fact]
+    public void MoveTabShortcut_MovesTheTabIntoTheNeighbourPane()
+    {
+        SplitAC();
+
+        _c.Execute(ShortcutAction.MoveTabRight, A);
+
+        Assert.Equal([C, A], Assert.Single(_c.Layout!.Panes).Pane.Windows);
+        Assert.Equal(A, _ws.Focused);
+        AssertPlaced(A);
+    }
+
+    [Fact]
+    public void MoveTabShortcut_WithoutANeighbour_SplitsTheTabOff()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.Adopt(Window(B), RootPane, null);
+
+        _c.Execute(ShortcutAction.MoveTabDown, B);
+
+        Assert.Equal(2, _c.Layout!.Panes.Count);
+        Assert.True(PaneOf(B).Bounds.Y > PaneOf(A).Bounds.Y);
+        // A lone tab has nowhere to go.
+        _c.Execute(ShortcutAction.MoveTabDown, B);
+        Assert.Equal(2, _c.Layout!.Panes.Count);
+    }
+
+    [Fact]
+    public void PaneSizeShortcuts_MoveTheDividerForThatPane()
+    {
+        SplitAC();
+        var width = PaneOf(A).Bounds.Width;
+
+        _c.Execute(ShortcutAction.GrowPane, A);
+        Assert.True(PaneOf(A).Bounds.Width > width);
+        _c.Execute(ShortcutAction.GrowPane, C);
+        _c.Execute(ShortcutAction.GrowPane, C);
+        Assert.True(PaneOf(A).Bounds.Width < width);
+        _c.Execute(ShortcutAction.ShrinkPane, C);
+        AssertPlaced(A);
+        AssertPlaced(C);
+    }
+
+    [Fact]
     public void RemoveShortcut_ReleasesTheWindowToItsOriginalBounds()
     {
         SplitAC();
@@ -472,12 +531,32 @@ public class GroupControllerTests
     [InlineData(0x27, true, ShortcutAction.FocusRight)]
     [InlineData(0x28, true, ShortcutAction.FocusDown)]
     [InlineData(0x57, false, ShortcutAction.RemoveFromGroup)]
-    [InlineData(0x26, false, null)]
-    [InlineData(0x57, true, null)]
+    [InlineData(0x26, false, ShortcutAction.MaximizeGroup)]
+    [InlineData(0x57, true, ShortcutAction.CloseGroup)]
+    [InlineData(0x31, false, ShortcutAction.Tab1)]
+    [InlineData(0x31, true, null)]
+    [InlineData(0x41, false, null)]
     public void Shortcuts_DefaultsMapKeys(int key, bool shift, ShortcutAction? expected)
     {
         var modifiers = KeyModifiers.Ctrl | KeyModifiers.Alt | (shift ? KeyModifiers.Shift : 0);
         Assert.Equal(expected, Shortcuts.Match(Shortcuts.Defaults, key, modifiers));
+    }
+
+    [Fact]
+    public void Shortcuts_AKeyTheUserChoseWinsOverANewDefault()
+    {
+        var bindings = Shortcuts.Load(new Dictionary<string, string> { ["NextTab"] = "Ctrl+Alt+S" });
+
+        Assert.Equal(ShortcutAction.NextTab, Shortcuts.Match(bindings, 0x53, KeyModifiers.Ctrl | KeyModifiers.Alt));
+        Assert.False(bindings.ContainsKey(ShortcutAction.SaveLayout));
+        Assert.True(bindings.ContainsKey(ShortcutAction.RenameGroup));
+    }
+
+    [Fact]
+    public void Shortcuts_DefaultsAreAllDistinctAndNamed()
+    {
+        Assert.Equal(Shortcuts.Defaults.Count, Shortcuts.Defaults.Values.Distinct().Count());
+        Assert.All(Enum.GetValues<ShortcutAction>(), a => Assert.True(Shortcuts.Defaults.ContainsKey(a) && Shortcuts.Names.ContainsKey(a), a.ToString()));
     }
 
     [Theory]

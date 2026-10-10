@@ -81,6 +81,7 @@ internal sealed class FakeWindowSystem : IWindowSystem
 
     public void SetBounds(nint window, PixelRect bounds)
     {
+        Windows[window].Visible = true;
         Windows[window].Bounds = bounds;
         ZOrder.Remove(window);
         ZOrder.Insert(0, window);

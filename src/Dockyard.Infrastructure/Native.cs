@@ -60,7 +60,7 @@ public static class Native
     public static readonly nint HWND_TOP = 0, HWND_TOPMOST = -1, HWND_NOTOPMOST = -2;
 
     public const uint SWP_NOSIZE = 0x0001, SWP_NOMOVE = 0x0002, SWP_NOZORDER = 0x0004, SWP_NOACTIVATE = 0x0010,
-        SWP_HIDEWINDOW = 0x0080, SWP_NOOWNERZORDER = 0x0200, SWP_ASYNCWINDOWPOS = 0x4000;
+        SWP_SHOWWINDOW = 0x0040, SWP_HIDEWINDOW = 0x0080, SWP_NOOWNERZORDER = 0x0200, SWP_ASYNCWINDOWPOS = 0x4000;
 
     public const int SW_HIDE = 0, SW_SHOWNOACTIVATE = 4, SW_RESTORE = 9;
 
@@ -110,7 +110,7 @@ public static class Native
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(nint hwnd, StringBuilder text, int max);
     [DllImport("user32.dll")] public static extern nint SetWinEventHook(uint min, uint max, nint module, WinEventProc proc, uint pid, uint thread, uint flags);
     [DllImport("user32.dll")] public static extern bool UnhookWinEvent(nint hook);
-    [DllImport("user32.dll")] public static extern nint SetWindowsHookEx(int hook, MouseHookProc proc, nint module, uint thread);
+    [DllImport("user32.dll", SetLastError = true)] public static extern nint SetWindowsHookEx(int hook, MouseHookProc proc, nint module, uint thread);
     [DllImport("user32.dll")] public static extern bool UnhookWindowsHookEx(nint hook);
     [DllImport("user32.dll")] public static extern nint CallNextHookEx(nint hook, int code, nint message, nint data);
     [DllImport("user32.dll")] public static extern nint WindowFromPoint(POINT point);

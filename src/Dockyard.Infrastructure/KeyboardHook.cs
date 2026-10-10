@@ -13,7 +13,7 @@ public enum KeyModifiers { None = 0, Ctrl = 1, Alt = 2, Shift = 4, Win = 8 }
 /// </summary>
 public sealed class KeyboardHook : IDisposable
 {
-    private const int VK_SHIFT = 0x10, VK_CONTROL = 0x11, VK_MENU = 0x12, VK_LWIN = 0x5B, VK_RWIN = 0x5C;
+    private const int VK_SHIFT = 0x10, VK_LWIN = 0x5B, VK_RWIN = 0x5C, VK_LCONTROL = 0xA2, VK_RCONTROL = 0xA3, VK_LMENU = 0xA4, VK_RMENU = 0xA5;
 
     private readonly MouseHookProc _proc; // kept alive so the GC does not collect the callback
     private readonly nint _hook;
@@ -26,6 +26,7 @@ public sealed class KeyboardHook : IDisposable
     {
         _proc = OnKey;
         _hook = SetWindowsHookEx(13 /* WH_KEYBOARD_LL */, _proc, 0, 0);
+        if (_hook == 0) Log.Error("Keyboard hook", new System.ComponentModel.Win32Exception());
     }
 
     private nint OnKey(int code, nint message, nint data)
@@ -59,9 +60,17 @@ public sealed class KeyboardHook : IDisposable
 
     private static bool IsDown(int key) => (GetAsyncKeyState(key) & 0x8000) != 0;
 
-    private static KeyModifiers Modifiers() =>
-        (IsDown(VK_CONTROL) ? KeyModifiers.Ctrl : 0) | (IsDown(VK_MENU) ? KeyModifiers.Alt : 0) |
-        (IsDown(VK_SHIFT) ? KeyModifiers.Shift : 0) | (IsDown(VK_LWIN) || IsDown(VK_RWIN) ? KeyModifiers.Win : 0);
+    /// <summary>
+    /// The modifiers held. The right Alt key does not count, nor the left Ctrl key with it: on many layouts that
+    /// is AltGr, which Windows reports as Ctrl+Alt, and AltGr with a key types a character (AltGr+8 is "[" on a
+    /// German keyboard) that must not turn into a Ctrl+Alt shortcut.
+    /// </summary>
+    private static KeyModifiers Modifiers()
+    {
+        var altGr = IsDown(VK_RMENU);
+        return (IsDown(VK_RCONTROL) || (IsDown(VK_LCONTROL) && !altGr) ? KeyModifiers.Ctrl : 0) | (IsDown(VK_LMENU) ? KeyModifiers.Alt : 0) |
+            (IsDown(VK_SHIFT) ? KeyModifiers.Shift : 0) | (IsDown(VK_LWIN) || IsDown(VK_RWIN) ? KeyModifiers.Win : 0);
+    }
 
 
     public void Dispose()

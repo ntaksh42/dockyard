@@ -28,6 +28,8 @@ public partial class GroupWindow : Window, IGroupView
     private readonly IWindowSystem _windows;
     /// <summary>Live thumbnails of the active tabs, by window, drawn while the frame moves or resizes (see BeginLive).</summary>
     private readonly Dictionary<nint, nint> _thumbnails = [];
+    /// <summary>Each pane's "+" button as last built, where the keyboard opens that pane's menu.</summary>
+    private readonly Dictionary<Pane, Button> _addButtons = [];
     /// <summary>Where each thumbnail was last put: moving the frame leaves it unchanged, and DWM need not hear it again.</summary>
     private readonly Dictionary<nint, (RECT Destination, RECT Source)> _thumbnailPlaces = [];
     /// <summary>Ends the live view once the frame has been still for a moment, so the apps have repainted at their final size.</summary>
@@ -221,6 +223,7 @@ public partial class GroupWindow : Window, IGroupView
         _visualSplits = snapshot.Layout.Splitters.Select(s => s.Split).ToList();
         _rendered = snapshot.Layout;
         _visuals.Clear();
+        _addButtons.Clear();
         Surface.Children.Clear();
         _overlaySurface?.Children.Clear();
         for (var i = 0; i < snapshot.Layout.Panes.Count; i++)
@@ -275,10 +278,26 @@ public partial class GroupWindow : Window, IGroupView
     {
         var vertical = Controller.Metrics.TabBarPlacement == TabBarPlacement.Left;
         return string.Join("|", snapshot.Layout.Panes.Select(p =>
-                $"{p.Placement}/{p.Pane.ActiveIndex}/{(vertical ? p.TabBar.Width : 0)}/" +
+                $"{p.Placement}/{p.Pane.ActiveIndex}/{(vertical ? p.TabBar.Width : 0)}/{TabSize(p.TabBar, p.Pane.Windows.Count, vertical)}/" +
                 string.Join(",", p.Pane.Windows.Select(h => $"{h}={snapshot.Titles[h]}")) + "/" +
                 (snapshot.Waiting.TryGetValue(p.Pane, out var waiting) ? string.Join(",", waiting.Select(t => $"{t.ProcessName}={t.Title}")) : ""))) +
             $"#{snapshot.Layout.Splitters.Count}#{_overlaySurface is not null}";
+    }
+
+    private const double TabTitleWidth = 200, TabChrome = 36, TabHeight = 28, TabBarButton = 28;
+
+    /// <summary>
+    /// How much room each tab gets along the bar: the title's width in a horizontal bar, the tab's height in a
+    /// vertical one. Tabs shrink evenly once they no longer all fit, so none is pushed out of sight. Rounded, so
+    /// that resizing a frame whose tabs fit anyway rebuilds nothing.
+    /// </summary>
+    private static double TabSize(DomainRect bar, int tabs, bool vertical)
+    {
+        if (tabs == 0) return 0;
+        var room = (vertical ? bar.Height : bar.Width) - 2 * TabBarButton;
+        return vertical
+            ? Math.Clamp(Math.Floor(room / tabs) - 1, 18, TabHeight)
+            : Math.Clamp(Math.Floor((room / tabs - TabChrome) / 8) * 8, 24, TabTitleWidth);
     }
 
     /// <summary>Window switchers such as Waypoint list the frame under this title (Q5).</summary>
@@ -338,31 +357,39 @@ public partial class GroupWindow : Window, IGroupView
     private FrameworkElement BuildTabBar(Pane pane, IReadOnlyDictionary<nint, string> titles, DomainRect bounds, bool overMember)
     {
         var vertical = Controller.Metrics.TabBarPlacement == TabBarPlacement.Left;
-        var bar = new DockPanel { Background = overMember ? null : TabBarBrush, LastChildFill = false };
+        // Over a member the bar ends after its buttons, leaving the app's own caption buttons uncovered.
+        var bar = new DockPanel { Background = overMember ? null : TabBarBrush, LastChildFill = !overMember };
+        // Tabs shrink first (TabSize); past their smallest the strip scrolls, with the wheel, to the active tab.
+        var strip = new StackPanel { Orientation = vertical ? System.Windows.Controls.Orientation.Vertical : System.Windows.Controls.Orientation.Horizontal };
+        var scroller = new ScrollViewer
+        {
+            Content = strip,
+            Focusable = false,
+            HorizontalScrollBarVisibility = vertical ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Hidden,
+            VerticalScrollBarVisibility = vertical ? ScrollBarVisibility.Hidden : ScrollBarVisibility.Disabled,
+        };
+        // Over a member the buttons follow the tabs: keep them room as the bar is resized (it is moved, not rebuilt).
+        if (overMember) bar.SizeChanged += (_, e) => scroller.MaxWidth = Math.Max(0, e.NewSize.Width - 2 * TabBarButton);
+        scroller.PreviewMouseWheel += (_, e) =>
+        {
+            if (vertical) scroller.ScrollToVerticalOffset(scroller.VerticalOffset - e.Delta / 3.0);
+            else scroller.ScrollToHorizontalOffset(scroller.HorizontalOffset - e.Delta / 3.0);
+            e.Handled = true;
+        };
+        DockPanel.SetDock(scroller, vertical ? Dock.Top : Dock.Left);
 
+        var tabSize = TabSize(bounds, pane.Windows.Count, vertical);
         var add = new Button { Content = "+", FontSize = 16, Width = vertical ? double.NaN : 28, Height = vertical ? 28 : double.NaN, BorderThickness = new Thickness(0),
             Background = overMember ? TabBarBrush : Brushes.Transparent, ToolTip = "Add Window" };
         System.Windows.Automation.AutomationProperties.SetName(add, "Add Window or Layout");
-        // Built on click: tab bars are rebuilt on every layout change, including each step of a drag.
-        add.Click += (_, _) =>
-        {
-            var menu = new ContextMenu { PlacementTarget = add, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
-            menu.Items.Add(MenuItem("Add as Tab…", () => PickAndAdopt(pane, null)));
-            menu.Items.Add(MenuItem("Split Right…", () => PickAndAdopt(pane, DockSide.Right)));
-            menu.Items.Add(MenuItem("Split Down…", () => PickAndAdopt(pane, DockSide.Bottom)));
-            menu.Items.Add(new Separator());
-            menu.Items.Add(OpenLayoutMenu());
-            menu.Items.Add(ShortcutsMenu());
-            menu.Items.Add(MenuItem("Settings…", () => SettingsRequested?.Invoke()));
-
-            menu.IsOpen = true;
-        };
+        add.Click += (_, _) => OpenPaneMenu(pane, add);
+        _addButtons[pane] = add;
         var settings = new Button { Content = "", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 12,
             Width = vertical ? double.NaN : 28, Height = vertical ? 28 : double.NaN, BorderThickness = new Thickness(0),
             Background = overMember ? TabBarBrush : Brushes.Transparent, ToolTip = "Settings" };
         settings.Click += (_, _) => SettingsRequested?.Invoke();
         System.Windows.Automation.AutomationProperties.SetName(settings, "Settings");
-        // Added first so they keep their room when the tabs overflow; over a member they follow the tabs instead.
+        // Added before the tabs so they keep their room; over a member they follow the tabs instead.
         DockPanel.SetDock(add, vertical ? Dock.Bottom : overMember ? Dock.Left : Dock.Right);
         DockPanel.SetDock(settings, DockPanel.GetDock(add));
         if (!overMember) { bar.Children.Add(settings); bar.Children.Add(add); }
@@ -379,7 +406,7 @@ public partial class GroupWindow : Window, IGroupView
                 BorderThickness = vertical ? new Thickness(active ? 2 : 0, 0, 0, 0) : new Thickness(0, active ? 2 : 0, 0, 0),
                 Padding = new Thickness(10, 0, 4, 0),
                 Margin = vertical ? new Thickness(0, 0, 0, 1) : new Thickness(0, 0, 1, 0),
-                Height = vertical ? 28 : double.NaN,
+                Height = vertical ? tabSize : double.NaN,
                 // Titles are cut short in the tab: the whole one on hover.
                 ToolTip = titles[h],
                 Child = new StackPanel
@@ -388,7 +415,7 @@ public partial class GroupWindow : Window, IGroupView
                     VerticalAlignment = VerticalAlignment.Center,
                     Children =
                     {
-                        new TextBlock { Text = titles[h], MaxWidth = vertical ? Math.Max(0, bounds.Width - 40) : 200, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, FontSize = 12 },
+                        new TextBlock { Text = titles[h], MaxWidth = vertical ? Math.Max(0, bounds.Width - 40) : tabSize, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, FontSize = 12 },
                         close,
                     },
                 },
@@ -402,9 +429,10 @@ public partial class GroupWindow : Window, IGroupView
                 if (Surface.CaptureMouse()) _tabWindow = h;
                 e.Handled = true;
             };
-            DockPanel.SetDock(tab, vertical ? Dock.Top : Dock.Left);
-            bar.Children.Add(tab);
+            strip.Children.Add(tab);
+            if (active) tab.Loaded += (_, _) => tab.BringIntoView();
         }
+        bar.Children.Add(scroller);
         if (overMember) { bar.Children.Add(add); bar.Children.Add(settings); }
         return bar;
     }
@@ -464,6 +492,59 @@ public partial class GroupWindow : Window, IGroupView
         _overlaySurface!.LayoutTransform = Math.Abs(factor - 1) < 0.001 ? Transform.Identity : new ScaleTransform(factor, factor);
     }
 
+
+    /// <summary>The "+" menu of the pane. Built when opened: tab bars are rebuilt on every layout change, including each step of a drag.</summary>
+    private void OpenPaneMenu(Pane pane, Button anchor)
+    {
+        var menu = new ContextMenu { PlacementTarget = anchor, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        menu.Items.Add(MenuItem("Add as Tab…", () => PickAndAdopt(pane, null)));
+        menu.Items.Add(MenuItem("Split Right…", () => PickAndAdopt(pane, DockSide.Right)));
+        menu.Items.Add(MenuItem("Split Down…", () => PickAndAdopt(pane, DockSide.Bottom)));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(OpenLayoutMenu());
+        menu.Items.Add(ShortcutsMenu());
+        menu.Items.Add(MenuItem("Settings…", () => SettingsRequested?.Invoke()));
+        menu.IsOpen = true;
+    }
+
+    /// <summary>Runs a shortcut that acts on the frame (see <see cref="Shortcuts.IsFrameAction"/>).</summary>
+    internal void RunShortcut(ShortcutAction action)
+    {
+        switch (action)
+        {
+            case ShortcutAction.SaveLayout:
+                SaveLayoutRequested?.Invoke(this);
+                break;
+            case ShortcutAction.RenameGroup:
+                BeginRename();
+                break;
+            case ShortcutAction.ChangeTabBar:
+                SetTabBarPlacement(Controller.Metrics.TabBarPlacement switch
+                {
+                    TabBarPlacement.Top => TabBarPlacement.TitleBar,
+                    TabBarPlacement.TitleBar => TabBarPlacement.Left,
+                    _ => TabBarPlacement.Top,
+                });
+                break;
+            case ShortcutAction.MaximizeGroup:
+                Maximize_Click(this, new RoutedEventArgs());
+                break;
+            case ShortcutAction.MinimizeGroup:
+                WindowState = WindowState.Minimized;
+                break;
+            case ShortcutAction.CloseGroup:
+                Close();
+                break;
+            case ShortcutAction.OpenMenu:
+                // The pane of the window in use; the menu takes the keyboard, so the frame has to come forward.
+                var pane = _rendered?.Panes.FirstOrDefault(p => Controller.LastActive is { } w && p.Pane.Windows.Contains(w))?.Pane
+                    ?? _rendered?.Panes.FirstOrDefault()?.Pane;
+                if (pane is null || !_addButtons.TryGetValue(pane, out var add)) break;
+                Activate();
+                OpenPaneMenu(pane, add);
+                break;
+        }
+    }
 
     private void PickAndAdopt(Pane pane, DockSide? side)
     {

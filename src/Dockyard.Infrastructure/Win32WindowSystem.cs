@@ -52,10 +52,16 @@ public sealed class Win32WindowSystem : IWindowSystem
             SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_ASYNCWINDOWPOS);
     }
 
+    /// <summary>
+    /// Shows a released window where it was and on top. Asynchronous: this runs while Dockyard exits, and a hung
+    /// app must not keep it from putting the other windows back. The requests reach the window's thread in order.
+    /// </summary>
     public void SetBounds(nint window, PixelRect bounds)
     {
-        SetWindowPos(window, 0, bounds.Left, bounds.Top, bounds.Width, bounds.Height, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
-        BringToTop(window);
+        const uint async = SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_ASYNCWINDOWPOS;
+        SetWindowPos(window, 0, bounds.Left, bounds.Top, bounds.Width, bounds.Height, SWP_NOZORDER | SWP_SHOWWINDOW | async);
+        SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | async);
+        SetWindowPos(window, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | async);
     }
 
     public void Stack(nint after, IReadOnlyList<nint> topDown)

@@ -4,7 +4,13 @@ using Dockyard.Infrastructure;
 
 namespace Dockyard.App.Controllers;
 
-public enum ShortcutAction { PreviousTab, NextTab, FocusLeft, FocusRight, FocusUp, FocusDown, RemoveFromGroup }
+public enum ShortcutAction
+{
+    PreviousTab, NextTab, FocusLeft, FocusRight, FocusUp, FocusDown, RemoveFromGroup,
+    Tab1, Tab2, Tab3, Tab4, Tab5, Tab6, Tab7, Tab8, Tab9,
+    MoveTabLeft, MoveTabRight, MoveTabUp, MoveTabDown, GrowPane, ShrinkPane,
+    SaveLayout, RenameGroup, ChangeTabBar, MaximizeGroup, MinimizeGroup, CloseGroup, OpenMenu,
+}
 
 /// <summary>A key with the modifiers that must be held. Written as e.g. "Ctrl+Alt+Left".</summary>
 public readonly record struct ShortcutKey(KeyModifiers Modifiers, int Key)
@@ -72,6 +78,29 @@ public static class Shortcuts
         [ShortcutAction.FocusUp] = new(KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Shift, 0x26),
         [ShortcutAction.FocusDown] = new(KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Shift, 0x28),
         [ShortcutAction.RemoveFromGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x57),
+        [ShortcutAction.Tab1] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x31),
+        [ShortcutAction.Tab2] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x32),
+        [ShortcutAction.Tab3] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x33),
+        [ShortcutAction.Tab4] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x34),
+        [ShortcutAction.Tab5] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x35),
+        [ShortcutAction.Tab6] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x36),
+        [ShortcutAction.Tab7] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x37),
+        [ShortcutAction.Tab8] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x38),
+        [ShortcutAction.Tab9] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x39),
+        // Win joins Ctrl+Alt for moving a tab: Ctrl+Alt+Shift+arrows already move the focus.
+        [ShortcutAction.MoveTabLeft] = new(KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Win, 0x25),
+        [ShortcutAction.MoveTabRight] = new(KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Win, 0x27),
+        [ShortcutAction.MoveTabUp] = new(KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Win, 0x26),
+        [ShortcutAction.MoveTabDown] = new(KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Win, 0x28),
+        [ShortcutAction.GrowPane] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0xDD),
+        [ShortcutAction.ShrinkPane] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0xDB),
+        [ShortcutAction.SaveLayout] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x53),
+        [ShortcutAction.RenameGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x52),
+        [ShortcutAction.ChangeTabBar] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x42),
+        [ShortcutAction.MaximizeGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x26),
+        [ShortcutAction.MinimizeGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x28),
+        [ShortcutAction.CloseGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Shift, 0x57),
+        [ShortcutAction.OpenMenu] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x4D),
     };
 
     /// <summary>How the actions are called in the settings and menus.</summary>
@@ -84,7 +113,34 @@ public static class Shortcuts
         [ShortcutAction.FocusUp] = "Pane above",
         [ShortcutAction.FocusDown] = "Pane below",
         [ShortcutAction.RemoveFromGroup] = "Remove from group",
+        [ShortcutAction.Tab1] = "Tab 1",
+        [ShortcutAction.Tab2] = "Tab 2",
+        [ShortcutAction.Tab3] = "Tab 3",
+        [ShortcutAction.Tab4] = "Tab 4",
+        [ShortcutAction.Tab5] = "Tab 5",
+        [ShortcutAction.Tab6] = "Tab 6",
+        [ShortcutAction.Tab7] = "Tab 7",
+        [ShortcutAction.Tab8] = "Tab 8",
+        [ShortcutAction.Tab9] = "Last tab",
+        [ShortcutAction.MoveTabLeft] = "Move tab left",
+        [ShortcutAction.MoveTabRight] = "Move tab right",
+        [ShortcutAction.MoveTabUp] = "Move tab up",
+        [ShortcutAction.MoveTabDown] = "Move tab down",
+        [ShortcutAction.GrowPane] = "Grow pane",
+        [ShortcutAction.ShrinkPane] = "Shrink pane",
+        [ShortcutAction.SaveLayout] = "Save layout",
+        [ShortcutAction.RenameGroup] = "Rename group",
+        [ShortcutAction.ChangeTabBar] = "Change tab bar position",
+        [ShortcutAction.MaximizeGroup] = "Maximize or restore group",
+        [ShortcutAction.MinimizeGroup] = "Minimize group",
+        [ShortcutAction.CloseGroup] = "Close group",
+        [ShortcutAction.OpenMenu] = "Open the + menu",
     };
+
+    /// <summary>Actions on the frame itself rather than on the focused window: they work in an empty group too.</summary>
+    public static bool IsFrameAction(ShortcutAction action) =>
+        action is ShortcutAction.SaveLayout or ShortcutAction.RenameGroup or ShortcutAction.ChangeTabBar or ShortcutAction.MaximizeGroup
+            or ShortcutAction.MinimizeGroup or ShortcutAction.CloseGroup or ShortcutAction.OpenMenu;
 
     /// <summary>The action bound to the key, or null if it is not a shortcut.</summary>
     public static ShortcutAction? Match(IReadOnlyDictionary<ShortcutAction, ShortcutKey> bindings, int virtualKey, KeyModifiers modifiers)
@@ -102,12 +158,18 @@ public static class Shortcuts
     public static Dictionary<ShortcutAction, ShortcutKey> Load(IReadOnlyDictionary<string, string>? saved)
     {
         var bindings = Defaults.ToDictionary();
+        var chosen = new HashSet<ShortcutAction>();
         foreach (var (name, text) in saved ?? new Dictionary<string, string>())
         {
             if (!Enum.TryParse<ShortcutAction>(name, out var action)) continue;
             if (text.Length == 0) bindings.Remove(action);
             else if (ShortcutKey.Parse(text) is { } binding) bindings[action] = binding;
+            chosen.Add(action);
         }
+        // A key the user chose wins over a default that came later (e.g. a new action's) for the same key.
+        foreach (var action in Defaults.Keys.Where(a => !chosen.Contains(a)))
+            if (chosen.Any(c => bindings.TryGetValue(c, out var key) && key == bindings[action]))
+                bindings.Remove(action);
         return bindings;
     }
 
@@ -119,10 +181,10 @@ public static class Shortcuts
 
     internal static DockSide? Direction(ShortcutAction action) => action switch
     {
-        ShortcutAction.FocusLeft => DockSide.Left,
-        ShortcutAction.FocusRight => DockSide.Right,
-        ShortcutAction.FocusUp => DockSide.Top,
-        ShortcutAction.FocusDown => DockSide.Bottom,
+        ShortcutAction.FocusLeft or ShortcutAction.MoveTabLeft => DockSide.Left,
+        ShortcutAction.FocusRight or ShortcutAction.MoveTabRight => DockSide.Right,
+        ShortcutAction.FocusUp or ShortcutAction.MoveTabUp => DockSide.Top,
+        ShortcutAction.FocusDown or ShortcutAction.MoveTabDown => DockSide.Bottom,
         _ => null,
     };
 }

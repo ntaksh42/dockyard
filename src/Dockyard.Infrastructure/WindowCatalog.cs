@@ -51,7 +51,11 @@ public static class WindowCatalog
 
     internal static string ProcessName(uint pid)
     {
-        try { return Process.GetProcessById((int)pid).ProcessName; }
+        try
+        {
+            using var process = Process.GetProcessById((int)pid);
+            return process.ProcessName;
+        }
         catch (ArgumentException) { return "?"; }
     }
 }

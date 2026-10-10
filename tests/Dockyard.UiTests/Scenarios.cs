@@ -94,6 +94,25 @@ internal static partial class Program
         Step("Ctrl+Alt+W takes the window out", () => Keys(0x11, 0x12, 0x57), [a, b], [a], extra: () => Restored(c));
         Step("add it back", () => AddVia(a, "Split Right…", c), [a, b, c], [a, c]);
 
+        string? Focused(Subject s) => GetForegroundWindow() == s.Hwnd ? null : $"focus on '{Title(GetForegroundWindow())}'";
+        Step("Ctrl+Alt+2 goes to the second tab", () =>
+        {
+            FocusByClick(a);
+            Keys(0x11, 0x12, 0x32);
+        }, [a, b, c], [b, c], extra: () => Focused(b));
+        Step("Ctrl+Alt+Win+Right moves the tab into the next pane", () => Keys(0x11, 0x12, 0x5B, 0x27), [a, b, c], [a, b],
+            extra: () => Focused(b));
+        var width = 0;
+        Step("Ctrl+Alt+] widens the pane", () =>
+        {
+            width = Visible(b.Hwnd).Width;
+            Keys(0x11, 0x12, 0xDD);
+        }, [a, b, c], [a, b], extra: () => Visible(b.Hwnd).Width > width ? null : $"width {Visible(b.Hwnd).Width}, was {width}");
+        Step("Ctrl+Alt+[ narrows it again", () => Keys(0x11, 0x12, 0xDB), [a, b, c], [a, b],
+            extra: () => Math.Abs(Visible(b.Hwnd).Width - width) <= 2 ? null : $"width {Visible(b.Hwnd).Width}, was {width}");
+        Step("Ctrl+Alt+Win+Left moves it back", () => Keys(0x11, 0x12, 0x5B, 0x25), [a, b, c], [b, c], extra: () => Focused(b));
+        Step("Ctrl+Alt+1 goes to the first tab", () => Keys(0x11, 0x12, 0x31), [a, b, c], [a, c], extra: () => Focused(a));
+
         var x = SpawnClientCaption(false);
         Step("tab bar over the title bar for this group", () =>
         {

@@ -250,8 +250,24 @@ public sealed class GroupController
             _windows.Focus(window);
             return;
         }
+        if (action is ShortcutAction.MoveTabLeft or ShortcutAction.MoveTabRight or ShortcutAction.MoveTabUp or ShortcutAction.MoveTabDown)
+        {
+            MoveTab(window, pane, Shortcuts.Direction(action)!.Value);
+            return;
+        }
+        if (action is ShortcutAction.GrowPane or ShortcutAction.ShrinkPane)
+        {
+            ResizePane(pane, action == ShortcutAction.GrowPane ? PaneStep : -PaneStep);
+            return;
+        }
         nint? target = null;
-        if (action is ShortcutAction.PreviousTab or ShortcutAction.NextTab)
+        if (action is >= ShortcutAction.Tab1 and <= ShortcutAction.Tab9)
+        {
+            // Like browsers, the last number goes to the last tab however many there are.
+            var index = action == ShortcutAction.Tab9 ? pane.Windows.Count - 1 : action - ShortcutAction.Tab1;
+            if (index < pane.Windows.Count) target = pane.Windows[index];
+        }
+        else if (action is ShortcutAction.PreviousTab or ShortcutAction.NextTab)
         {
             var step = action == ShortcutAction.NextTab ? 1 : -1;
             var count = pane.Windows.Count;
@@ -264,6 +280,32 @@ public sealed class GroupController
         if (target is not { } t) return;
         ActivateTab(t);
         _windows.Focus(t);
+    }
+
+    /// <summary>How far a pane grows or shrinks per key press.</summary>
+    private const double PaneStep = 40;
+
+    /// <summary>
+    /// Moves the tab into the neighbouring pane on <paramref name="side"/>; without one there, splits its own pane
+    /// so the tab gets a pane of its own on that side (if it shares the pane with other tabs).
+    /// </summary>
+    private void MoveTab(nint window, Pane pane, DockSide side)
+    {
+        if (_layout is not null && Navigation.FindNeighbor(_layout, pane, side) is { } neighbour) Dock(window, neighbour.Pane, null);
+        else if (pane.Windows.Count > 1) Dock(window, pane, side);
+        else return;
+        _windows.Focus(window);
+    }
+
+    /// <summary>Moves the divider nearest to the pane so that the pane grows by <paramref name="delta"/> (shrinks if negative).</summary>
+    private void ResizePane(Pane pane, double delta)
+    {
+        if (pane.Parent is not { } split || _layout?.Splitters.FirstOrDefault(s => s.Split == split) is not { } splitter) return;
+        var horizontal = split.Orientation == Orientation.Horizontal;
+        var length = horizontal ? splitter.SplitBounds.Width : splitter.SplitBounds.Height;
+        var step = delta / Math.Max(1, length - Metrics.SplitterThickness);
+        split.Ratio = LayoutEngine.ClampRatio(split, split.Ratio + (split.First == pane ? step : -step), length, Metrics, MinSizeOf);
+        Refresh(raise: false);
     }
 
     /// <summary>The picker closed without adding anything: put the tabs back above the frame.</summary>
@@ -455,7 +497,6 @@ public sealed class GroupController
         _members.Remove(window);
         Detach(window);
         if (!_windows.Exists(window)) return;
-        _windows.Show(window);
         _windows.SetBounds(window, m.OriginalBounds);
     }
 

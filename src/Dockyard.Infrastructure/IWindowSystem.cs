@@ -42,7 +42,7 @@ public interface IWindowSystem
     /// <summary>Moves the window so its visible bounds match <paramref name="target"/>. Does not wait for the app.</summary>
     void PlaceVisible(nint window, PixelRect target);
 
-    /// <summary>Sets the full window rectangle and brings the window to the top without activating it.</summary>
+    /// <summary>Shows the window, sets its full rectangle and brings it to the top without activating it.</summary>
     void SetBounds(nint window, PixelRect bounds);
 
     /// <summary>

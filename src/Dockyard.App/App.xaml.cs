@@ -75,11 +75,13 @@ public partial class App : System.Windows.Application
             Log.Error("UI", e.Exception);
             e.Handled = true;
         };
-        // Exceptions off the UI thread cannot be recovered; put grouped windows back before the process dies.
+        // Exceptions off the UI thread cannot be recovered; put grouped windows back before the process dies. Not
+        // waiting long for the UI thread: it may be the one that is stuck.
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
             Log.Error("Fatal", (Exception)e.ExceptionObject);
-            Dispatcher.Invoke(ReleaseAll);
+            try { Dispatcher.Invoke(ReleaseAll, DispatcherPriority.Send, CancellationToken.None, TimeSpan.FromSeconds(2)); }
+            catch (Exception ex) { Log.Error("Fatal cleanup", ex); }
         };
         Diagnostics.Trace = Log.Trace;
         _dockDrag = new DockDrag(() => _groups);
@@ -173,6 +175,11 @@ public partial class App : System.Windows.Application
             (g.Controller.Owns(foreground) || g.Handle == foreground));
         if (group is null || (group.Handle == foreground &&
             System.Windows.Input.Keyboard.FocusedElement is System.Windows.Controls.TextBox)) return false;
+        if (Shortcuts.IsFrameAction(action))
+        {
+            Dispatcher.BeginInvoke(() => group.RunShortcut(action));
+            return true;
+        }
         var window = group.Controller.Owns(foreground) ? foreground : group.Controller.LastActive;
         if (window is not { } member) return false;
         // Return from the native hook promptly; layout and focus changes run on the UI dispatcher.
