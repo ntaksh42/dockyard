@@ -45,6 +45,12 @@ public partial class GroupWindow : Window, IGroupView
     /// <summary>Draws the tab bars above the member windows with tab bar placement B; null otherwise.</summary>
     private Window? _overlay;
     private Canvas? _overlaySurface;
+    /// <summary>The elements drawn for the current layout and where each goes, so a resize can move them (see Render).</summary>
+    private readonly List<(FrameworkElement Element, Func<LayoutResult, DomainRect> Bounds)> _visuals = [];
+    private string? _visualKey;
+    private List<Pane> _visualPanes = [];
+    private List<SplitNode> _visualSplits = [];
+    private LayoutResult? _rendered;
     /// <summary>Hides the group name and title again once the pointer has left the caption.</summary>
     private readonly System.Windows.Threading.DispatcherTimer _captionHide = new() { Interval = TimeSpan.FromMilliseconds(250) };
 
@@ -179,14 +185,33 @@ public partial class GroupWindow : Window, IGroupView
 
     public void Render(GroupSnapshot snapshot)
     {
+        PositionOverlay();
+        ActiveTitleText.Text = snapshot.ActiveTitle;
+        UpdateTitle();
+        // Dragging a splitter or resizing the frame changes only sizes: move what is there instead of rebuilding
+        // every tab bar and button on each step.
+        var key = VisualKey(snapshot);
+        if (key == _visualKey && _visualPanes.SequenceEqual(snapshot.Layout.Panes.Select(p => p.Pane)) &&
+            _visualSplits.SequenceEqual(snapshot.Layout.Splitters.Select(s => s.Split)))
+        {
+            _rendered = snapshot.Layout;
+            foreach (var (element, bounds) in _visuals) Arrange(element, bounds(snapshot.Layout));
+            return;
+        }
+        _visualKey = key;
+        _visualPanes = snapshot.Layout.Panes.Select(p => p.Pane).ToList();
+        _visualSplits = snapshot.Layout.Splitters.Select(s => s.Split).ToList();
+        _rendered = snapshot.Layout;
+        _visuals.Clear();
         Surface.Children.Clear();
         _overlaySurface?.Children.Clear();
-        PositionOverlay();
-        foreach (var p in snapshot.Layout.Panes)
+        for (var i = 0; i < snapshot.Layout.Panes.Count; i++)
         {
+            var index = i;
+            var p = snapshot.Layout.Panes[i];
             // Over a member window the tabs must be in the overlay; the frame is below the members.
             var overMember = _overlaySurface is not null && p.Pane.Windows.Count > 0 && p.Placement == TabBarPlacement.TitleBar;
-            Place(BuildTabBar(p.Pane, snapshot.Titles, p.TabBar, overMember), p.TabBar, overMember ? _overlaySurface : null);
+            Place(BuildTabBar(p.Pane, snapshot.Titles, p.TabBar, overMember), l => l.Panes[index].TabBar, overMember ? _overlaySurface : null);
             if (p.Pane.Windows.Count == 0)
             {
                 var add = new Button { Content = "Add Window…", Padding = new Thickness(12, 4, 12, 4) };
@@ -200,16 +225,18 @@ public partial class GroupWindow : Window, IGroupView
                             FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Center });
                 content.Children.Add(add);
                 host.Children.Add(content);
-                Place(host, p.Content);
+                Place(host, l => l.Panes[index].Content);
             }
             else
             {
-                Place(new Border { Background = PlaceholderBrush }, p.Content);
+                Place(new Border { Background = PlaceholderBrush }, l => l.Panes[index].Content);
             }
         }
 
-        foreach (var s in snapshot.Layout.Splitters)
+        for (var i = 0; i < snapshot.Layout.Splitters.Count; i++)
         {
+            var index = i;
+            var s = snapshot.Layout.Splitters[i];
             var bar = new Border
             {
                 Background = SplitterBrush,
@@ -219,14 +246,23 @@ public partial class GroupWindow : Window, IGroupView
             bar.MouseLeave += (_, _) => bar.Background = SplitterBrush;
             bar.MouseLeftButtonDown += (_, e) =>
             {
-                if (Surface.CaptureMouse()) _dragging = s;
+                // The splitter as last laid out: the element outlives the layout it was made for.
+                if (Surface.CaptureMouse()) _dragging = _rendered!.Splitters[index];
                 e.Handled = true;
             };
-            Place(bar, s.Bounds);
+            Place(bar, l => l.Splitters[index].Bounds);
         }
+    }
 
-        ActiveTitleText.Text = snapshot.ActiveTitle;
-        UpdateTitle();
+    /// <summary>Everything the visuals show apart from sizes: equal keys mean the same elements can be reused.</summary>
+    private string VisualKey(GroupSnapshot snapshot)
+    {
+        var vertical = Controller.Metrics.TabBarPlacement == TabBarPlacement.Left;
+        return string.Join("|", snapshot.Layout.Panes.Select(p =>
+                $"{p.Placement}/{p.Pane.ActiveIndex}/{(vertical ? p.TabBar.Width : 0)}/" +
+                string.Join(",", p.Pane.Windows.Select(h => $"{h}={snapshot.Titles[h]}")) + "/" +
+                (snapshot.Waiting.TryGetValue(p.Pane, out var waiting) ? string.Join(",", waiting.Select(t => $"{t.ProcessName}={t.Title}")) : ""))) +
+            $"#{snapshot.Layout.Splitters.Count}#{_overlaySurface is not null}";
     }
 
     /// <summary>Window switchers such as Waypoint list the frame under this title (Q5).</summary>
@@ -348,13 +384,19 @@ public partial class GroupWindow : Window, IGroupView
         return bar;
     }
 
-    private void Place(FrameworkElement e, DomainRect r, Canvas? canvas = null)
+    private void Place(FrameworkElement e, Func<LayoutResult, DomainRect> bounds, Canvas? canvas = null)
+    {
+        Arrange(e, bounds(_rendered!));
+        (canvas ?? Surface).Children.Add(e);
+        _visuals.Add((e, bounds));
+    }
+
+    private static void Arrange(FrameworkElement e, DomainRect r)
     {
         Canvas.SetLeft(e, r.X);
         Canvas.SetTop(e, r.Y);
         e.Width = Math.Max(0, r.Width);
         e.Height = Math.Max(0, r.Height);
-        (canvas ?? Surface).Children.Add(e);
     }
 
     /// <summary>
