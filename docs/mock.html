@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TabGroup モック v0.3</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --fg: #1d2129; --muted: #6b7280; --line: #d9dce1;
+    --panel: #ffffff; --tab: #e6e8ec; --tab-active: #ffffff; --accent: #3b82f6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.6 "Segoe UI", "Yu Gothic UI", sans-serif; background: var(--bg); color: var(--fg); }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 36px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  .sub { color: var(--muted); margin: 0 0 16px; }
+  table { border-collapse: collapse; width: 100%; background: var(--panel); }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: #eef0f3; white-space: nowrap; }
+  .q { font-weight: 600; color: #b45309; }
+  .done { font-weight: 600; color: #15803d; }
+  .new { font-size: 11px; background: #fef3c7; color: #92400e; padding: 0 6px; border-radius: 8px; margin-left: 4px; }
+
+  /* desktop & group frame */
+  .desk { background: linear-gradient(135deg, #3b5b7a, #26394d); border-radius: 8px; padding: 24px; position: relative; overflow: hidden; }
+  .frame { background: #2b2f36; border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,.35); overflow: hidden; max-width: 900px; margin: 0 auto; }
+  .fbar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; color: #e5e7eb; font-size: 12px; }
+  .gchip { padding: 1px 8px; border-radius: 10px; color: #fff; background: var(--accent); }
+  .fbar .sp { flex: 1; }
+  .fbar .btn { opacity: .8; cursor: pointer; padding: 0 4px; }
+  .layout { display: flex; height: 360px; padding: 0 4px 4px; gap: 4px; }
+  .col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .split-v { width: 4px; cursor: col-resize; background: transparent; flex: none; }
+  .split-v:hover, .split-h:hover { background: var(--accent); }
+  .split-h { height: 4px; cursor: row-resize; flex: none; }
+  .pane { display: flex; flex-direction: column; background: var(--panel); border-radius: 4px; overflow: hidden; min-width: 0; min-height: 0; flex: 1; }
+  .tabs { display: flex; gap: 1px; background: #d1d5db; }
+  .tab { display: flex; align-items: center; gap: 6px; background: var(--tab); padding: 4px 10px; font-size: 12px; max-width: 200px; cursor: pointer; border-top: 2px solid transparent; }
+  .tab.active { background: var(--tab-active); border-top-color: var(--accent); }
+  .tab .ico { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+  .tab .ttl { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .body { flex: 1; padding: 10px; font-family: Consolas, monospace; font-size: 12px; white-space: pre; overflow: hidden; color: #374151; }
+
+  /* docking guide */
+  .dockdemo { position: relative; height: 280px; background: #2b2f36; border-radius: 8px; max-width: 520px; margin: 0 auto; }
+  .dockdemo .target { position: absolute; inset: 12px; background: #fff; border-radius: 4px; }
+  .dockdemo .preview { position: absolute; top: 12px; bottom: 12px; right: 12px; width: calc(50% - 12px); background: rgba(59,130,246,.3); border: 2px solid var(--accent); border-radius: 4px; }
+  .guide { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; grid-template-columns: repeat(3, 34px); grid-template-rows: repeat(3, 34px); gap: 3px; }
+  .guide span { background: #1f2937; border: 1px solid #4b5563; border-radius: 4px; color: #93c5fd; display: grid; place-items: center; font-size: 13px; }
+  .guide span.on { background: var(--accent); color: #fff; }
+  .guide span.empty { visibility: hidden; }
+  .ghost { position: absolute; left: 40px; top: 30px; background: var(--tab); font-size: 12px; padding: 3px 10px; border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,.4); }
+
+
+  .variants { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .card h3 { margin: 0 0 8px; font-size: 14px; }
+  .card p { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+  .card ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+  .rec { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59,130,246,.2); }
+</style>
+</head>
+<body>
+<main>
+  <h1>TabGroup（仮称） モック v0.3</h1>
+  <p class="sub">v0.2 からの変更点: 切替パレットを削除し、Waypoint などの既存ツールに任せる形にした（4 章）。6 章に速度・品質の比較を追加した。Q9 と Q10 を決定し、Q11 を追加した。</p>
+
+  <h2>1. 前提</h2>
+  <table>
+    <tr><th>項目</th><th>内容</th></tr>
+    <tr><td>目的</td><td>散らかったウィンドウを整理する。IDE のドッキングのように、別々のアプリを 1 つの枠の中で自由に配置できるようにする</td></tr>
+    <tr><td>対象 OS</td><td>Windows 11 のみ（仮）</td></tr>
+    <tr><td>形態</td><td>タスクトレイ常駐アプリ。既存アプリのウィンドウ（Win32 / UWP / Electron 等）を対象にする</td></tr>
+    <tr><td>グループの構造</td><td>グループ = 枠（自前のウィンドウ）+ レイアウトツリー。ツリーの節は縦か横の分割、葉はペイン。各ペインはタブで複数ウィンドウを持つ</td></tr>
+    <tr><td>グループ化の仕組み</td><td>仮置き: reparent せず、外部ウィンドウを各ペインの矩形に合わせて位置・サイズ・Z オーダーを同期する（→ Q8）</td></tr>
+    <tr><td>タブバー位置</td><td>設定で A / B / C を切り替える。既定は A</td></tr>
+    <tr><td>技術スタック</td><td>C# (.NET) + WPF + Win32（CsWin32）を推奨（→ 6 章）</td></tr>
+  </table>
+
+  <h2>2. メイン画面モック（グループ枠 + ドッキング）</h2>
+  <p class="sub">タブのクリックで切替。仕切り線（青くなる部分）をドラッグするとペインの大きさが変わる。中身は外部アプリのウィンドウで、枠の上に重ねて同期する。</p>
+  <div class="desk">
+    <div class="frame">
+      <div class="fbar">
+        <span class="gchip">開発</span><span>tabgroup の作業</span><span class="sp"></span>
+        <span class="btn" title="レイアウトを保存">💾</span><span class="btn">—</span><span class="btn">☐</span><span class="btn">✕</span>
+      </div>
+      <div class="layout" id="layout">
+        <div class="pane" id="pL" style="flex:1.4"></div>
+        <div class="split-v" data-a="pL" data-b="colR"></div>
+        <div class="col" id="colR" style="flex:1">
+          <div class="pane" id="pRT" style="flex:1.3"></div>
+          <div class="split-h"></div>
+          <div class="pane" id="pRB" style="flex:1"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>3. ドッキング操作</h2>
+  <div class="variants">
+    <div class="card">
+      <h3>ドラッグ中のガイド</h3>
+      <div class="dockdemo">
+        <div class="target"></div>
+        <div class="preview"></div>
+        <div class="ghost">Chrome — localhost:5173</div>
+        <div class="guide">
+          <span class="empty"></span><span>↑</span><span class="empty"></span>
+          <span>←</span><span>▣</span><span class="on">→</span>
+          <span class="empty"></span><span>↓</span><span class="empty"></span>
+        </div>
+      </div>
+      <p>タブ（または Shift + 外部ウィンドウのタイトルバー）を掴んでペインの上に来るとガイドが出る。中央に落とすとタブとして追加、上下左右に落とすとその方向に分割する。青い領域が落とした後の配置。</p>
+    </div>
+    <div class="card">
+      <h3>操作一覧</h3>
+      <ul>
+        <li><b>追加</b>: 外部ウィンドウをガイドへドロップ。またはペインの「+」からピッカーで選ぶ</li>
+        <li><b>分割</b>: ガイドの上下左右へドロップ</li>
+        <li><b>リサイズ</b>: 仕切り線をドラッグ</li>
+        <li><b>外す</b>: タブを枠の外へドラッグすると単独ウィンドウに戻る</li>
+        <li><b>移動</b>: 枠のタイトルバーをドラッグすると中身ごと動く</li>
+        <li><b>最小化</b>: 枠を最小化すると中の全ウィンドウを隠す</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>4. グループの切替（Waypoint に任せる）</h2>
+  <p class="sub">専用のパレットは作らない。グループ枠は通常のトップレベルウィンドウで、タイトルを「[グループ名] アクティブタブのタイトル」にする。こうすれば Waypoint の w コマンドなど既存のウィンドウ切替ツールに 1 件として出る。</p>
+  <table>
+    <tr><th>ケース</th><th>挙動</th></tr>
+    <tr><td>切替ツールで枠を選ぶ</td><td>枠と中の全ウィンドウを前面に出す</td></tr>
+    <tr><td>切替ツールでグループ内のウィンドウを直接選ぶ</td><td>そのウィンドウを含むタブをアクティブにし、枠ごと前面に出す</td></tr>
+    <tr><td>グループ内のウィンドウを切替ツールに出すか</td><td>Q11 で決める</td></tr>
+  </table>
+
+  <h2>5. タブバー配置（設定で切替）</h2>
+  <p class="sub">設定画面のラジオボタンで選ぶ。各ペインのタブバーに適用する。</p>
+  <table>
+    <tr><th>設定値</th><th>見え方</th><th>注意点</th></tr>
+    <tr><td>A. 上に浮かせる（既定）</td><td>ペイン上端に専用のタブ行</td><td>縦方向を 1 行分使う</td></tr>
+    <tr><td>B. タイトルバーに重ねる</td><td>外部アプリのタイトルバー上にタブを描く</td><td>アプリによってボタンや既存のタブと重なる</td></tr>
+    <tr><td>C. 縦タブ</td><td>ペイン左端にタブ列</td><td>横幅を常に使う</td></tr>
+  </table>
+
+  <h2>6. 技術スタックの比較（Q6 への回答）</h2>
+  <div class="variants">
+    <div class="card rec">
+      <h3>C# + WPF + Win32（推奨）</h3>
+      <ul>
+        <li>ドッキングガイド、半透明プレビュー、設定画面などの UI を早く作れる</li>
+        <li>WinEvent フック、DeferWindowPos、DPI 対応は CsWin32 で P/Invoke を自動生成すれば手間が少ない</li>
+        <li>WindowTabs も C# 製で、参考にしやすい</li>
+        <li>弱み: 常駐時のメモリが 60〜100MB 程度になる見込み（未計測）。WPF は NativeAOT が使えず、配布物が大きい</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Rust + windows-rs</h3>
+      <ul>
+        <li>常駐時のメモリが小さい（数 MB〜十数 MB 程度の見込み、未計測）。起動が速く、単一 exe で配布できる</li>
+        <li>Win32 API をそのまま扱える</li>
+        <li>弱み: 半透明オーバーレイ、ドラッグ中のガイド、設定画面などの UI を自前で描くか、UI ライブラリの選定が必要になる。今回はこの UI が多く、開発速度の差が大きい</li>
+      </ul>
+    </div>
+  </div>
+  <h3 style="font-size:14px;margin:16px 0 4px">速度・品質の観点（コメントへの回答）</h3>
+  <table>
+    <tr><th>観点</th><th>Rust の優位</th><th>このアプリでの影響</th></tr>
+    <tr><td>ウィンドウ追従の速さ</td><td>GC 停止がない</td><td>小さい。追従遅れの主因は、外部プロセスが SetWindowPos を処理して再描画するまでの時間と DWM の合成で、言語の差ではない。.NET の GC 停止はヒープが小さい常駐アプリなら通常 1ms 未満（未計測）</td></tr>
+    <tr><td>起動・常駐コスト</td><td>起動が速く、メモリが少ない</td><td>中。常駐アプリなので気にする人はいる。動作の体感にはほぼ出ない</td></tr>
+    <tr><td>メモリ安全・堅牢性</td><td>所有権と型でバグを防ぐ</td><td>限定的。コードの大半が Win32 呼び出しで、Rust でも unsafe が多くなる。C# も managed なので、メモリ破壊はどちらも起きにくい</td></tr>
+    <tr><td>クラッシュ時の後始末</td><td>差なし</td><td>どちらの言語でも、落ちると外部ウィンドウが位置同期されないまま残る。起動時にレイアウトを復元する処理で対処する</td></tr>
+    <tr><td>フック DLL の注入</td><td>ネイティブ DLL を作れる</td><td>今の設計では不要。WinEvent フック（プロセス外）と低レベルマウスフックで足りる。将来、他プロセスへの注入が必要になれば C# 側に C++ の小さな DLL を足す</td></tr>
+  </table>
+  <p class="sub">結論: 速度・品質で Rust が明確に勝つのは常駐コストだけ。推奨は変えず C# + WPF とする。このアプリの難所は Win32 のウィンドウ追従と、ドッキング用オーバーレイ UI の作り込み。後者を WPF で早く回せる利点の方が大きい。常駐コストを最優先するなら Rust を選ぶ。</p>
+
+  <h2>7. 決めたいこと</h2>
+  <table>
+    <tr><th>#</th><th>論点</th><th>状態 / 選択肢 / 私の推奨</th></tr>
+    <tr><td class="done">Q1</td><td>何を解決したいか</td><td>決定: 散らかったウィンドウの整理。ドッキングで自由にレイアウトする</td></tr>
+    <tr><td class="done">Q2</td><td>タブバー配置</td><td>決定: 設定で A / B / C を切り替える。既定は A</td></tr>
+    <tr><td class="q">Q3</td><td>グループの永続化</td><td>ドッキングではレイアウトを作る手間が大きいので、保存の価値が上がる。推奨: MVP で「レイアウトツリー + 各ペインにどのアプリを入れるかのルール（exe 名・タイトル）」を保存する。起動中のウィンドウを自動で割り当て、無ければペインを空けておく</td></tr>
+    <tr><td class="done">Q4</td><td>グループ内の分割表示</td><td>決定: MVP に含める</td></tr>
+    <tr><td class="done">Q5</td><td>複数グループの切替</td><td>決定: 専用 UI は作らず Waypoint の w コマンドなど既存の切替ツールに任せる（4 章）</td></tr>
+    <tr><td class="q">Q6</td><td>技術スタック</td><td>推奨: C# + WPF + Win32（6 章に速度・品質の比較を追加）。これで良いか</td></tr>
+    <tr><td class="q">Q7</td><td>キーボード操作</td><td>例: Ctrl+Win+←/→ でタブ移動、Ctrl+Win+矢印+Shift でペイン間移動、Ctrl+Win+W でグループから外す</td></tr>
+    <tr><td class="q">Q8<span class="new">新規</span></td><td>外部ウィンドウの埋め込み方式</td><td>
+      <b>位置同期（推奨）</b>: 外部ウィンドウは独立したまま、ペインに重ねて追従させる。アプリを壊しにくい。代わりに移動時の追従遅れ、Z オーダーのずれ、Alt+Tab に個別に出る、といった不具合が出やすい。<br>
+      <b>reparent（SetParent）</b>: 枠の子ウィンドウにする。見た目と挙動は一体化する。UWP や一部の Electron アプリ、DPI が混在する環境、管理者権限のアプリで動かないことが多い。<br>
+      推奨: 位置同期で作る。切替ツールに個別に出る点の扱いは Q11</td></tr>
+    <tr><td class="done">Q9</td><td>最小サイズの衝突</td><td>決定: (a) アプリの最小サイズより小さくなる位置まで仕切り線を動かせなくする</td></tr>
+    <tr><td class="done">Q10</td><td>枠を使わない軽量モード</td><td>決定: 作らない。枠ありだけにする</td></tr>
+    <tr><td class="q">Q11<span class="new">新規</span></td><td>グループ内のウィンドウを切替ツールに出すか</td><td>
+      <b>出す（推奨）</b>: 何もしなくてよい。w コマンドで個別のアプリ名からも探せる。選ぶと 4 章の挙動で枠ごと前面に出す。<br>
+      <b>隠す</b>: 外部ウィンドウのスタイル（WS_EX_TOOLWINDOW 等）を書き換えてタスクバーと Alt+Tab から消す。一覧はすっきりするが、アプリによっては壊れる。こちらのアプリが落ちたときに元に戻す処理も要る</td></tr>
+  </table>
+</main>
+
+<script>
+  const panes = {
+    pL: [
+      { title: "VS Code — tabgroup", color: "#2563eb", body: "function dock(win, pane, dir) {\n  // TODO: split pane\n}" },
+      { title: "Visual Studio — TabGroup.sln", color: "#7c3aed", body: "LayoutTree.cs\nPaneHost.cs\nWinEventHook.cs" },
+    ],
+    pRT: [
+      { title: "Chrome — localhost:5173", color: "#f59e0b", body: "[ブラウザのプレビュー]" },
+    ],
+    pRB: [
+      { title: "Windows Terminal", color: "#111827", body: "PS E:\\playground\\tabgroup> dotnet run\nwatching windows..." },
+      { title: "エクスプローラー", color: "#eab308", body: "mock.html" },
+    ],
+  };
+  const active = { pL: 0, pRT: 0, pRB: 0 };
+  function render(id) {
+    const el = document.getElementById(id);
+    el.innerHTML = "";
+    const bar = document.createElement("div"); bar.className = "tabs";
+    panes[id].forEach((t, i) => {
+      const tab = document.createElement("div");
+      tab.className = "tab" + (i === active[id] ? " active" : "");
+      tab.innerHTML = `<span class="ico" style="background:${t.color}"></span><span class="ttl"></span>`;
+      tab.querySelector(".ttl").textContent = t.title;
+      tab.onclick = () => { active[id] = i; render(id); };
+      bar.appendChild(tab);
+    });
+    const add = document.createElement("div"); add.className = "tab"; add.textContent = "+"; add.title = "ウィンドウを追加";
+    bar.appendChild(add);
+    const body = document.createElement("div"); body.className = "body";
+    body.textContent = panes[id][active[id]].body;
+    el.append(bar, body);
+  }
+  Object.keys(panes).forEach(render);
+
+  function makeSplitter(sp, a, b, axis) {
+    sp.addEventListener("pointerdown", e => {
+      sp.setPointerCapture(e.pointerId);
+      const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+      const total = axis === "x" ? ra.width + rb.width : ra.height + rb.height;
+      const start = axis === "x" ? e.clientX : e.clientY;
+      const sa = axis === "x" ? ra.width : ra.height;
+      const move = ev => {
+        const d = (axis === "x" ? ev.clientX : ev.clientY) - start;
+        const na = Math.max(120, Math.min(total - 120, sa + d));
+        a.style.flex = na; b.style.flex = total - na;
+      };
+      sp.addEventListener("pointermove", move);
+      sp.addEventListener("pointerup", () => sp.removeEventListener("pointermove", move), { once: true });
+    });
+  }
+  makeSplitter(document.querySelector(".split-v"), document.getElementById("pL"), document.getElementById("colR"), "x");
+  makeSplitter(document.querySelector(".split-h"), document.getElementById("pRT"), document.getElementById("pRB"), "y");
+</script>
+</body>
+</html>
