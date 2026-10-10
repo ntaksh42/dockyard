@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The package's identity card. build.ps1 copies it into the package root and fills in the version. -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <!-- Publisher must match the Subject of the signing certificate exactly, or signing fails. -->
+  <Identity Name="Dockyard" Publisher="CN=Dockyard Dev" Version="$Version$" ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Dockyard</DisplayName>
+    <PublisherDisplayName>Dockyard</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <!-- Windows.FullTrustApplication runs Dockyard.exe as an ordinary desktop process, outside the app sandbox. -->
+    <Application Id="Dockyard" Executable="Dockyard.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Dockyard"
+        Description="Dock windows from different apps into one frame with tabs and split panes."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png" />
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- Required for FullTrustApplication. Dockyard needs it to move other apps' windows. -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

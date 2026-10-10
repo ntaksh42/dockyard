@@ -11,6 +11,23 @@ dotnet test
 
 起動するとタスクトレイに常駐し、空のグループ枠が 1 つ開く。トレイアイコンのダブルクリックで新しいグループを作る。
 
+## インストーラー（MSIX）
+
+```
+pwsh installer/build.ps1
+```
+
+`artifacts/msix/Dockyard.msix` と、署名に使った自己署名証明書 `Dockyard.cer` ができる。初回だけ、管理者の PowerShell で証明書を信頼させてからインストールする。
+
+```
+Import-Certificate -FilePath artifacts\msix\Dockyard.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+Add-AppxPackage artifacts\msix\Dockyard.msix
+```
+
+実行には .NET 10 Desktop Runtime が別途必要。
+
+開発中は `pwsh installer/build.ps1 -Dev` で、署名せずに layout フォルダをそのまま登録できる（開発者モードが必要）。はまりポイントは [AGENTS.md](AGENTS.md)。
+
 ## 実装済み
 
 - グループ枠（自前のウィンドウ）とレイアウトツリー（縦横分割 + タブ）
