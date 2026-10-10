@@ -7,9 +7,9 @@ namespace Dockyard.Infrastructure;
 public enum KeyModifiers { None = 0, Ctrl = 1, Alt = 2, Shift = 4, Win = 8 }
 
 /// <summary>
-/// Low-level keyboard hook for the shortcuts. A hook rather than RegisterHotKey, because some of the default
-/// keys belong to Windows (Ctrl+Win+←/→ switches virtual desktops) and must keep working when no group has the
-/// focus: the receiver decides per key press whether to take it.
+/// Low-level keyboard hook for the shortcuts. A hook rather than RegisterHotKey, because a bound key may also
+/// belong to Windows or another app (Ctrl+Win+←/→ switches virtual desktops) and must keep working when no group
+/// has the focus: the receiver decides per key press whether to take it.
 /// </summary>
 public sealed class KeyboardHook : IDisposable
 {

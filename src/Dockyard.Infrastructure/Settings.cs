@@ -9,7 +9,7 @@ public sealed class Settings
 
     public TabBarPlacement TabBarPlacement { get; set; }
 
-    /// <summary>Shortcut bindings by action name, e.g. "NextTab": "Ctrl+Win+Right". Empty means unbound; missing means the default.</summary>
+    /// <summary>Shortcut bindings by action name, e.g. "NextTab": "Ctrl+Alt+Right". Empty means unbound; missing means the default.</summary>
     public Dictionary<string, string>? Shortcuts { get; set; }
 
     public static Settings Load() => JsonFile.Read<Settings>(FileName) ?? new();

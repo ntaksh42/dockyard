@@ -11,7 +11,7 @@ public static class JsonFile
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
-        // Local files meant to be readable by hand: keep "+" in "Ctrl+Win+Left" as it is.
+        // Local files meant to be readable by hand: keep "+" in "Ctrl+Alt+Left" as it is.
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Converters = { new JsonStringEnumConverter() },

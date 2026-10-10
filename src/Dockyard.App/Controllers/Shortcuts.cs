@@ -6,7 +6,7 @@ namespace Dockyard.App.Controllers;
 
 public enum ShortcutAction { PreviousTab, NextTab, FocusLeft, FocusRight, FocusUp, FocusDown, RemoveFromGroup }
 
-/// <summary>A key with the modifiers that must be held. Written as e.g. "Ctrl+Win+Left".</summary>
+/// <summary>A key with the modifiers that must be held. Written as e.g. "Ctrl+Alt+Left".</summary>
 public readonly record struct ShortcutKey(KeyModifiers Modifiers, int Key)
 {
     private static readonly (KeyModifiers Flag, string Name)[] ModifierNames =
@@ -57,20 +57,21 @@ public readonly record struct ShortcutKey(KeyModifiers Modifiers, int Key)
 }
 
 /// <summary>
-/// Keyboard shortcuts (Q7). By default all on Ctrl+Win: ←/→ switch tabs in the pane, Shift+arrows move to the
-/// next pane, W takes the window out of its group. The user can rebind them in the settings.
+/// Keyboard shortcuts (Q7). By default all on Ctrl+Alt: ←/→ switch tabs in the pane, Shift+arrows move to the
+/// next pane, W takes the window out of its group. Not Ctrl+Win: Ctrl+Win+←/→ switches virtual desktops. The
+/// user can rebind them in the settings.
 /// </summary>
 public static class Shortcuts
 {
     public static IReadOnlyDictionary<ShortcutAction, ShortcutKey> Defaults { get; } = new Dictionary<ShortcutAction, ShortcutKey>
     {
-        [ShortcutAction.PreviousTab] = new(KeyModifiers.Ctrl | KeyModifiers.Win, 0x25),
-        [ShortcutAction.NextTab] = new(KeyModifiers.Ctrl | KeyModifiers.Win, 0x27),
-        [ShortcutAction.FocusLeft] = new(KeyModifiers.Ctrl | KeyModifiers.Win | KeyModifiers.Shift, 0x25),
-        [ShortcutAction.FocusRight] = new(KeyModifiers.Ctrl | KeyModifiers.Win | KeyModifiers.Shift, 0x27),
-        [ShortcutAction.FocusUp] = new(KeyModifiers.Ctrl | KeyModifiers.Win | KeyModifiers.Shift, 0x26),
-        [ShortcutAction.FocusDown] = new(KeyModifiers.Ctrl | KeyModifiers.Win | KeyModifiers.Shift, 0x28),
-        [ShortcutAction.RemoveFromGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Win, 0x57),
+        [ShortcutAction.PreviousTab] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x25),
+        [ShortcutAction.NextTab] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x27),
+        [ShortcutAction.FocusLeft] = new(KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Shift, 0x25),
+        [ShortcutAction.FocusRight] = new(KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Shift, 0x27),
+        [ShortcutAction.FocusUp] = new(KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Shift, 0x26),
+        [ShortcutAction.FocusDown] = new(KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Shift, 0x28),
+        [ShortcutAction.RemoveFromGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x57),
     };
 
     /// <summary>The action bound to the key, or null if it is not a shortcut.</summary>
@@ -98,8 +99,11 @@ public static class Shortcuts
         return bindings;
     }
 
+    /// <summary>Only the bindings that differ from the defaults, so a later change of a default still applies.</summary>
     public static Dictionary<string, string> Save(IReadOnlyDictionary<ShortcutAction, ShortcutKey> bindings) =>
-        Enum.GetValues<ShortcutAction>().ToDictionary(a => a.ToString(), a => bindings.TryGetValue(a, out var b) ? b.ToString() : "");
+        Enum.GetValues<ShortcutAction>()
+            .Where(a => !bindings.TryGetValue(a, out var b) || b != Defaults[a])
+            .ToDictionary(a => a.ToString(), a => bindings.TryGetValue(a, out var b) ? b.ToString() : "");
 
     internal static DockSide? Direction(ShortcutAction action) => action switch
     {

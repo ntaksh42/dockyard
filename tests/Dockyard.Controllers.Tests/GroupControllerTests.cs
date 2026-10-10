@@ -458,7 +458,7 @@ public class GroupControllerTests
     [InlineData(0x57, true, null)]
     public void Shortcuts_DefaultsMapKeys(int key, bool shift, ShortcutAction? expected)
     {
-        var modifiers = KeyModifiers.Ctrl | KeyModifiers.Win | (shift ? KeyModifiers.Shift : 0);
+        var modifiers = KeyModifiers.Ctrl | KeyModifiers.Alt | (shift ? KeyModifiers.Shift : 0);
         Assert.Equal(expected, Shortcuts.Match(Shortcuts.Defaults, key, modifiers));
     }
 
@@ -488,9 +488,19 @@ public class GroupControllerTests
         });
 
         Assert.Equal(ShortcutAction.NextTab, Shortcuts.Match(bindings, 0x27, KeyModifiers.Alt));
-        Assert.Null(Shortcuts.Match(bindings, 0x57, KeyModifiers.Ctrl | KeyModifiers.Win));
+        Assert.Null(Shortcuts.Match(bindings, 0x57, KeyModifiers.Ctrl | KeyModifiers.Alt));
         Assert.Equal(Shortcuts.Defaults[ShortcutAction.PreviousTab], bindings[ShortcutAction.PreviousTab]);
         Assert.Equal(bindings, Shortcuts.Load(Shortcuts.Save(bindings)));
+    }
+
+    [Fact]
+    public void Shortcuts_SaveLeavesDefaultsOut()
+    {
+        var bindings = Shortcuts.Defaults.ToDictionary();
+        bindings[ShortcutAction.NextTab] = new ShortcutKey(KeyModifiers.Alt, 0x27);
+        bindings.Remove(ShortcutAction.RemoveFromGroup);
+
+        Assert.Equal(new Dictionary<string, string> { ["NextTab"] = "Alt+Right", ["RemoveFromGroup"] = "" }, Shortcuts.Save(bindings));
     }
 
     [Fact]
