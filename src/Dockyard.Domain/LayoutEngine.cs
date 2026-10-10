@@ -1,4 +1,4 @@
-namespace Dockyard.Core;
+namespace Dockyard.Domain;
 
 public sealed record LayoutMetrics(double SplitterThickness = 4, double TabBarHeight = 28, double MinPaneWidth = 80, double MinPaneHeight = 40);
 

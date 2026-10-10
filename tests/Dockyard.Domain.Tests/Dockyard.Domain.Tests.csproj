@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Dockyard.Core\Dockyard.Core.csproj" />
+    <ProjectReference Include="..\..\src\Dockyard.Domain\Dockyard.Domain.csproj" />
   </ItemGroup>
 
 </Project>

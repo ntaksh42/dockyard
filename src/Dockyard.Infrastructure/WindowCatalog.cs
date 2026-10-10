@@ -1,16 +1,17 @@
 using System.Diagnostics;
-using static Dockyard.App.Interop.Native;
+using static Dockyard.Infrastructure.Native;
 
-namespace Dockyard.App.Interop;
+namespace Dockyard.Infrastructure;
 
 /// <param name="Controllable">False for windows Windows will not let this process move, such as elevated apps.</param>
-internal sealed record WindowInfo(nint Handle, string Title, string ProcessName, bool Controllable)
+public sealed record WindowInfo(nint Handle, string Title, string ProcessName, bool Controllable)
 {
     public override string ToString() =>
         Controllable ? $"{Title}  —  {ProcessName}" : $"{Title}  —  {ProcessName}（管理者権限のアプリは追加できません）";
 }
 
-internal static class WindowList
+/// <summary>Windows the user can add to a group.</summary>
+public static class WindowCatalog
 {
     private static readonly HashSet<string> ShellClasses = ["Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd"];
 

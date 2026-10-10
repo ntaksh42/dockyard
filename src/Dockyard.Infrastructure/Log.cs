@@ -1,9 +1,9 @@
 using System.IO;
 
-namespace Dockyard.App;
+namespace Dockyard.Infrastructure;
 
 /// <summary>Appends errors to %LOCALAPPDATA%\Dockyard\dockyard.log.</summary>
-internal static class Log
+public static class Log
 {
     public static string FilePath { get; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Dockyard", "dockyard.log");

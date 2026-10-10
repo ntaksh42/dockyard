@@ -1,9 +1,10 @@
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace Dockyard.App.Interop;
+namespace Dockyard.Infrastructure;
 
-internal static class Native
+/// <summary>Win32 declarations shared by the Infrastructure and the App's own frame window.</summary>
+public static class Native
 {
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT
@@ -38,7 +39,7 @@ internal static class Native
     public static readonly nint HWND_TOP = 0;
 
     public const uint SWP_NOSIZE = 0x0001, SWP_NOMOVE = 0x0002, SWP_NOZORDER = 0x0004, SWP_NOACTIVATE = 0x0010,
-        SWP_NOOWNERZORDER = 0x0200, SWP_ASYNCWINDOWPOS = 0x4000;
+        SWP_HIDEWINDOW = 0x0080, SWP_NOOWNERZORDER = 0x0200, SWP_ASYNCWINDOWPOS = 0x4000;
 
     public const int SW_HIDE = 0, SW_SHOWNOACTIVATE = 4, SW_RESTORE = 9;
 

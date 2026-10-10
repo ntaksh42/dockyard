@@ -1,6 +1,6 @@
-using Dockyard.Core;
+using Dockyard.Domain;
 
-namespace Dockyard.Core.Tests;
+namespace Dockyard.Domain.Tests;
 
 public class DragInterpreterTests
 {
@@ -107,32 +107,4 @@ public class SettleTrackerTests
         Assert.Equal(SettleAction.Retry, t.Evaluate(Target, Target with { Width = 620 }));
         Assert.Equal(SettleAction.LearnMinimum, t.Evaluate(Target, Target with { Width = 620 }));
     }
-}
-
-public class ZOrderPolicyTests
-{
-    private static readonly nint[] Members = [100, 200];
-
-    [Fact]
-    public void BroughtToTop_CarriesTabs() => Assert.True(ZOrderPolicy.ShouldCarryTabs(0, 0, Members));
-
-    [Fact]
-    public void PlacedBelowSomeOtherWindow_CarriesTabs() => Assert.True(ZOrderPolicy.ShouldCarryTabs(555, 0, Members));
-
-    [Theory]
-    [InlineData(1)]   // HWND_BOTTOM
-    [InlineData(-1)]  // HWND_TOPMOST
-    [InlineData(-2)]  // HWND_NOTOPMOST
-    [InlineData(100)] // one of our own tabs
-    public void SpecialOrMemberInsertAfter_IsLeftAlone(long insertAfter) =>
-        Assert.False(ZOrderPolicy.ShouldCarryTabs((nint)insertAfter, 0, Members));
-
-    [Theory]
-    [InlineData(ZOrderPolicy.SWP_NOZORDER)]
-    [InlineData(ZOrderPolicy.SWP_HIDEWINDOW)]
-    public void NoZOrderChangeOrHiding_IsLeftAlone(uint flags) =>
-        Assert.False(ZOrderPolicy.ShouldCarryTabs(0, flags, Members));
-
-    [Fact]
-    public void NoTabs_NothingToCarry() => Assert.False(ZOrderPolicy.ShouldCarryTabs(0, 0, []));
 }

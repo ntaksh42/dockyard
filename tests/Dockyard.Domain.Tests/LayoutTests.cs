@@ -1,6 +1,6 @@
-using Dockyard.Core;
+using Dockyard.Domain;
 
-namespace Dockyard.Core.Tests;
+namespace Dockyard.Domain.Tests;
 
 public class LayoutTreeTests
 {

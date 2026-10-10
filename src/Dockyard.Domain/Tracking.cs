@@ -1,4 +1,4 @@
-namespace Dockyard.Core;
+namespace Dockyard.Domain;
 
 [Flags]
 public enum Edges { None = 0, Left = 1, Top = 2, Right = 4, Bottom = 8 }
@@ -92,21 +92,4 @@ public sealed class SettleTracker(double tolerance = 8, int maxRetries = 2)
     }
 
     private static bool Near(double a, double b, double tolerance = 1) => Math.Abs(a - b) <= tolerance;
-}
-
-public static class ZOrderPolicy
-{
-    public const uint SWP_NOZORDER = 0x0004, SWP_HIDEWINDOW = 0x0080;
-    public const nint HWND_BOTTOM = 1, HWND_TOPMOST = -1, HWND_NOTOPMOST = -2;
-
-    /// <summary>
-    /// Whether a z-order change the system is about to make to the frame should carry the active tabs along.
-    /// Special insert-after values and members themselves are left alone; restacking around them would push
-    /// the tabs to the bottom or reorder them against each other.
-    /// </summary>
-    public static bool ShouldCarryTabs(nint insertAfter, uint flags, IReadOnlyCollection<nint> members) =>
-        (flags & (SWP_NOZORDER | SWP_HIDEWINDOW)) == 0
-        && insertAfter is not (HWND_BOTTOM or HWND_TOPMOST or HWND_NOTOPMOST)
-        && !members.Contains(insertAfter)
-        && members.Count > 0;
 }

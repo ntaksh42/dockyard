@@ -1,19 +1,20 @@
 using System.Windows;
-using Dockyard.App.Interop;
+using System.Windows.Threading;
+using Dockyard.Application;
+using Dockyard.Infrastructure;
 using Forms = System.Windows.Forms;
 
 namespace Dockyard.App;
 
-public partial class App : Application
+/// <summary>Composition root: wires the Win32 infrastructure to each group's controller and runs the tray icon.</summary>
+public partial class App : System.Windows.Application
 {
     private readonly List<GroupWindow> _groups = [];
+    private readonly Win32WindowSystem _windows = new();
+    private readonly DispatcherTimer _foregroundPoll = new() { Interval = TimeSpan.FromMilliseconds(200) };
     private WinEventHook? _hook;
     private Forms.NotifyIcon? _tray;
     private int _groupCount;
-    private nint _lastForeground;
-    private readonly System.Windows.Threading.DispatcherTimer _foregroundPoll = new() { Interval = TimeSpan.FromMilliseconds(200) };
-
-    public static bool IsGrouped(nint hwnd) => ((App)Current)._groups.Any(g => g.Owns(hwnd));
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -31,22 +32,12 @@ public partial class App : Application
             Log.Error("Fatal", (Exception)e.ExceptionObject);
             Dispatcher.Invoke(ReleaseAll);
         };
+        Diagnostics.Trace = Log.Trace;
 
         _hook = new WinEventHook();
-        _hook.WindowEvent += (evt, hwnd) =>
-        {
-            if (evt == Native.EVENT_SYSTEM_FOREGROUND) _lastForeground = hwnd;
-            _groups.FirstOrDefault(g => g.Owns(hwnd))?.OnMemberEvent(evt, hwnd);
-        };
-        // Safety net: Windows does not always deliver EVENT_SYSTEM_FOREGROUND (seen when switching between
-        // console windows). Without it a clicked member comes forward alone and the rest of its group stays behind.
-        _foregroundPoll.Tick += (_, _) =>
-        {
-            var fg = Native.GetForegroundWindow();
-            if (fg == _lastForeground) return;
-            _lastForeground = fg;
-            _groups.FirstOrDefault(g => g.Owns(fg))?.OnMemberEvent(Native.EVENT_SYSTEM_FOREGROUND, fg);
-        };
+        _hook.Received += Dispatch;
+        // Safety net for foreground changes Windows does not report (see WinEventHook.CheckForeground).
+        _foregroundPoll.Tick += (_, _) => _hook.CheckForeground();
         _foregroundPoll.Start();
 
         var menu = new Forms.ContextMenuStrip();
@@ -72,9 +63,25 @@ public partial class App : Application
         base.OnExit(e);
     }
 
+    private bool IsGrouped(nint window) => _groups.Any(g => g.Controller.Owns(window));
+
+    private void Dispatch(WindowEvent evt, nint window)
+    {
+        if (_groups.Select(g => g.Controller).FirstOrDefault(c => c.Owns(window)) is not { } controller) return;
+        switch (evt)
+        {
+            case WindowEvent.Foreground: controller.OnForeground(window); break;
+            case WindowEvent.MoveSizeStart: controller.OnMoveSizeStart(window); break;
+            case WindowEvent.MoveSizeEnd: controller.OnMoveSizeEnd(window); break;
+            case WindowEvent.LocationChanged: controller.OnLocationChanged(window); break;
+            case WindowEvent.TitleChanged: controller.OnTitleChanged(window); break;
+            case WindowEvent.Destroyed: controller.OnDestroyed(window); break;
+        }
+    }
+
     private void NewGroup()
     {
-        var g = new GroupWindow($"グループ {++_groupCount}");
+        var g = new GroupWindow($"グループ {++_groupCount}", _windows, IsGrouped);
         g.Closed += (_, _) => _groups.Remove(g);
         _groups.Add(g);
         g.Show();
@@ -82,7 +89,7 @@ public partial class App : Application
 
     private void ReleaseAll()
     {
-        foreach (var g in _groups) g.ReleaseAll();
+        foreach (var g in _groups) g.Controller.ReleaseAll();
     }
 
     private void Quit()

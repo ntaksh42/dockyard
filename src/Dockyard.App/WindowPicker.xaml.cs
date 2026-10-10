@@ -1,14 +1,15 @@
 using System.Windows;
-using Dockyard.App.Interop;
+using Dockyard.Infrastructure;
 
 namespace Dockyard.App;
 
 internal partial class WindowPicker : Window
 {
-    public WindowPicker()
+    /// <param name="isGrouped">Windows already in a group are left out.</param>
+    public WindowPicker(Func<nint, bool> isGrouped)
     {
         InitializeComponent();
-        var candidates = WindowList.GetCandidates().Where(w => !App.IsGrouped(w.Handle)).ToList();
+        var candidates = WindowCatalog.GetCandidates().Where(w => !isGrouped(w.Handle)).ToList();
         List.ItemsSource = candidates;
         List.SelectedItem = candidates.FirstOrDefault(w => w.Controllable);
     }
