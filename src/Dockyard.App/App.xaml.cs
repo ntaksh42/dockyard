@@ -39,8 +39,12 @@ public partial class App : System.Windows.Application
     private readonly DispatcherTimer _sessionSave = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private SettingsWindow? _settingsWindow;
     private LayoutsWindow? _layoutsWindow;
-    /// <summary>Windows that appeared without a title; checked against waiting tabs again once they get one.</summary>
-    private readonly HashSet<nint> _untitled = [];
+    /// <summary>
+    /// Top-level windows created while Dockyard runs and not offered to waiting tabs yet. Only these can fill a
+    /// waiting tab: a window that already existed, such as one a minimized group lets go and shows again, is not
+    /// the app's window opening.
+    /// </summary>
+    private readonly HashSet<nint> _fresh = [];
 
     private Dictionary<ShortcutAction, ShortcutKey> _shortcuts = null!;
 
@@ -219,7 +223,7 @@ public partial class App : System.Windows.Application
             if (evt != WindowEvent.Destroyed) return;
         }
         if (_externalDrag == window && evt is WindowEvent.LocationChanged or WindowEvent.Foreground) return;
-        if (evt is WindowEvent.Shown or WindowEvent.TitleChanged or WindowEvent.Destroyed) OfferToWaitingTabs(evt, window);
+        if (evt is WindowEvent.Created or WindowEvent.Shown or WindowEvent.TitleChanged or WindowEvent.Destroyed) OfferToWaitingTabs(evt, window);
         if (_groups.Select(g => g.Controller).FirstOrDefault(c => c.Owns(window)) is not { } controller) return;
         switch (evt)
         {
@@ -233,24 +237,24 @@ public partial class App : System.Windows.Application
     }
 
     /// <summary>
-    /// A window that appears may be the one a restored tab waits for (its app was not open when the layout was
-    /// restored). Many windows get their title only after they appear, so one without a title is offered again
-    /// when it gets one.
+    /// A newly opened window may be the one a restored tab waits for (its app was not open when the layout was
+    /// restored). It is offered once it is shown with a title: many windows get their title only after they
+    /// appear.
     /// </summary>
     private void OfferToWaitingTabs(WindowEvent evt, nint window)
     {
-        if (evt == WindowEvent.Destroyed)
+        switch (evt)
         {
-            _untitled.Remove(window);
-            return;
+            case WindowEvent.Created:
+                if (Native.GetAncestor(window, 2 /* GA_ROOT */) == window) _fresh.Add(window);
+                return;
+            case WindowEvent.Destroyed:
+                _fresh.Remove(window);
+                return;
         }
-        if (evt == WindowEvent.TitleChanged && !_untitled.Remove(window)) return;
-        if (IsGrouped(window) || WindowCatalog.Describe(window) is not { Controllable: true } info) return;
-        if (info.Title.Length == 0)
-        {
-            _untitled.Add(window);
-            return;
-        }
+        if (!_fresh.Contains(window) || WindowCatalog.Describe(window) is not { Title.Length: > 0 } info) return;
+        _fresh.Remove(window);
+        if (!info.Controllable || IsGrouped(window)) return;
         _ = _groups.Any(g => g.CanDock && g.Controller.FillWaiting(window, info.ProcessName, info.Title));
     }
 
