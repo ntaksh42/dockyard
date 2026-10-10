@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Dockyard.Domain;
 
 namespace Dockyard.Infrastructure;
@@ -5,8 +6,8 @@ namespace Dockyard.Infrastructure;
 /// <summary>A rectangle in physical screen pixels, as Windows reports window bounds.</summary>
 public readonly record struct PixelRect(int Left, int Top, int Right, int Bottom)
 {
-    public int Width => Right - Left;
-    public int Height => Bottom - Top;
+    [JsonIgnore] public int Width => Right - Left;
+    [JsonIgnore] public int Height => Bottom - Top;
     public Rect ToRect() => new(Left, Top, Width, Height);
 }
 
@@ -18,6 +19,9 @@ public interface IWindowSystem
     bool IsMinimized(nint window);
     bool IsMaximized(nint window);
     string GetTitle(nint window);
+
+    /// <summary>Name of the process that owns the window, e.g. "notepad".</summary>
+    string GetProcessName(nint window);
 
     /// <summary>What the user sees, without the invisible resize border most windows have.</summary>
     PixelRect GetVisibleBounds(nint window);

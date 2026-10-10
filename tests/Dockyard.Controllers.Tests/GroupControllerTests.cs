@@ -875,6 +875,7 @@ public class GroupControllerTests
         public bool IsMinimized(nint w) => inner.IsMinimized(w);
         public bool IsMaximized(nint w) => inner.IsMaximized(w);
         public string GetTitle(nint w) => inner.GetTitle(w);
+        public string GetProcessName(nint w) => inner.GetProcessName(w);
         public PixelRect GetVisibleBounds(nint w) => inner.GetVisibleBounds(w);
         public PixelRect GetBounds(nint w) => inner.GetBounds(w);
         public void Restore(nint w) => inner.Restore(w);

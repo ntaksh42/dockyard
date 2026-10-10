@@ -34,6 +34,7 @@ public partial class GroupWindow : Window, IGroupView
     internal event Action<GroupWindow, nint>? TabDragStarted;
     internal event Action<bool>? TabDragEnded;
     internal event Action? SettingsRequested;
+    internal event Action<GroupWindow>? SaveLayoutRequested;
     /// <summary>The open window picker. Tabs must stay below it, so raising starts there instead of at the top.</summary>
     private WindowPicker? _picker;
     /// <summary>Draws the tab bars above the member windows with tab bar placement B; null otherwise.</summary>
@@ -487,6 +488,27 @@ public partial class GroupWindow : Window, IGroupView
         var br = e.PointToScreen(new Point(e.ActualWidth, e.ActualHeight));
         return new PixelRect((int)tl.X, (int)tl.Y, (int)br.X, (int)br.Y);
     }
+
+    /// <summary>The frame's window rectangle in screen pixels, for saving the group.</summary>
+    internal PixelRect FrameBounds
+    {
+        get
+        {
+            GetWindowRect(_hwnd, out var r);
+            return new PixelRect(r.Left, r.Top, r.Right, r.Bottom);
+        }
+    }
+
+    /// <summary>Shows the frame, at <paramref name="bounds"/> (screen pixels) when given.</summary>
+    internal void ShowAt(PixelRect? bounds)
+    {
+        Show();
+        if (bounds is { } b) SetWindowPos(_hwnd, 0, b.Left, b.Top, b.Width, b.Height, SWP_NOZORDER | SWP_NOACTIVATE);
+        // Lay out now, so a layout restored right after this is placed against the final size.
+        UpdateLayout();
+    }
+
+    private void SaveLayout_Click(object sender, RoutedEventArgs e) => SaveLayoutRequested?.Invoke(this);
 
     private void Minimize_Click(
 object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;

@@ -24,7 +24,9 @@ public partial class App : System.Windows.Application
     private nint _finishedExternalDrag;
     private (nint Window, PixelRect Bounds)? _dragOrigin;
     private readonly Settings _settings = Settings.Load();
+    private const string LayoutsFile = "layouts.json";
     private SettingsWindow? _settingsWindow;
+
     private Dictionary<ShortcutAction, ShortcutKey> _shortcuts = null!;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -62,6 +64,18 @@ public partial class App : System.Windows.Application
 
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("New Group", null, (_, _) => NewGroup());
+        var open = new Forms.ToolStripMenuItem("Open Layout");
+        // Rebuilt on opening, so layouts saved meanwhile show up.
+        open.DropDownOpening += (_, _) =>
+        {
+            open.DropDownItems.Clear();
+            foreach (var saved in JsonFile.Read<List<SavedGroup>>(LayoutsFile) ?? [])
+                open.DropDownItems.Add(saved.Name, null, (_, _) => OpenLayout(saved));
+            if (open.DropDownItems.Count == 0) open.DropDownItems.Add(new Forms.ToolStripMenuItem("(No saved layouts)") { Enabled = false });
+        };
+        // A placeholder: without any item the menu shows no submenu to open.
+        open.DropDownItems.Add("");
+        menu.Items.Add(open);
         menu.Items.Add("Settings…", null, (_, _) => ShowSettings());
         menu.Items.Add("Exit", null, (_, _) => Quit());
         using var iconStream = GetResourceStream(new Uri("pack://application:,,,/Assets/Dockyard.ico"))!.Stream;
@@ -194,15 +208,37 @@ public partial class App : System.Windows.Application
         }
     }
 
-    private void NewGroup()
+    private GroupWindow NewGroup(string? name = null, PixelRect? bounds = null)
     {
-        var g = new GroupWindow($"Group {++_groupCount}", _windows, IsGrouped, _settings.TabBarPlacement);
+        var g = new GroupWindow(name ?? $"Group {++_groupCount}", _windows, IsGrouped, _settings.TabBarPlacement);
+        g.SaveLayoutRequested += SaveLayout;
         g.TabDragStarted += (source, window) => _dockDrag.Begin(window, source);
         g.TabDragEnded += cancel => _dockDrag.Finish(cancel);
         g.SettingsRequested += ShowSettings;
         g.Closed += (_, _) => _groups.Remove(g);
         _groups.Add(g);
-        g.Show();
+        g.ShowAt(bounds);
+        return g;
+    }
+
+    /// <summary>Saves the group's layout under its name, replacing a layout saved with the same name (Q3).</summary>
+    private void SaveLayout(GroupWindow g)
+    {
+        var layouts = JsonFile.Read<List<SavedGroup>>(LayoutsFile) ?? [];
+        layouts.RemoveAll(l => l.Name == g.GroupName);
+        layouts.Add(new SavedGroup(g.GroupName, g.FrameBounds, g.Controller.SaveLayout()));
+        JsonFile.Write(LayoutsFile, layouts);
+        _tray?.ShowBalloonTip(2000, "Dockyard", $"Saved layout \"{g.GroupName}\".", Forms.ToolTipIcon.Info);
+    }
+
+    /// <summary>Opens a saved layout as a new group, filling its tabs with matching windows that are open now.</summary>
+    private void OpenLayout(SavedGroup saved)
+    {
+        var claimed = _groups.SelectMany(g => g.Controller.Members).ToHashSet();
+        var candidates = WindowCatalog.GetCandidates().Where(w => w.Controllable)
+            .Select(w => new WindowCandidate(w.Handle, w.ProcessName, w.Title)).ToList();
+        var g = NewGroup(saved.Name, saved.Bounds);
+        g.Controller.RestoreLayout(saved.Layout, tab => WindowMatcher.Match(tab, candidates, claimed, sameWindowOnly: false));
     }
 
     private void ShowSettings()

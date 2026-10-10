@@ -13,6 +13,12 @@ public sealed class Win32WindowSystem : IWindowSystem
     public bool IsMaximized(nint window) => IsZoomed(window);
     public string GetTitle(nint window) => GetWindowText(window);
 
+    public string GetProcessName(nint window)
+    {
+        GetWindowThreadProcessId(window, out var pid);
+        return WindowCatalog.ProcessName(pid);
+    }
+
     public PixelRect GetVisibleBounds(nint window) => ToPixel(Native.GetVisibleBounds(window));
 
     public PixelRect GetBounds(nint window) => GetWindowRect(window, out var r) ? ToPixel(r) : default;

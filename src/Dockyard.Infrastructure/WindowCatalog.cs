@@ -42,7 +42,7 @@ public static class WindowCatalog
     private static bool CanControl(nint hwnd) =>
         SetWindowPos(hwnd, 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
 
-    private static string ProcessName(uint pid)
+    internal static string ProcessName(uint pid)
     {
         try { return Process.GetProcessById((int)pid).ProcessName; }
         catch (ArgumentException) { return "?"; }

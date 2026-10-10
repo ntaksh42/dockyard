@@ -58,6 +58,53 @@ public sealed class GroupController
     /// <summary>The tab the user last worked in, which keyboard shortcuts act on when the frame has the focus.</summary>
     public nint? LastActive => _members.ContainsKey(_lastActive) ? _lastActive : null;
 
+    /// <summary>Raised after the layout or the members change, so the host can keep the session file current.</summary>
+    public event Action? Changed;
+
+    // ---- saving and restoring -----------------------------------------------------------------
+
+    public SavedNode SaveLayout() => Save(_tree.Root);
+
+    /// <summary>
+    /// Replaces an empty group's layout with a saved one. <paramref name="resolve"/> picks the window for each
+    /// saved tab (0 for none); panes whose windows are not found stay empty (Q3). Returns how many windows joined.
+    /// </summary>
+    public int RestoreLayout(SavedNode layout, Func<SavedTab, nint> resolve)
+    {
+        if (_closing || _members.Count > 0) return 0;
+        _tree.Load(Build(layout, resolve));
+        _lastActive = ActiveWindows().FirstOrDefault();
+        Refresh(raise: true);
+        return _members.Count;
+    }
+
+    private SavedNode Save(LayoutNode node) => node switch
+    {
+        SplitNode s => new SavedNode(s.Orientation, s.Ratio, Save(s.First), Save(s.Second)),
+        Pane p => new SavedNode(
+            Tabs: p.Windows.Select(h => new SavedTab(_windows.GetProcessName(h), _members[h].Title, h, _members[h].OriginalBounds)).ToList(),
+            ActiveIndex: p.ActiveIndex),
+        _ => throw new InvalidOperationException(),
+    };
+
+    private LayoutNode Build(SavedNode node, Func<SavedTab, nint> resolve)
+    {
+        if (node is { Split: { } orientation, First: { } first, Second: { } second })
+            return new SplitNode(orientation, Build(first, resolve), Build(second, resolve)) { Ratio = Math.Clamp(node.Ratio, 0, 1) };
+        var pane = new Pane();
+        var tabs = node.Tabs ?? [];
+        for (var i = 0; i < tabs.Count; i++)
+        {
+            var h = resolve(tabs[i]);
+            if (h == 0 || _members.ContainsKey(h) || !_windows.Exists(h)) continue;
+            if (_windows.IsMinimized(h) || _windows.IsMaximized(h)) _windows.Restore(h);
+            _members[h] = new Member(h, tabs[i].OriginalBounds ?? _windows.GetBounds(h)) { Title = _windows.GetTitle(h) };
+            if (i == node.ActiveIndex) pane.ActiveIndex = pane.Windows.Count;
+            pane.Windows.Add(h);
+        }
+        return pane;
+    }
+
     // ---- user commands ------------------------------------------------------------------------
 
     /// <summary>Adds a window as a tab of <paramref name="pane"/>, or in a new pane split off it on <paramref name="side"/>.</summary>
@@ -324,6 +371,8 @@ public sealed class GroupController
     private void Refresh(bool raise, nint? top = null)
     {
         if (_closing) return;
+        Changed?.Invoke();
+
         RenderVisuals();
         SyncWindows(raise, top);
         _view.SetMinimumContentSize(LayoutEngine.MinSize(_tree.Root, Metrics, MinSizeOf));

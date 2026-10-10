@@ -59,6 +59,13 @@ public sealed class LayoutTree
 
     public Pane? FindPane(nint window) => Panes.FirstOrDefault(p => p.Windows.Contains(window));
 
+    /// <summary>Replaces the whole tree, e.g. with a saved layout.</summary>
+    public void Load(LayoutNode root)
+    {
+        if (root.Parent is not null) throw new ArgumentException("Not a root node.", nameof(root));
+        Root = root;
+    }
+
     public void AddTab(Pane pane, nint window)
     {
         pane.Windows.Add(window);

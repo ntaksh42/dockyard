@@ -9,7 +9,7 @@
     <DockPanel x:Name="Root">
         <Grid x:Name="Caption" DockPanel.Dock="Top" Height="30" MouseEnter="Caption_MouseEnter">
             <!-- Shown only while the pointer is over the caption (see ShowCaptionInfo). -->
-            <StackPanel x:Name="CaptionInfo" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,140,0" Opacity="0">
+            <StackPanel x:Name="CaptionInfo" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,184,0" Opacity="0">
 
                 <Border x:Name="GroupChip" Background="#3B82F6" CornerRadius="9" Padding="8,1" ToolTip="Double-click to rename"
                         WindowChrome.IsHitTestVisibleInChrome="True" MouseLeftButtonDown="GroupChip_MouseLeftButtonDown">
@@ -23,6 +23,7 @@
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="&#xE74E;" FontFamily="Segoe MDL2 Assets" FontSize="12" ToolTip="Save Layout" Click="SaveLayout_Click" Style="{StaticResource CaptionButton}" />
                 <Button Content="&#x2014;" Click="Minimize_Click" Style="{StaticResource CaptionButton}" />
                 <Button Content="&#x2610;" Click="Maximize_Click" Style="{StaticResource CaptionButton}" />
                 <Button Content="&#x2715;" Click="Close_Click" Style="{StaticResource CaptionButton}" />
