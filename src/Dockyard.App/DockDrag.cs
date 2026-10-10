@@ -20,6 +20,9 @@ internal sealed class DockDrag(Func<IEnumerable<GroupWindow>> groups)
     private nint _window;
     private bool _cancelled;
     private PixelRect _originalBounds;
+    private DockGuide? _guide;
+
+    private sealed record DockGuide(GroupWindow Group, DockTarget Drop, PixelRect Bounds, double Scale);
 
     public void Begin(nint window, GroupWindow? source, PixelRect? originalBounds = null)
     {
@@ -103,6 +106,7 @@ internal sealed class DockDrag(Func<IEnumerable<GroupWindow>> groups)
     {
         _overlay?.Close();
         _overlay = null;
+        _guide = null;
         _target = null;
         _drop = null;
     }
@@ -110,6 +114,10 @@ internal sealed class DockDrag(Func<IEnumerable<GroupWindow>> groups)
     private void ShowGuide(GroupWindow group, DockTarget drop)
     {
         var bounds = group.ToScreen(drop.Layout.Bounds);
+        var scale = group.Scale;
+        var state = new DockGuide(group, drop, bounds, scale);
+        if (_guide == state) return;
+        _guide = state;
         if (_overlay is null)
         {
             _overlay = new Window
@@ -131,7 +139,6 @@ internal sealed class DockDrag(Func<IEnumerable<GroupWindow>> groups)
             _overlay.Show();
         }
         var canvas = new Canvas();
-        var scale = group.Scale;
         var preview = drop.Preview;
         var highlight = new Border
         {
