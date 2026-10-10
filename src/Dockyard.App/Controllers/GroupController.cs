@@ -10,7 +10,7 @@ namespace Dockyard.App.Controllers;
 /// </summary>
 public sealed class GroupController
 {
-    public LayoutMetrics Metrics { get; private set; } = new(SplitterThickness: 4, TabBarHeight: 28);
+    public LayoutMetrics Metrics { get; private set; } = new(SplitterThickness: 4, TabBarHeight: 24);
 
     private sealed class Member(nint handle, PixelRect originalBounds)
     {

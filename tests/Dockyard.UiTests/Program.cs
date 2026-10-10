@@ -11,7 +11,7 @@ namespace Dockyard.UiTests;
 /// </summary>
 internal static partial class Program
 {
-    private const int Margin = 4, Caption = 30, TabBar = 28;
+    private const int Margin = 4, Caption = 24, TabBar = 24;
     private static readonly string LogPath =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Dockyard", "dockyard.log");
     private static readonly string SessionPath = Path.Combine(Path.GetDirectoryName(LogPath)!, "session.json");

@@ -11,7 +11,7 @@ public enum TabBarPlacement
     Left,
 }
 
-public sealed record LayoutMetrics(double SplitterThickness = 4, double TabBarHeight = 28, double MinPaneWidth = 80, double MinPaneHeight = 40,
+public sealed record LayoutMetrics(double SplitterThickness = 4, double TabBarHeight = 24, double MinPaneWidth = 80, double MinPaneHeight = 40,
     TabBarPlacement TabBarPlacement = TabBarPlacement.Top, double TabColumnWidth = 160)
 {
     /// <summary>

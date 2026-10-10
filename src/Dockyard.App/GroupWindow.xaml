@@ -4,10 +4,10 @@
         Width="1000" Height="700" WindowStartupLocation="CenterScreen" Icon="Assets/Dockyard.ico"
         WindowStyle="None" ResizeMode="CanResize" Background="#2B2F36">
     <WindowChrome.WindowChrome>
-        <WindowChrome CaptionHeight="30" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
+        <WindowChrome CaptionHeight="24" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
     <DockPanel x:Name="Root">
-        <Grid x:Name="Caption" DockPanel.Dock="Top" Height="30">
+        <Grid x:Name="Caption" DockPanel.Dock="Top" Height="24">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />

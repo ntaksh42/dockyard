@@ -20,7 +20,7 @@ namespace Dockyard.App;
 /// </summary>
 public partial class GroupWindow : Window, IGroupView
 {
-    private const double CaptionHeight = 30;
+    private const double CaptionHeight = 24;
     private static readonly Brush TabBarBrush = Brush("#D1D5DB"), TabBrush = Brush("#BCC2CB"), ActiveTabBrush = Brushes.White,
         InactiveTextBrush = Brush("#4B5563"), ActiveTextBrush = Brush("#111827"), AccentBrush = Brush("#3B82F6"), PlaceholderBrush = Brush("#1F2328"), SplitterBrush = Brush("#2B2F36"), MutedTextBrush = Brush("#9CA3AF");
 
@@ -286,7 +286,7 @@ public partial class GroupWindow : Window, IGroupView
             $"#{snapshot.Layout.Splitters.Count}#{_overlaySurface is not null}";
     }
 
-    private const double TabTitleWidth = 200, TabChrome = 36, TabHeight = 28, TabBarButton = 28;
+    private const double TabTitleWidth = 200, TabChrome = 36, TabHeight = 24, TabBarButton = 24;
 
     /// <summary>
     /// How much room each tab gets along the bar: the title's width in a horizontal bar, the tab's height in a
@@ -381,13 +381,13 @@ public partial class GroupWindow : Window, IGroupView
         DockPanel.SetDock(scroller, vertical ? Dock.Top : Dock.Left);
 
         var tabSize = TabSize(bounds, pane.Windows.Count, vertical);
-        var add = new Button { Content = "+", FontSize = 16, Width = vertical ? double.NaN : 28, Height = vertical ? 28 : double.NaN, BorderThickness = new Thickness(0),
+        var add = new Button { Content = "+", FontSize = 16, Width = vertical ? double.NaN : TabBarButton, Height = vertical ? TabBarButton : double.NaN, BorderThickness = new Thickness(0),
             Background = overMember ? TabBarBrush : Brushes.Transparent, ToolTip = "Add Window" };
         System.Windows.Automation.AutomationProperties.SetName(add, "Add Window or Layout");
         add.Click += (_, _) => OpenPaneMenu(pane, add);
         _addButtons[pane] = add;
         var settings = new Button { Content = "", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 12,
-            Width = vertical ? double.NaN : 28, Height = vertical ? 28 : double.NaN, BorderThickness = new Thickness(0),
+            Width = vertical ? double.NaN : TabBarButton, Height = vertical ? TabBarButton : double.NaN, BorderThickness = new Thickness(0),
             Background = overMember ? TabBarBrush : Brushes.Transparent, ToolTip = "Settings" };
         settings.Click += (_, _) => SettingsRequested?.Invoke();
         System.Windows.Automation.AutomationProperties.SetName(settings, "Settings");
