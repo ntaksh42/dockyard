@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Imaging;
 using static Dockyard.UiTests.Win32;
 
 namespace Dockyard.UiTests;
@@ -33,6 +35,7 @@ internal static partial class Program
         }
         int[] shape = [];
         int Error() => Shape().Zip(shape, (now, then) => Math.Abs(now - then)).Max();
+        var blanks = new List<double>();
 
         // Drags with the real mouse, sampling how far the members are from where they belong after every step.
         void Measure(string name, int x1, int y1, int x2, int y2)
@@ -40,6 +43,7 @@ internal static partial class Program
             shape = Shape();
             var start = Visible(_frame);
             var errors = new List<int>();
+            blanks.Clear();
             var cpu = _app.TotalProcessorTime;
             var clock = Stopwatch.StartNew();
             SetCursorPos(x1, y1);
@@ -52,6 +56,7 @@ internal static partial class Program
                 SetCursorPos(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps);
                 Thread.Sleep(16);
                 errors.Add(Error());
+                blanks.Add(Blank());
             }
             mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
             var settled = SettleTime(() => Error() <= 2);
@@ -59,6 +64,7 @@ internal static partial class Program
             var end = Visible(_frame);
             Report($"{name} (frame moved {end.Left - start.Left},{end.Top - start.Top}, grew {end.Width - start.Width})",
                 errors, settled, (_app.TotalProcessorTime - cpu).TotalMilliseconds, clock.ElapsedMilliseconds);
+            ReportBlank(blanks);
         }
 
         // The baseline: nothing happening, then the pointer moving over the desktop away from the group.
@@ -91,9 +97,20 @@ internal static partial class Program
         f = Visible(_frame);
         var r = Visible(a.Hwnd);
         var cpu = _app.TotalProcessorTime;
-        Drag(r.Right + 2, r.Top + r.Height / 2, r.Right - 250, r.Top + r.Height / 2, steps: 60);
+        blanks.Clear();
+        SetCursorPos(r.Right + 2, r.Top + r.Height / 2);
+        Thread.Sleep(80);
+        mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+        for (var i = 1; i <= 60; i++)
+        {
+            SetCursorPos(r.Right + 2 - 250 * i / 60, r.Top + r.Height / 2);
+            Thread.Sleep(16);
+            blanks.Add(Blank());
+        }
+        mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
         _app.Refresh();
         Console.WriteLine($"  splitter drag: Dockyard CPU {(_app.TotalProcessorTime - cpu).TotalMilliseconds:F0} ms");
+        ReportBlank(blanks);
         Settle();
 
         // Maximize and restore: how long until the members fill their panes again.
@@ -106,9 +123,11 @@ internal static partial class Program
             int samples = 0, bad = 0;
             long lastBad = -1;
             string? seen = null;
+            blanks.Clear();
             while (clock.ElapsedMilliseconds < 1000)
             {
                 samples++;
+                blanks.Add(Blank());
                 if (Inspect([a, b], [a, b], []) is { } problem)
                 {
                     bad++;
@@ -118,9 +137,51 @@ internal static partial class Program
                 Thread.Sleep(5);
             }
             _app.Refresh();
-            Console.WriteLine($"  {label}: wrong in {bad} of {samples} samples, last at {lastBad} ms ({seen ?? "-"}), Dockyard CPU {(_app.TotalProcessorTime - cpu).TotalMilliseconds:F0} ms");
+            Console.WriteLine($"  {label}: windows misplaced in {bad} of {samples} samples, last at {lastBad} ms ({seen ?? "-"}), Dockyard CPU {(_app.TotalProcessorTime - cpu).TotalMilliseconds:F0} ms");
+            ReportBlank(blanks);
             Settle();
         }
+    }
+
+    /// <summary>
+    /// What the user sees: the share of the frame's pane area showing the empty-pane colour, that is covered
+    /// neither by a window nor by anything drawn in its place.
+    /// </summary>
+    private static double Blank()
+    {
+        var f = IsZoomed(_frame) ? WorkArea(_frame) : Visible(_frame);
+        int left = f.Left + Margin + 2, top = f.Top + Caption + TabBar + 2, right = f.Right - Margin - 2, bottom = f.Bottom - Margin - 2;
+        if (right - left < 16 || bottom - top < 16) return 0;
+        using var bitmap = new Bitmap(right - left, bottom - top, PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(bitmap)) g.CopyFromScreen(left, top, 0, 0, bitmap.Size);
+        var data = bitmap.LockBits(new Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            var row = new byte[data.Stride];
+            int samples = 0, blank = 0;
+            for (var y = 0; y < bitmap.Height; y += 8)
+            {
+                System.Runtime.InteropServices.Marshal.Copy(data.Scan0 + y * data.Stride, row, 0, data.Stride);
+                for (var x = 0; x < bitmap.Width; x += 8)
+                {
+                    samples++;
+                    // #1F2328, the empty-pane colour (BGRA in memory).
+                    if (Math.Abs(row[x * 4 + 2] - 0x1F) <= 2 && Math.Abs(row[x * 4 + 1] - 0x23) <= 2 && Math.Abs(row[x * 4] - 0x28) <= 2) blank++;
+                }
+            }
+            return (double)blank / samples;
+        }
+        finally
+        {
+            bitmap.UnlockBits(data);
+        }
+    }
+
+    private static void ReportBlank(List<double> blanks)
+    {
+        if (blanks.Count == 0) return;
+        Console.WriteLine($"    blank panes on screen: mean {blanks.Average():P1}, max {blanks.Max():P1}, " +
+            $"{blanks.Count(b => b > 0.01) * 100.0 / blanks.Count:F0}% of {blanks.Count} looks showed more than 1%");
     }
 
     private static long SettleTime(Func<bool> done)
