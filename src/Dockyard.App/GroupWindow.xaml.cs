@@ -42,8 +42,6 @@ public partial class GroupWindow : Window, IGroupView
         InitializeComponent();
         _isGrouped = isGrouped;
         GroupName = name;
-        GroupNameText.Text = name;
-        Title = $"[{name}]";
         Controller = new GroupController(this, windows, new WpfScheduler(Dispatcher));
 
         SourceInitialized += (_, _) =>
@@ -103,7 +101,15 @@ public partial class GroupWindow : Window, IGroupView
         };
     }
 
-    public string GroupName { get; }
+    public string GroupName
+    {
+        get => GroupNameText.Text;
+        set
+        {
+            GroupNameText.Text = value;
+            UpdateTitle();
+        }
+    }
 
     internal GroupController Controller { get; }
 
@@ -175,9 +181,12 @@ public partial class GroupWindow : Window, IGroupView
         }
 
         ActiveTitleText.Text = snapshot.ActiveTitle;
-        // Window switchers such as Waypoint list the frame under this title (Q5).
-        Title = snapshot.ActiveTitle.Length == 0 ? $"[{GroupName}]" : $"[{GroupName}] {snapshot.ActiveTitle}";
+        UpdateTitle();
     }
+
+    /// <summary>Window switchers such as Waypoint list the frame under this title (Q5).</summary>
+    private void UpdateTitle() =>
+        Title = ActiveTitleText.Text.Length == 0 ? $"[{GroupName}]" : $"[{GroupName}] {ActiveTitleText.Text}";
 
     public void MoveBy(double dx, double dy)
     {
@@ -337,6 +346,33 @@ public partial class GroupWindow : Window, IGroupView
         Root.Margin = new Thickness(
             Math.Max(0, work.Left - w.Left) / scale, Math.Max(0, work.Top - w.Top) / scale,
             Math.Max(0, w.Right - work.Right) / scale, Math.Max(0, w.Bottom - work.Bottom) / scale);
+    }
+
+    private void GroupChip_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2 || GroupNameEdit.IsVisible) return;
+        GroupNameEdit.Text = GroupName;
+        GroupNameText.Visibility = Visibility.Hidden;
+        GroupNameEdit.Visibility = Visibility.Visible;
+        GroupNameEdit.Focus();
+        GroupNameEdit.SelectAll();
+        e.Handled = true;
+    }
+
+    private void GroupNameEdit_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Enter or Key.Escape) EndRename(e.Key == Key.Enter);
+    }
+
+    private void GroupNameEdit_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) => EndRename(true);
+
+    private void EndRename(bool commit)
+    {
+        if (!GroupNameEdit.IsVisible) return;
+        var name = GroupNameEdit.Text.Trim();
+        if (commit && name.Length > 0) GroupName = name;
+        GroupNameEdit.Visibility = Visibility.Collapsed;
+        GroupNameText.Visibility = Visibility.Visible;
     }
 
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;

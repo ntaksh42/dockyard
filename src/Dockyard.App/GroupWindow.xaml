@@ -9,8 +9,13 @@
     <DockPanel x:Name="Root">
         <Grid DockPanel.Dock="Top" Height="30">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,140,0">
-                <Border Background="#3B82F6" CornerRadius="9" Padding="8,1">
-                    <TextBlock x:Name="GroupNameText" Foreground="White" FontSize="12" />
+                <Border x:Name="GroupChip" Background="#3B82F6" CornerRadius="9" Padding="8,1" ToolTip="Double-click to rename"
+                        WindowChrome.IsHitTestVisibleInChrome="True" MouseLeftButtonDown="GroupChip_MouseLeftButtonDown">
+                    <Grid>
+                        <TextBlock x:Name="GroupNameText" Foreground="White" FontSize="12" />
+                        <TextBox x:Name="GroupNameEdit" FontSize="12" MinWidth="80" Padding="0" BorderThickness="0" Visibility="Collapsed"
+                                 KeyDown="GroupNameEdit_KeyDown" LostKeyboardFocus="GroupNameEdit_LostKeyboardFocus" />
+                    </Grid>
                 </Border>
                 <TextBlock x:Name="ActiveTitleText" Foreground="#E5E7EB" FontSize="12" Margin="8,0,0,0"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
