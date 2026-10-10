@@ -14,6 +14,8 @@ internal static class Program
     private const int Margin = 4, Caption = 30, TabBar = 28;
     private static readonly string LogPath =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Dockyard", "dockyard.log");
+    private static readonly string SessionPath = Path.Combine(Path.GetDirectoryName(LogPath)!, "session.json");
+    private static string _exe = "";
 
     private static Process _app = null!;
     private static nint _frame;
@@ -32,13 +34,20 @@ internal static class Program
         var root = AppContext.BaseDirectory;
         while (!File.Exists(Path.Combine(root, "Dockyard.slnx"))) root = Path.GetDirectoryName(root)!;
         _dragOnly = args.Contains("--drag-only") || args.Contains("--external-only");
-        var exe = Path.Combine(root, _dragOnly ? @"src\Dockyard.App\bin\DragValidation\Dockyard.exe" : @"src\Dockyard.App\bin\Debug\net10.0-windows10.0.19041.0\Dockyard.exe");
+        _exe = Path.Combine(root, _dragOnly ? @"src\Dockyard.App\bin\DragValidation\Dockyard.exe" : @"src\Dockyard.App\bin\Debug\net10.0-windows10.0.19041.0\Dockyard.exe");
         if (!_dragOnly && File.Exists(LogPath)) File.Delete(LogPath);
+        // Left by a Dockyard that went down with grouped windows: it would restore those groups instead of
+        // opening the empty frame the test starts from.
+        if (File.Exists(SessionPath))
+        {
+            Console.WriteLine($"{SessionPath} exists: start Dockyard once and close its groups first.");
+            return 1;
+        }
 
-        _app = Process.Start(exe)!;
+        _app = Process.Start(_exe)!;
         try
         {
-            _frame = Wait(() => FindWindow(h => Pid(h) == _app.Id && IsWindowVisible(h) && Title(h).StartsWith("[")), "group frame");
+            _frame = WaitForFrame();
             SetWindowPos(_frame, 0, 100, 60, 1400, 850, SWP_NOZORDER);
             if (args.Contains("--external-only")) RunExternalDrag();
             else if (_dragOnly) RunDockDrag();
@@ -288,9 +297,22 @@ internal static class Program
             extra: () => Restored(b));
 
 
+        // The session file is written once the layout has settled.
+        Thread.Sleep(1500);
+        Step("restart after a forced exit restores the group", () =>
+        {
+            _app.Kill();
+            _app.WaitForExit();
+            _app = Process.Start(_exe)!;
+            _frame = WaitForFrame();
+        }, members: [a, c], active: [a, c]);
+
         Step("close the group", () => Invoke(FindIn(_frame, "✕")), members: [], active: [],
-            extra: () => Restored(a) ?? Restored(c));
+            extra: () => Restored(a) ?? Restored(c) ?? (File.Exists(SessionPath) ? "session file left after closing" : null));
     }
+
+    private static nint WaitForFrame() =>
+        Wait(() => FindWindow(h => Pid(h) == _app.Id && IsWindowVisible(h) && Title(h).StartsWith("[")), "group frame");
 
     // ---- steps and checks -----------------------------------------------------------------------
 
