@@ -1,6 +1,6 @@
 # Dockyard
 
-別々のアプリのウィンドウを 1 つの枠にまとめ、タブと分割ペインでドッキング配置する Windows 常駐アプリ。仕様のすり合わせ結果は [docs/mock.html](docs/mock.html)。
+別々のアプリのウィンドウを 1 つの枠にまとめ、タブと分割ペインでドッキング配置する Windows 常駐アプリ。仕様のすり合わせ結果は [docs/mock.html](docs/mock.html)、設計は [docs/architecture.md](docs/architecture.md)。
 
 ## 実行
 
