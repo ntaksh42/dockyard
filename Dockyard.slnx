@@ -1,7 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Dockyard.Core/Dockyard.Core.csproj" />
-    <Project Path="src/Dockyard/Dockyard.csproj" />
+    <Project Path="src/Dockyard.App/Dockyard.App.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Dockyard.Core.Tests/Dockyard.Core.Tests.csproj" />

@@ -26,7 +26,7 @@ internal static class Program
     {
         var root = AppContext.BaseDirectory;
         while (!File.Exists(Path.Combine(root, "Dockyard.slnx"))) root = Path.GetDirectoryName(root)!;
-        var exe = Path.Combine(root, @"src\Dockyard\bin\Debug\net10.0-windows\Dockyard.exe");
+        var exe = Path.Combine(root, @"src\Dockyard.App\bin\Debug\net10.0-windows\Dockyard.exe");
         if (File.Exists(LogPath)) File.Delete(LogPath);
 
         _app = Process.Start(exe)!;

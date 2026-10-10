@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace Dockyard.Interop;
+namespace Dockyard.App.Interop;
 
 internal static class Native
 {

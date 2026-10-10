@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace Dockyard;
+namespace Dockyard.App;
 
 /// <summary>Appends errors to %LOCALAPPDATA%\Dockyard\dockyard.log.</summary>
 internal static class Log

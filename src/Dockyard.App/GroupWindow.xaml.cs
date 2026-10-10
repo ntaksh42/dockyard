@@ -6,12 +6,12 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Dockyard.Core;
-using static Dockyard.Interop.Native;
+using static Dockyard.App.Interop.Native;
 using CoreRect = Dockyard.Core.Rect;
 using CoreSize = Dockyard.Core.Size;
 using Orientation = Dockyard.Core.Orientation;
 
-namespace Dockyard;
+namespace Dockyard.App;
 
 /// <summary>
 /// A group frame. External windows are not reparented (Q8): each one is kept positioned over its pane's

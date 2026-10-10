@@ -1,6 +1,6 @@
-using static Dockyard.Interop.Native;
+using static Dockyard.App.Interop.Native;
 
-namespace Dockyard.Interop;
+namespace Dockyard.App.Interop;
 
 /// <summary>Out-of-context WinEvent hooks for top-level windows of other processes. Callbacks arrive on the creating (UI) thread.</summary>
 internal sealed class WinEventHook : IDisposable

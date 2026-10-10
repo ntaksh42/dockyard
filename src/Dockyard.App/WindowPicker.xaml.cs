@@ -1,7 +1,7 @@
 using System.Windows;
-using Dockyard.Interop;
+using Dockyard.App.Interop;
 
-namespace Dockyard;
+namespace Dockyard.App;
 
 internal partial class WindowPicker : Window
 {

@@ -1,8 +1,8 @@
 using System.Windows;
-using Dockyard.Interop;
+using Dockyard.App.Interop;
 using Forms = System.Windows.Forms;
 
-namespace Dockyard;
+namespace Dockyard.App;
 
 public partial class App : Application
 {

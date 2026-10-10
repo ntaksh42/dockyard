@@ -1,7 +1,7 @@
 using System.Diagnostics;
-using static Dockyard.Interop.Native;
+using static Dockyard.App.Interop.Native;
 
-namespace Dockyard.Interop;
+namespace Dockyard.App.Interop;
 
 /// <param name="Controllable">False for windows Windows will not let this process move, such as elevated apps.</param>
 internal sealed record WindowInfo(nint Handle, string Title, string ProcessName, bool Controllable)
