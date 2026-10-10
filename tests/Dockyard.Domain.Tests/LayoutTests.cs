@@ -181,6 +181,24 @@ public class LayoutEngineTests
         Assert.Equal(new Rect(60, 0, 140, 100), p.Content);
     }
 
+    [Fact]
+    public void TitleBarPlacement_PanesThatKeepTheirTitleBarGetTabsAbove()
+    {
+        var tree = new LayoutTree();
+        tree.AddTab((Pane)tree.Root, 1);
+        tree.Split((Pane)tree.Root, DockSide.Right, 2);
+        var m = M with { TabBarPlacement = TabBarPlacement.TitleBar, KeepsTitleBar = p => p.Windows.Contains(2) };
+
+        var panes = LayoutEngine.Arrange(tree.Root, new Rect(0, 0, 204, 100), m).Panes;
+
+        Assert.Equal([TabBarPlacement.TitleBar, TabBarPlacement.Top], panes.Select(p => p.Placement));
+        Assert.Equal(panes[0].Bounds, panes[0].Content);
+        Assert.Equal(panes[1].Bounds.Y + 20, panes[1].Content.Y);
+        Assert.Equal(new Size(90 + 4 + 90, 120), LayoutEngine.MinSize(tree.Root, m, _ => new Size(90, 100)));
+        // Only placement B is affected.
+        Assert.Equal(TabBarPlacement.Left, (m with { TabBarPlacement = TabBarPlacement.Left }).PlacementOf((Pane)tree.Panes.Last()));
+    }
+
     [Theory]
     [InlineData(TabBarPlacement.Top, 90, 120)]
     [InlineData(TabBarPlacement.TitleBar, 90, 100)]

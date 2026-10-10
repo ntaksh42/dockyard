@@ -255,6 +255,7 @@ public partial class App : System.Windows.Application
             SavedLayouts = () => JsonFile.Read<List<SavedGroup>>(LayoutsFile) ?? [],
             ShortcutBindings = () => _shortcuts,
         };
+        g.Controller.SetTitleBarApps(_settings.TitleBarApps ?? Settings.DefaultTitleBarApps);
         g.SaveLayoutRequested += SaveLayout;
         g.OpenLayoutRequested += (target, saved) => OpenLayout(saved, target);
         g.Controller.Changed += RequestSessionSave;
@@ -323,6 +324,11 @@ public partial class App : System.Windows.Application
             _shortcuts = shortcuts.ToDictionary();
             _settings.Shortcuts = Shortcuts.Save(_shortcuts);
             _settings.Save();
+        }, _settings.TitleBarApps ?? Settings.DefaultTitleBarApps, apps =>
+        {
+            _settings.TitleBarApps = [.. apps];
+            _settings.Save();
+            foreach (var g in _groups) g.Controller.SetTitleBarApps(apps);
         });
 
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;

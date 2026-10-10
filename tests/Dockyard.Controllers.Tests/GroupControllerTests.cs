@@ -390,6 +390,24 @@ public class GroupControllerTests
     }
 
     [Fact]
+    public void TitleBarPlacement_PanesWithATitleBarAppKeepTabsAbove()
+    {
+        SplitAC();
+        _ws.Windows[C].ProcessName = "msedge";
+        // The process name is read when a window joins.
+        _c.Remove(C);
+        _c.Adopt(C, PaneOf(A).Pane, DockSide.Right);
+        _c.SetTabBarPlacement(TabBarPlacement.TitleBar);
+        _c.SetTitleBarApps(["MSEdge"]);
+
+        Assert.Equal(TabBarPlacement.TitleBar, PaneOf(A).Placement);
+        Assert.Equal(TabBarPlacement.Top, PaneOf(C).Placement);
+        Assert.Equal(PaneOf(C).Bounds.Y + _c.Metrics.TabBarHeight, PaneOf(C).Content.Y);
+        AssertPlaced(A);
+        AssertPlaced(C);
+    }
+
+    [Fact]
     public void LeftPlacement_DraggingLeftEdgeOfRightPane_MovesTheDivider()
     {
         SplitAC();

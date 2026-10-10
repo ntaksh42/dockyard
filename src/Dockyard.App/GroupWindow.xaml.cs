@@ -185,7 +185,7 @@ public partial class GroupWindow : Window, IGroupView
         foreach (var p in snapshot.Layout.Panes)
         {
             // Over a member window the tabs must be in the overlay; the frame is below the members.
-            var overMember = _overlaySurface is not null && p.Pane.Windows.Count > 0;
+            var overMember = _overlaySurface is not null && p.Pane.Windows.Count > 0 && p.Placement == TabBarPlacement.TitleBar;
             Place(BuildTabBar(p.Pane, snapshot.Titles, p.TabBar, overMember), p.TabBar, overMember ? _overlaySurface : null);
             if (p.Pane.Windows.Count == 0)
             {

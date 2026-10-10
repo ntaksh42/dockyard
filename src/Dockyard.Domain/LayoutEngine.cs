@@ -12,9 +12,19 @@ public enum TabBarPlacement
 }
 
 public sealed record LayoutMetrics(double SplitterThickness = 4, double TabBarHeight = 28, double MinPaneWidth = 80, double MinPaneHeight = 40,
-    TabBarPlacement TabBarPlacement = TabBarPlacement.Top, double TabColumnWidth = 160);
+    TabBarPlacement TabBarPlacement = TabBarPlacement.Top, double TabColumnWidth = 160)
+{
+    /// <summary>
+    /// Panes whose windows draw controls in their own title bar (tabs, menus), which placement B would cover:
+    /// those panes put their tabs above the content instead.
+    /// </summary>
+    public Func<Pane, bool>? KeepsTitleBar { get; init; }
 
-public sealed record PaneLayout(Pane Pane, Rect Bounds, Rect TabBar, Rect Content);
+    public TabBarPlacement PlacementOf(Pane pane) =>
+        TabBarPlacement == TabBarPlacement.TitleBar && KeepsTitleBar?.Invoke(pane) == true ? TabBarPlacement.Top : TabBarPlacement;
+}
+
+public sealed record PaneLayout(Pane Pane, Rect Bounds, Rect TabBar, Rect Content, TabBarPlacement Placement = TabBarPlacement.Top);
 
 /// <param name="SplitBounds">Area covered by the whole split, used to turn a pointer position into a ratio.</param>
 public sealed record SplitterLayout(SplitNode Split, Rect Bounds, Rect SplitBounds);
@@ -39,11 +49,12 @@ public static class LayoutEngine
             case Pane pane:
                 var tab = Math.Min(m.TabBarHeight, r.Height);
                 var column = Math.Min(m.TabColumnWidth, r.Width);
-                panes.Add(m.TabBarPlacement switch
+                var placement = m.PlacementOf(pane);
+                panes.Add(placement switch
                 {
-                    TabBarPlacement.TitleBar => new PaneLayout(pane, r, r with { Height = tab }, r),
-                    TabBarPlacement.Left => new PaneLayout(pane, r, r with { Width = column }, r with { X = r.X + column, Width = r.Width - column }),
-                    _ => new PaneLayout(pane, r, r with { Height = tab }, r with { Y = r.Y + tab, Height = r.Height - tab }),
+                    TabBarPlacement.TitleBar => new PaneLayout(pane, r, r with { Height = tab }, r, placement),
+                    TabBarPlacement.Left => new PaneLayout(pane, r, r with { Width = column }, r with { X = r.X + column, Width = r.Width - column }, placement),
+                    _ => new PaneLayout(pane, r, r with { Height = tab }, r with { Y = r.Y + tab, Height = r.Height - tab }, placement),
                 });
                 break;
             case SplitNode s when s.Orientation == Orientation.Horizontal:
@@ -83,7 +94,7 @@ public static class LayoutEngine
                     w = Math.Max(w, s.Width);
                     h = Math.Max(h, s.Height);
                 }
-                return m.TabBarPlacement switch
+                return m.PlacementOf(pane) switch
                 {
                     TabBarPlacement.TitleBar => new Size(w, Math.Max(h, m.TabBarHeight)),
                     TabBarPlacement.Left => new Size(w + m.TabColumnWidth, h),

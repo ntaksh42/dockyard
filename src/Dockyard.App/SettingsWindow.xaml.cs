@@ -18,10 +18,18 @@ internal partial class SettingsWindow : Window
     /// <summary>The action waiting for its new keys, which the keyboard hook delivers (see <see cref="Capture"/>).</summary>
     private ShortcutAction? _capturing;
 
+    private readonly Action<IReadOnlyList<string>> _titleBarAppsChanged;
+    private string _titleBarAppsText;
+
     public SettingsWindow(TabBarPlacement placement, IReadOnlyDictionary<ShortcutAction, ShortcutKey> bindings,
-        Action<TabBarPlacement> placementChanged, Action<IReadOnlyDictionary<ShortcutAction, ShortcutKey>> shortcutsChanged)
+        Action<TabBarPlacement> placementChanged, Action<IReadOnlyDictionary<ShortcutAction, ShortcutKey>> shortcutsChanged,
+        IReadOnlyList<string> titleBarApps, Action<IReadOnlyList<string>> titleBarAppsChanged)
     {
         InitializeComponent();
+        TitleBarAppsBox.Text = _titleBarAppsText = string.Join(", ", titleBarApps);
+        _titleBarAppsChanged = titleBarAppsChanged;
+        // Closing with the box focused does not always move the focus first.
+        Closing += (_, _) => CommitTitleBarApps();
         ((RadioButton)FindName($"{placement}Option")).IsChecked = true;
         // Set after the initial check so opening the window does not report a change.
         _placementChanged = placementChanged;
@@ -105,6 +113,16 @@ internal partial class SettingsWindow : Window
 
     private void Placement_Checked(object sender, RoutedEventArgs e) =>
         _placementChanged?.Invoke(Enum.Parse<TabBarPlacement>((string)((RadioButton)sender).Tag));
+
+    private void TitleBarAppsBox_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) => CommitTitleBarApps();
+
+    private void CommitTitleBarApps()
+    {
+        if (TitleBarAppsBox.Text == _titleBarAppsText) return;
+        _titleBarAppsText = TitleBarAppsBox.Text;
+        _titleBarAppsChanged(TitleBarAppsBox.Text.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Select(name => name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name).ToList());
+    }
 
     private void ResetShortcuts_Click(object sender, RoutedEventArgs e)
     {

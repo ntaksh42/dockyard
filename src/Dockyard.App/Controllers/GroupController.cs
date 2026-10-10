@@ -17,6 +17,7 @@ public sealed class GroupController
         public nint Handle { get; } = handle;
         public PixelRect OriginalBounds { get; } = originalBounds;
         public string Title { get; set; } = "";
+        public string ProcessName { get; init; } = "";
         /// <summary>Smallest content size the app accepted, in layout units. Learned by observation.</summary>
         public Size MinSize { get; set; }
         /// <summary>Visible bounds last requested.</summary>
@@ -111,7 +112,7 @@ public sealed class GroupController
             if (_windows.IsMinimized(h) || _windows.IsMaximized(h)) _windows.Restore(h);
             // A group minimized when Dockyard went down left its windows hidden.
             _windows.Show(h);
-            _members[h] = new Member(h, tabs[i].OriginalBounds ?? _windows.GetBounds(h)) { Title = _windows.GetTitle(h) };
+            _members[h] = new Member(h, tabs[i].OriginalBounds ?? _windows.GetBounds(h)) { Title = _windows.GetTitle(h), ProcessName = _windows.GetProcessName(h) };
             if (i == node.ActiveIndex) pane.ActiveIndex = pane.Windows.Count;
             pane.Windows.Add(h);
         }
@@ -147,7 +148,11 @@ public sealed class GroupController
         // The picker is modal and pumps events: the window or its target pane may have gone away meanwhile.
         if (_closing || !_windows.Exists(window) || _members.ContainsKey(window) || !_tree.Panes.Contains(pane)) return false;
         if (_windows.IsMinimized(window) || _windows.IsMaximized(window)) _windows.Restore(window);
-        _members[window] = new Member(window, originalBounds ?? _windows.GetBounds(window)) { Title = _windows.GetTitle(window) };
+        _members[window] = new Member(window, originalBounds ?? _windows.GetBounds(window))
+        {
+            Title = _windows.GetTitle(window),
+            ProcessName = _windows.GetProcessName(window),
+        };
         if (side is { } s) _tree.Split(pane, s, window);
         else _tree.AddTab(pane, window);
         _lastActive = window;
@@ -259,6 +264,17 @@ public sealed class GroupController
     {
         if (Metrics.TabBarPlacement == placement) return;
         Metrics = Metrics with { TabBarPlacement = placement };
+        Refresh(raise: true);
+    }
+
+    /// <summary>
+    /// Apps (exe names) that draw controls in their own title bar, such as browsers with tabs there: with
+    /// placement B, panes holding one of them keep their tabs above the content instead of covering it.
+    /// </summary>
+    public void SetTitleBarApps(IEnumerable<string> processNames)
+    {
+        var apps = processNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Metrics = Metrics with { KeepsTitleBar = pane => pane.Windows.Any(h => _members.TryGetValue(h, out var m) && apps.Contains(m.ProcessName)) };
         Refresh(raise: true);
     }
 
