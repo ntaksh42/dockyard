@@ -21,8 +21,8 @@ namespace Dockyard.App;
 public partial class GroupWindow : Window, IGroupView
 {
     private const double CaptionHeight = 30;
-    private static readonly Brush TabBarBrush = Brush("#D1D5DB"), TabBrush = Brush("#E6E8EC"), ActiveTabBrush = Brushes.White,
-        AccentBrush = Brush("#3B82F6"), PlaceholderBrush = Brush("#1F2328"), SplitterBrush = Brush("#2B2F36"), MutedTextBrush = Brush("#9CA3AF");
+    private static readonly Brush TabBarBrush = Brush("#D1D5DB"), TabBrush = Brush("#BCC2CB"), ActiveTabBrush = Brushes.White,
+        InactiveTextBrush = Brush("#4B5563"), ActiveTextBrush = Brush("#111827"), AccentBrush = Brush("#3B82F6"), PlaceholderBrush = Brush("#1F2328"), SplitterBrush = Brush("#2B2F36"), MutedTextBrush = Brush("#9CA3AF");
 
     private readonly Func<nint, bool> _isGrouped;
     private readonly IWindowSystem _windows;
@@ -408,7 +408,7 @@ public partial class GroupWindow : Window, IGroupView
             {
                 Background = active ? ActiveTabBrush : TabBrush,
                 BorderBrush = AccentBrush,
-                BorderThickness = vertical ? new Thickness(active ? 2 : 0, 0, 0, 0) : new Thickness(0, active ? 2 : 0, 0, 0),
+                BorderThickness = vertical ? new Thickness(active ? 4 : 0, 0, 0, 0) : new Thickness(0, active ? 4 : 0, 0, 0),
                 Padding = new Thickness(10, 0, 4, 0),
                 Margin = vertical ? new Thickness(0, 0, 0, 1) : new Thickness(0, 0, 1, 0),
                 Height = vertical ? tabSize : double.NaN,
@@ -420,7 +420,8 @@ public partial class GroupWindow : Window, IGroupView
                     VerticalAlignment = VerticalAlignment.Center,
                     Children =
                     {
-                        new TextBlock { Text = titles[h], MaxWidth = vertical ? Math.Max(0, bounds.Width - 40) : tabSize, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, FontSize = 12 },
+                        new TextBlock { Text = titles[h], MaxWidth = vertical ? Math.Max(0, bounds.Width - 40) : tabSize, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, FontSize = 12,
+                            Foreground = active ? ActiveTextBrush : InactiveTextBrush, FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal },
                         close,
                     },
                 },
