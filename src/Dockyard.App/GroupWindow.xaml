@@ -8,24 +8,33 @@
     </WindowChrome.WindowChrome>
     <DockPanel x:Name="Root">
         <Grid x:Name="Caption" DockPanel.Dock="Top" Height="30">
-            <StackPanel x:Name="CaptionInfo" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,184,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <!-- Columns rather than a horizontal stack, so a long title is cut short before the caption buttons. -->
+            <Grid x:Name="CaptionInfo" VerticalAlignment="Center" Margin="10,0,8,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-                <Border x:Name="GroupChip" Background="#3B82F6" CornerRadius="9" Padding="8,1" ToolTip="Double-click to rename"
+                <Border x:Name="GroupChip" Background="#3B82F6" CornerRadius="9" Padding="8,1" ToolTip="Double-click to rename" MaxWidth="240"
                         WindowChrome.IsHitTestVisibleInChrome="True" MouseLeftButtonDown="GroupChip_MouseLeftButtonDown">
                     <Grid>
-                        <TextBlock x:Name="GroupNameText" Foreground="White" FontSize="12" />
+                        <TextBlock x:Name="GroupNameText" Foreground="White" FontSize="12" TextTrimming="CharacterEllipsis" />
                         <TextBox x:Name="GroupNameEdit" FontSize="12" MinWidth="80" Padding="0" BorderThickness="0" Visibility="Collapsed"
                                  KeyDown="GroupNameEdit_KeyDown" LostKeyboardFocus="GroupNameEdit_LostKeyboardFocus" />
                     </Grid>
                 </Border>
-                <TextBlock x:Name="ActiveTitleText" Foreground="#E5E7EB" FontSize="12" Margin="8,0,0,0"
+                <TextBlock x:Name="ActiveTitleText" Grid.Column="1" Foreground="#E5E7EB" FontSize="12" Margin="8,0,0,0"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="&#xE74E;" FontFamily="Segoe MDL2 Assets" FontSize="12" ToolTip="Save Layout" Click="SaveLayout_Click" Style="{StaticResource CaptionButton}" />
-                <Button Content="&#x2014;" Click="Minimize_Click" Style="{StaticResource CaptionButton}" />
-                <Button Content="&#x2610;" Click="Maximize_Click" Style="{StaticResource CaptionButton}" />
-                <Button Content="&#x2715;" Click="Close_Click" Style="{StaticResource CaptionButton}" />
+            </Grid>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Content="&#xE74E;" FontSize="12" ToolTip="Save Layout" AutomationProperties.Name="Save Layout" Click="SaveLayout_Click" Style="{StaticResource CaptionButton}" />
+                <Button Content="&#xE921;" ToolTip="Minimize" AutomationProperties.Name="Minimize" Click="Minimize_Click" Style="{StaticResource CaptionButton}" />
+                <Button x:Name="MaximizeButton" Content="&#xE922;" ToolTip="Maximize" AutomationProperties.Name="Maximize" Click="Maximize_Click" Style="{StaticResource CaptionButton}" />
+                <Button Content="&#xE8BB;" ToolTip="Close" AutomationProperties.Name="Close" Click="Close_Click" Style="{StaticResource CaptionCloseButton}" />
             </StackPanel>
         </Grid>
         <!-- The empty-pane colour: panes and splitters cover the whole surface, so one fixed background stands behind

@@ -102,6 +102,7 @@ internal partial class SettingsWindow : Window
                 binding.Content = "Press keys…";
             };
             var clear = new Button { Content = "Clear", Margin = new Thickness(0, 0, 0, 4), Padding = new Thickness(8, 2, 8, 2) };
+            System.Windows.Automation.AutomationProperties.SetName(clear, $"Clear {Shortcuts.Names[action]}");
             clear.Click += (_, _) =>
             {
                 StopCapture();

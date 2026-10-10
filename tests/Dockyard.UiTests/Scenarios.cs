@@ -139,7 +139,7 @@ internal static partial class Program
         var frameBefore = _frame;
         Step("close the group, then open the layout from a new group's + menu", () =>
         {
-            Invoke(FindIn(_frame, "✕"));
+            Invoke(FindIn(_frame, "Close"));
             Thread.Sleep(800);
             TrayMenu("New Group");
             _frame = Wait(() => FindWindow(h => h != frameBefore && Pid(h) == _app.Id && IsWindowVisible(h) && Title(h).StartsWith("[Group")), "new frame");
@@ -446,11 +446,11 @@ internal static partial class Program
     private static void OpenPlus(Subject inPane)
     {
         var r = Visible(inPane.Hwnd);
-        Invoke(AllIn(_frame, "+").Where(p => Math.Abs(p.Current.BoundingRectangle.Bottom - r.Top) < 12)
+        Invoke(AllIn(_frame, "Add Window or Layout").Where(p => Math.Abs(p.Current.BoundingRectangle.Bottom - r.Top) < 12)
             .OrderBy(p => Math.Abs(p.Current.BoundingRectangle.Right - r.Right)).First());
     }
 
-    private static void OpenPlusOfEmptyFrame() => Invoke(Wait(() => AllIn(_frame, "+").FirstOrDefault(), "+"));
+    private static void OpenPlusOfEmptyFrame() => Invoke(Wait(() => AllIn(_frame, "Add Window or Layout").FirstOrDefault(), "Add Window or Layout"));
 
     /// <summary>The menu item at the end of <paramref name="path"/>, expanding the submenus on the way.</summary>
     private static AutomationElement MenuElement(params string[] path)

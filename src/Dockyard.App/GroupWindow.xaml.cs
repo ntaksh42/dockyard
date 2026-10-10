@@ -89,6 +89,10 @@ public partial class GroupWindow : Window, IGroupView
         StateChanged += (_, _) =>
         {
             UpdateMaximizedMargin();
+            var maximized = WindowState == WindowState.Maximized;
+            MaximizeButton.Content = maximized ? "" : "";
+            MaximizeButton.ToolTip = maximized ? "Restore" : "Maximize";
+            System.Windows.Automation.AutomationProperties.SetName(MaximizeButton, (string)MaximizeButton.ToolTip);
             if (WindowState == WindowState.Minimized)
             {
                 _overlay?.Hide();
@@ -228,7 +232,7 @@ public partial class GroupWindow : Window, IGroupView
             Place(BuildTabBar(p.Pane, snapshot.Titles, p.TabBar, overMember), l => l.Panes[index].TabBar, overMember ? _overlaySurface : null);
             if (p.Pane.Windows.Count == 0)
             {
-                var add = new Button { Content = "Add Window…", Padding = new Thickness(12, 4, 12, 4) };
+                var add = new Button { Content = "Add Window…", Style = (Style)FindResource("AccentButton"), HorizontalAlignment = HorizontalAlignment.Center };
                 add.Click += (_, _) => PickAndAdopt(p.Pane, null);
                 var host = new Grid { Background = PlaceholderBrush };
                 var content = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -238,6 +242,8 @@ public partial class GroupWindow : Window, IGroupView
                         content.Children.Add(new TextBlock { Text = $"Waiting for: {tab.ProcessName} — {tab.Title}", Foreground = MutedTextBrush,
                             FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Center });
                 content.Children.Add(add);
+                content.Children.Add(new TextBlock { Text = "or hold Shift and drag a window's title bar here", Foreground = MutedTextBrush,
+                    FontSize = 12, Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Center });
                 host.Children.Add(content);
                 Place(host, l => l.Panes[index].Content);
             }
@@ -334,8 +340,9 @@ public partial class GroupWindow : Window, IGroupView
         var vertical = Controller.Metrics.TabBarPlacement == TabBarPlacement.Left;
         var bar = new DockPanel { Background = overMember ? null : TabBarBrush, LastChildFill = false };
 
-        var add = new Button { Content = "+", Width = vertical ? double.NaN : 28, Height = vertical ? 28 : double.NaN, BorderThickness = new Thickness(0),
+        var add = new Button { Content = "+", FontSize = 16, Width = vertical ? double.NaN : 28, Height = vertical ? 28 : double.NaN, BorderThickness = new Thickness(0),
             Background = overMember ? TabBarBrush : Brushes.Transparent, ToolTip = "Add Window" };
+        System.Windows.Automation.AutomationProperties.SetName(add, "Add Window or Layout");
         // Built on click: tab bars are rebuilt on every layout change, including each step of a drag.
         add.Click += (_, _) =>
         {
@@ -354,6 +361,7 @@ public partial class GroupWindow : Window, IGroupView
             Width = vertical ? double.NaN : 28, Height = vertical ? 28 : double.NaN, BorderThickness = new Thickness(0),
             Background = overMember ? TabBarBrush : Brushes.Transparent, ToolTip = "Settings" };
         settings.Click += (_, _) => SettingsRequested?.Invoke();
+        System.Windows.Automation.AutomationProperties.SetName(settings, "Settings");
         // Added first so they keep their room when the tabs overflow; over a member they follow the tabs instead.
         DockPanel.SetDock(add, vertical ? Dock.Bottom : overMember ? Dock.Left : Dock.Right);
         DockPanel.SetDock(settings, DockPanel.GetDock(add));
@@ -372,6 +380,8 @@ public partial class GroupWindow : Window, IGroupView
                 Padding = new Thickness(10, 0, 4, 0),
                 Margin = vertical ? new Thickness(0, 0, 0, 1) : new Thickness(0, 0, 1, 0),
                 Height = vertical ? 28 : double.NaN,
+                // Titles are cut short in the tab: the whole one on hover.
+                ToolTip = titles[h],
                 Child = new StackPanel
                 {
                     Orientation = System.Windows.Controls.Orientation.Horizontal,

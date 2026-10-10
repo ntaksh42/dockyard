@@ -210,9 +210,10 @@ internal static partial class Program
                 var item = PickerItem(task);
                 if (!item.Current.Name.Contains("administrator")) throw new Exception("not marked; this machine runs it unelevated");
                 Select(item);
-                Invoke(PickerButton("Add"));
-                Thread.Sleep(500);
-                Invoke(PickerButton("Cancel")); // throws if the picker closed, i.e. it accepted the window
+                Thread.Sleep(300);
+                var add = PickerButton("Add");
+                if (add.Current.IsEnabled) throw new Exception("Add stays enabled for a window that cannot be added");
+                Invoke(PickerButton("Cancel"));
             }, members: [], active: [], extra: () => FindWindow(h => Pid(h) == _app.Id && Title(h) == "Choose a Window" && IsWindowVisible(h)) != 0
                 ? "picker still open" : null);
         }
@@ -294,7 +295,7 @@ internal static partial class Program
             Drag(r.Right + 2, r.Top + r.Height / 2, Visible(_frame).Right - 10, r.Top + r.Height / 2);
         }, members: [a, b, c, d], active: [a, c, d]);
 
-        Step("minimize the frame", () => Invoke(FindIn(_frame, "—")), members: [], active: [],
+        Step("minimize the frame", () => Invoke(FindIn(_frame, "Minimize")), members: [], active: [],
             extra: () => new[] { a, b, c, d }.Where(s => IsWindowVisible(s.Hwnd)).Select(s => $"{s.Name} still visible").FirstOrDefault());
 
         Step("restore the frame", () =>
@@ -303,8 +304,8 @@ internal static partial class Program
             Activate(_frame);
         }, members: [a, b, c, d], active: [a, c, d]);
 
-        Step("maximize the frame", () => Invoke(FindIn(_frame, "☐")), members: [a, b, c, d], active: [a, c, d]);
-        Step("un-maximize the frame", () => Invoke(FindIn(_frame, "☐")), members: [a, b, c, d], active: [a, c, d]);
+        Step("maximize the frame", () => Invoke(FindIn(_frame, "Maximize")), members: [a, b, c, d], active: [a, c, d]);
+        Step("un-maximize the frame", () => Invoke(FindIn(_frame, "Restore")), members: [a, b, c, d], active: [a, c, d]);
 
         Step("a member's app exits", () => Spawned.First(p => p.Id == Pid(d.Hwnd)).Kill(), members: [a, b, c], active: [a, c]);
 
@@ -322,7 +323,7 @@ internal static partial class Program
             _frame = WaitForFrame();
         }, members: [a, c], active: [a, c]);
 
-        Step("close the group", () => Invoke(FindIn(_frame, "✕")), members: [], active: [],
+        Step("close the group", () => Invoke(FindIn(_frame, "Close")), members: [], active: [],
             extra: () => Restored(a) ?? Restored(c) ?? (File.Exists(SessionPath) ? "session file left after closing" : null));
     }
 
@@ -509,7 +510,7 @@ internal static partial class Program
     private static void OpenPickerVia(Subject inPane, string menuItem)
     {
         var r = Visible(inPane.Hwnd);
-        var plus = AllIn(_frame, "+")
+        var plus = AllIn(_frame, "Add Window or Layout")
             .Where(p => Math.Abs(p.Current.BoundingRectangle.Bottom - r.Top) < 12)
             .OrderBy(p => Math.Abs(p.Current.BoundingRectangle.Right - r.Right))
             .First();

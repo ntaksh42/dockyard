@@ -3,12 +3,29 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:ClassModifier="internal"
         Title="Choose a Window" Width="560" Height="420" WindowStartupLocation="CenterOwner"
-        ShowInTaskbar="False" ResizeMode="CanResizeWithGrip" Icon="Assets/Dockyard.ico">
+        ShowInTaskbar="False" ResizeMode="CanResizeWithGrip" Icon="Assets/Dockyard.ico" ThemeMode="Dark">
     <DockPanel Margin="10">
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-            <Button Content="Add" Width="80" IsDefault="True" Click="Ok_Click" />
+            <Button x:Name="AddButton" Content="Add" Width="80" IsDefault="True" Click="Ok_Click" />
             <Button Content="Cancel" Width="80" Margin="8,0,0,0" IsCancel="True" />
         </StackPanel>
-        <ListBox x:Name="List" MouseDoubleClick="Ok_Click" />
+        <Grid>
+            <!-- Not virtualized: only a few dozen windows, and every one stays visible to UI Automation. -->
+            <ListBox x:Name="List" MouseDoubleClick="Ok_Click" SelectionChanged="List_SelectionChanged" VirtualizingPanel.IsVirtualizing="False">
+                <ListBox.ItemContainerStyle>
+                    <!-- Windows that cannot be added stay listed, so it is clear why they are missing, but dimmed. -->
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Controllable}" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+            </ListBox>
+            <TextBlock x:Name="EmptyText" Visibility="Collapsed" TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center" Margin="24"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       Text="No other windows to add. Open the app you want, then try again." />
+        </Grid>
     </DockPanel>
 </Window>

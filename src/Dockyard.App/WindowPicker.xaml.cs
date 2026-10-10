@@ -12,7 +12,12 @@ internal partial class WindowPicker : Window
         var candidates = WindowCatalog.GetCandidates().Where(w => !isGrouped(w.Handle)).ToList();
         List.ItemsSource = candidates;
         List.SelectedItem = candidates.FirstOrDefault(w => w.Controllable);
+        EmptyText.Visibility = candidates.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        AddButton.IsEnabled = Selected is { Controllable: true };
     }
+
+    private void List_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) =>
+        AddButton.IsEnabled = Selected is { Controllable: true };
 
     public WindowInfo? Selected => List.SelectedItem as WindowInfo;
 

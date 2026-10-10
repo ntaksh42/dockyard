@@ -29,12 +29,21 @@ internal partial class LayoutsWindow : Window
         List.ItemsSource = _layouts.OrderBy(l => l.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
         List.SelectedItem = ((IEnumerable<SavedGroup>)List.ItemsSource).FirstOrDefault(l => l.Name == select)
             ?? ((IEnumerable<SavedGroup>)List.ItemsSource).FirstOrDefault();
+        // With nothing to select the selection does not change: update here too.
+        UpdateActions();
+    }
+
+    private void UpdateActions()
+    {
+        OpenButton.IsEnabled = RenameButton.IsEnabled = DeleteButton.IsEnabled = NameBox.IsEnabled = Selected is not null;
+        EmptyText.Visibility = _layouts.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void List_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         NameBox.Text = Selected?.Name ?? "";
         Message.Visibility = Visibility.Collapsed;
+        UpdateActions();
     }
 
     private void Open_Click(object sender, RoutedEventArgs e)

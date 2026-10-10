@@ -118,7 +118,7 @@ internal static partial class Program
         foreach (var label in new[] { "maximize", "restore" })
         {
             cpu = _app.TotalProcessorTime;
-            Invoke(FindIn(_frame, "☐"));
+            Invoke(FindIn(_frame, label == "maximize" ? "Maximize" : "Restore"));
             // Watched for a whole second: a pane can look right, then go blank again.
             var clock = Stopwatch.StartNew();
             int samples = 0, bad = 0;
