@@ -253,6 +253,7 @@ public partial class App : System.Windows.Application
         var g = new GroupWindow(name ?? $"Group {++_groupCount}", _windows, IsGrouped, _settings.TabBarPlacement)
         {
             SavedLayouts = () => JsonFile.Read<List<SavedGroup>>(LayoutsFile) ?? [],
+            ShortcutBindings = () => _shortcuts,
         };
         g.SaveLayoutRequested += SaveLayout;
         g.OpenLayoutRequested += (target, saved) => OpenLayout(saved, target);

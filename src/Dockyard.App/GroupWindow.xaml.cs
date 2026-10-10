@@ -38,6 +38,8 @@ public partial class GroupWindow : Window, IGroupView
     internal event Action<GroupWindow, SavedGroup>? OpenLayoutRequested;
     /// <summary>The saved layouts, read when a menu offering them opens.</summary>
     internal Func<IReadOnlyList<SavedGroup>> SavedLayouts { get; init; } = () => [];
+    /// <summary>The current shortcut bindings, listed in the "+" menu.</summary>
+    internal Func<IReadOnlyDictionary<ShortcutAction, ShortcutKey>> ShortcutBindings { get; init; } = () => Shortcuts.Defaults;
     /// <summary>The open window picker. Tabs must stay below it, so raising starts there instead of at the top.</summary>
     private WindowPicker? _picker;
     /// <summary>Draws the tab bars above the member windows with tab bar placement B; null otherwise.</summary>
@@ -297,6 +299,7 @@ public partial class GroupWindow : Window, IGroupView
             menu.Items.Add(MenuItem("Split Down…", () => PickAndAdopt(pane, DockSide.Bottom)));
             menu.Items.Add(new Separator());
             menu.Items.Add(OpenLayoutMenu());
+            menu.Items.Add(ShortcutsMenu());
             menu.Items.Add(MenuItem("Settings…", () => SettingsRequested?.Invoke()));
 
             menu.IsOpen = true;
@@ -576,6 +579,20 @@ object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
             open.Items.Add(MenuItem(layout.Name, () => OpenLayoutRequested?.Invoke(this, layout)));
         if (open.Items.Count == 0) open.Items.Add(new MenuItem { Header = "(No saved layouts)", IsEnabled = false });
         return open;
+    }
+
+    /// <summary>A cheat sheet of the shortcuts; choosing one opens the settings to change it.</summary>
+    private MenuItem ShortcutsMenu()
+    {
+        var list = new MenuItem { Header = "Keyboard Shortcuts" };
+        var bindings = ShortcutBindings();
+        foreach (var action in Enum.GetValues<ShortcutAction>())
+        {
+            var item = MenuItem(Shortcuts.Names[action], () => SettingsRequested?.Invoke());
+            item.InputGestureText = bindings.TryGetValue(action, out var key) ? key.ToString() : "(none)";
+            list.Items.Add(item);
+        }
+        return list;
     }
 
     private static MenuItem MenuItem(string header, Action action)

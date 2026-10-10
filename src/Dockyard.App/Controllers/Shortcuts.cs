@@ -74,6 +74,18 @@ public static class Shortcuts
         [ShortcutAction.RemoveFromGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x57),
     };
 
+    /// <summary>How the actions are called in the settings and menus.</summary>
+    public static IReadOnlyDictionary<ShortcutAction, string> Names { get; } = new Dictionary<ShortcutAction, string>
+    {
+        [ShortcutAction.PreviousTab] = "Previous tab",
+        [ShortcutAction.NextTab] = "Next tab",
+        [ShortcutAction.FocusLeft] = "Pane to the left",
+        [ShortcutAction.FocusRight] = "Pane to the right",
+        [ShortcutAction.FocusUp] = "Pane above",
+        [ShortcutAction.FocusDown] = "Pane below",
+        [ShortcutAction.RemoveFromGroup] = "Remove from group",
+    };
+
     /// <summary>The action bound to the key, or null if it is not a shortcut.</summary>
     public static ShortcutAction? Match(IReadOnlyDictionary<ShortcutAction, ShortcutKey> bindings, int virtualKey, KeyModifiers modifiers)
     {

@@ -11,17 +11,6 @@ namespace Dockyard.App;
 /// <summary>Preferences. Changes apply to every group right away.</summary>
 internal partial class SettingsWindow : Window
 {
-    private static readonly Dictionary<ShortcutAction, string> ActionNames = new()
-    {
-        [ShortcutAction.PreviousTab] = "Previous tab",
-        [ShortcutAction.NextTab] = "Next tab",
-        [ShortcutAction.FocusLeft] = "Pane to the left",
-        [ShortcutAction.FocusRight] = "Pane to the right",
-        [ShortcutAction.FocusUp] = "Pane above",
-        [ShortcutAction.FocusDown] = "Pane below",
-        [ShortcutAction.RemoveFromGroup] = "Remove from group",
-    };
-
     private readonly Action<TabBarPlacement> _placementChanged;
     private readonly Action<IReadOnlyDictionary<ShortcutAction, ShortcutKey>> _shortcutsChanged;
     private readonly Dictionary<ShortcutAction, ShortcutKey> _bindings;
@@ -74,7 +63,7 @@ internal partial class SettingsWindow : Window
         {
             var row = ShortcutGrid.RowDefinitions.Count;
             ShortcutGrid.RowDefinitions.Add(new RowDefinition());
-            var label = new TextBlock { Text = ActionNames[action], VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 4) };
+            var label = new TextBlock { Text = Shortcuts.Names[action], VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 4) };
             var binding = new Button { Margin = new Thickness(0, 0, 4, 4), Padding = new Thickness(6, 2, 6, 2), HorizontalContentAlignment = HorizontalAlignment.Left };
             binding.Click += (_, _) =>
             {
