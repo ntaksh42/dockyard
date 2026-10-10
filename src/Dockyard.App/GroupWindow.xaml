@@ -28,6 +28,8 @@
                 <Button Content="&#x2715;" Click="Close_Click" Style="{StaticResource CaptionButton}" />
             </StackPanel>
         </Grid>
-        <Canvas x:Name="Surface" Margin="4,0,4,4" ClipToBounds="True" Background="Transparent" />
+        <!-- The empty-pane colour: panes and splitters cover the whole surface, so one fixed background stands behind
+             every pane instead of an element per pane that would be redrawn at each step of a resize. -->
+        <Canvas x:Name="Surface" Margin="4,0,4,4" ClipToBounds="True" Background="#1F2328" />
     </DockPanel>
 </Window>

@@ -53,6 +53,9 @@ public partial class App : System.Windows.Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        // Hardware rendering costs some 250 MB of driver memory (D3D9On12 on the GPU's D3D12 driver) for a frame that
+        // draws flat rectangles and text; software rendering keeps the process near 150 MB.
+        System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
 
         // A bug in one handler should not take every grouped window down with it: log and keep running.
         DispatcherUnhandledException += (_, e) =>

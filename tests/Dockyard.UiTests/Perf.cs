@@ -74,6 +74,7 @@ internal static partial class Program
         Thread.Sleep(2000);
         _app.Refresh();
         Console.WriteLine($"  nothing happening: Dockyard CPU {(_app.TotalProcessorTime - idle).TotalMilliseconds:F0} ms in 2 s");
+        ReportMemory("after building two panes");
         idle = _app.TotalProcessorTime;
         for (var i = 0; i < 120; i++)
         {
@@ -141,6 +142,13 @@ internal static partial class Program
             ReportBlank(blanks);
             Settle();
         }
+        ReportMemory("after all of the above");
+    }
+
+    private static void ReportMemory(string when)
+    {
+        _app.Refresh();
+        Console.WriteLine($"  memory {when}: working set {_app.WorkingSet64 / 1048576.0:F0} MB, private {_app.PrivateMemorySize64 / 1048576.0:F0} MB");
     }
 
     /// <summary>

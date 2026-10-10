@@ -22,12 +22,14 @@ public partial class GroupWindow : Window, IGroupView
 {
     private const double CaptionHeight = 30;
     private static readonly Brush TabBarBrush = Brush("#D1D5DB"), TabBrush = Brush("#E6E8EC"), ActiveTabBrush = Brushes.White,
-        AccentBrush = Brush("#3B82F6"), PlaceholderBrush = Brush("#1F2328"), SplitterBrush = Brushes.Transparent, MutedTextBrush = Brush("#9CA3AF");
+        AccentBrush = Brush("#3B82F6"), PlaceholderBrush = Brush("#1F2328"), SplitterBrush = Brush("#2B2F36"), MutedTextBrush = Brush("#9CA3AF");
 
     private readonly Func<nint, bool> _isGrouped;
     private readonly IWindowSystem _windows;
     /// <summary>Live thumbnails of the active tabs, by window, drawn while the frame moves or resizes (see BeginLive).</summary>
     private readonly Dictionary<nint, nint> _thumbnails = [];
+    /// <summary>Where each thumbnail was last put: moving the frame leaves it unchanged, and DWM need not hear it again.</summary>
+    private readonly Dictionary<nint, (RECT Destination, RECT Source)> _thumbnailPlaces = [];
     /// <summary>Ends the live view once the frame has been still for a moment, so the apps have repainted at their final size.</summary>
     private readonly System.Windows.Threading.DispatcherTimer _liveEnd = new() { Interval = TimeSpan.FromMilliseconds(200) };
     /// <summary>Between WM_ENTERSIZEMOVE and WM_EXITSIZEMOVE: the user is dragging the frame or one of its borders.</summary>
@@ -238,10 +240,6 @@ public partial class GroupWindow : Window, IGroupView
                 content.Children.Add(add);
                 host.Children.Add(content);
                 Place(host, l => l.Panes[index].Content);
-            }
-            else
-            {
-                Place(new Border { Background = PlaceholderBrush }, l => l.Panes[index].Content);
             }
         }
 
@@ -667,6 +665,7 @@ object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
         Controller.EndLive();
         foreach (var thumbnail in _thumbnails.Values) DwmUnregisterThumbnail(thumbnail);
         _thumbnails.Clear();
+        _thumbnailPlaces.Clear();
     }
 
     /// <summary>
@@ -693,11 +692,15 @@ object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
             int width = Math.Min(pane.Width, visible.Width), height = Math.Min(pane.Height, visible.Height);
             int left = pane.Left - (int)Math.Round(client.X), top = pane.Top - (int)Math.Round(client.Y);
             int sourceLeft = visible.Left - full.Left, sourceTop = visible.Top - full.Top;
+            (RECT Destination, RECT Source) place = (new RECT { Left = left, Top = top, Right = left + width, Bottom = top + height },
+                new RECT { Left = sourceLeft, Top = sourceTop, Right = sourceLeft + width, Bottom = sourceTop + height });
+            if (_thumbnailPlaces.TryGetValue(window, out var last) && last.Equals(place)) continue;
+            _thumbnailPlaces[window] = place;
             var properties = new DWM_THUMBNAIL_PROPERTIES
             {
                 dwFlags = DWM_TNP_RECTDESTINATION | DWM_TNP_RECTSOURCE | DWM_TNP_OPACITY | DWM_TNP_VISIBLE | DWM_TNP_SOURCECLIENTAREAONLY,
-                rcDestination = new RECT { Left = left, Top = top, Right = left + width, Bottom = top + height },
-                rcSource = new RECT { Left = sourceLeft, Top = sourceTop, Right = sourceLeft + width, Bottom = sourceTop + height },
+                rcDestination = place.Destination,
+                rcSource = place.Source,
                 opacity = 255,
                 fVisible = true,
             };
@@ -707,6 +710,7 @@ object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
         {
             DwmUnregisterThumbnail(_thumbnails[gone]);
             _thumbnails.Remove(gone);
+            _thumbnailPlaces.Remove(gone);
         }
     }
 
