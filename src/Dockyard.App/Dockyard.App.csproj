@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\Dockyard.Application\Dockyard.Application.csproj" />
+    <ProjectReference Include="..\Dockyard.Domain\Dockyard.Domain.csproj" />
     <ProjectReference Include="..\Dockyard.Infrastructure\Dockyard.Infrastructure.csproj" />
   </ItemGroup>
 

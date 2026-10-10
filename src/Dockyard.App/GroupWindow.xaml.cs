@@ -4,7 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using Dockyard.Application;
+using Dockyard.App.Controllers;
 using Dockyard.Domain;
 using Dockyard.Infrastructure;
 using static Dockyard.Infrastructure.Native;

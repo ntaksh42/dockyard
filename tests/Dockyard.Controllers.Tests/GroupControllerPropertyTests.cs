@@ -1,6 +1,7 @@
 using Dockyard.Domain;
+using Dockyard.Infrastructure;
 
-namespace Dockyard.Application.Tests;
+namespace Dockyard.App.Controllers.Tests;
 
 /// <summary>
 /// Drives a controller through random sequences of user and system actions and checks the group's invariants

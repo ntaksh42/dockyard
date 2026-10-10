@@ -1,5 +1,5 @@
 using System.Windows.Threading;
-using Dockyard.Application;
+using Dockyard.App.Controllers;
 
 namespace Dockyard.App;
 

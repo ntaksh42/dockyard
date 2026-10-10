@@ -1,6 +1,6 @@
 using Dockyard.Domain;
 
-namespace Dockyard.Application;
+namespace Dockyard.App.Controllers;
 
 public enum ShortcutAction { PreviousTab, NextTab, FocusLeft, FocusRight, FocusUp, FocusDown, RemoveFromGroup }
 

@@ -14,71 +14,36 @@
 
 reparent（SetParent）を採らないのは、UWP・一部の Electron アプリ・DPI が混在する環境で壊れやすく、Dockyard が落ちると子ウィンドウが巻き添えになるため。位置同期方式なら、Dockyard が落ちても各アプリは普通のウィンドウとして残る。
 
-## 2. レイヤー構成
+## 2. プロジェクト構成
 
-一般的なレイヤードアーキテクチャの 4 層に分け、層ごとに 1 プロジェクトにしている。依存は内側（ドメイン）に向かう。アプリケーション層は外部とのやりとりをインターフェース（ポート）で定義し、インフラストラクチャ層とプレゼンテーション層がそれを実装する。
+画面と操作の制御は `Dockyard.App` にまとめ、制御処理を `Controllers` フォルダ・`Dockyard.App.Controllers` 名前空間に置く。レイアウトの構造と計算は `Dockyard.Domain`、Win32 操作は `Dockyard.Infrastructure` に分ける。
 
-```mermaid
-flowchart TB
-    subgraph P["プレゼンテーション層　Dockyard.App"]
-        Frame["グループ枠（描画・操作の受付）"]
-        Picker["ウィンドウ選択画面"]
-        Root["常駐・組み立て（コンポジションルート）"]
-    end
+| プロジェクト・フォルダ | 役割 | 依存先 | Windows 依存 |
+|---|---|---|---|
+| `Dockyard.App` | 枠とダイアログの描画、操作の受付、トレイ常駐、組み立て | Domain、Infrastructure | あり（WPF） |
+| `Dockyard.App/Controllers` | グループ制御。「いつ・どのウィンドウを・どこへ・どの順に」を決める | ドメインの計算、ウィンドウ操作のインターフェース | 処理自体は WPF・Windows API を呼ばない |
+| `Dockyard.Domain` | レイアウトの構造と計算、判断ルール | なし | なし |
+| `Dockyard.Infrastructure` | ウィンドウ操作のインターフェースと Win32 実装、イベント監視、候補列挙、ログ | Domain | あり（Win32） |
 
-    subgraph A["アプリケーション層　Dockyard.Application"]
-        Ctrl["グループ制御<br/>イベントに応じて配置と重なり順を決める"]
-        Ports["ポート<br/>ウィンドウ操作・枠・スケジューラ"]
-    end
+制御処理は偽のウィンドウ操作・枠・スケジューラで単体テストする。App を参照する制御テストは Windows 向けになり、Domain のテストは引き続き Windows に依存しない。
 
-    subgraph D["ドメイン層　Dockyard.Domain"]
-        Layout["レイアウトモデル（分割とタブの木構造）"]
-        Geometry["配置計算と最小サイズの制約"]
-        Rules["ドラッグの意味付け・配置の検証"]
-    end
+### インターフェース
 
-    subgraph I["インフラストラクチャ層　Dockyard.Infrastructure"]
-        Win["Win32 によるウィンドウ操作"]
-        Events["ウィンドウイベントの監視"]
-        Catalog["追加候補の列挙"]
-        Log["ログ"]
-    end
-
-    P --> A
-    P --> I
-    A --> D
-    I --> A
-    Win -. 実装 .-> Ports
-    Frame -. 実装 .-> Ports
-```
-
-| 層 | プロジェクト | 役割 | 依存先 | Windows 依存 |
-|---|---|---|---|---|
-| プレゼンテーション | `Dockyard.App` | 枠とダイアログの描画、操作の受付、トレイ常駐、各層の組み立て | アプリケーション、インフラ | あり（WPF） |
-| アプリケーション | `Dockyard.Application` | グループ制御。「いつ・どのウィンドウを・どこへ・どの順に」を決める | ドメイン | なし |
-| ドメイン | `Dockyard.Domain` | レイアウトの構造と計算、判断ルール | なし | なし |
-| インフラストラクチャ | `Dockyard.Infrastructure` | ポートの Win32 実装、イベント監視、候補列挙、ログ | アプリケーション | あり（Win32） |
-
-アプリケーション層とドメイン層は Windows API も WPF も参照しない。このため、グループ制御の判断（重なり順・配置・ドラッグ・最小サイズ）を偽の Win32 で単体テストできる。
-
-### ポート
-
-| ポート | 内容 | 実装 |
+| 定義場所 | インターフェース | 実装 |
 |---|---|---|
-| ウィンドウ操作 | 他アプリのウィンドウの状態取得、移動、表示・非表示、重なり順 | インフラ（Win32） |
-| 枠 | 枠の描画、画面座標との変換、移動・リサイズ、最小化 | プレゼンテーション（WPF の枠ウィンドウ） |
-| スケジューラ | 処理の後回し、タイマー | プレゼンテーション（WPF のディスパッチャ） |
+| Infrastructure | ウィンドウ操作と物理ピクセル座標型 | Win32 |
+| App/Controllers | 枠の描画、座標変換、移動・リサイズ | WPF の枠ウィンドウ |
+| App/Controllers | 処理の後回し、タイマー | WPF のディスパッチャ |
 
 ### プロジェクトの依存
 
 ```mermaid
 flowchart LR
-    App["Dockyard.App"] --> Application["Dockyard.Application"]
-    App --> Infra["Dockyard.Infrastructure"]
-    Infra --> Application
-    Application --> Domain["Dockyard.Domain"]
+    App["Dockyard.App"] --> Infra["Dockyard.Infrastructure"]
+    App --> Domain["Dockyard.Domain"]
+    Infra --> Domain
     DT["tests/Dockyard.Domain.Tests"] --> Domain
-    AT["tests/Dockyard.Application.Tests"] --> Application
+    CT["tests/Dockyard.Controllers.Tests"] --> App
     UT["tests/Dockyard.UiTests"] -. exe を起動して操作 .-> App
 ```
 
@@ -88,7 +53,7 @@ flowchart LR
 - **配置計算**: 枠の大きさから各ペインの矩形を求める。アプリごとの最小サイズを積み上げて、仕切りがそれ以上寄らないよう制約する（仕様 Q9）。
 - **判断ルール**: ドラッグが移動か、どの辺のリサイズかを決める。配置したウィンドウが指定どおり収まったか、再送するか、最小サイズとして覚えるかを決める。
 
-## 4. アプリケーション層
+## 4. グループ制御（App/Controllers）
 
 グループ 1 つにつき 1 つのグループ制御を持ち、次を決める。
 
@@ -193,7 +158,7 @@ stateDiagram-v2
 | 種類 | 対象 | 内容 | 実行 |
 |---|---|---|---|
 | 単体テスト | ドメイン層 | レイアウト操作、配置計算、最小サイズ、判断ルール | `dotnet test` |
-| 単体テスト | アプリケーション層 | 偽のウィンドウ操作・枠・スケジューラを差し込み、追加・タブ切替・分割・重なり順・ダイアログ表示中・ドラッグ・最小サイズ学習・最小化と最大化を検証 | `dotnet test` |
+| 単体テスト | App/Controllers | 偽のウィンドウ操作・枠・スケジューラを差し込み、追加・タブ切替・分割・重なり順・ダイアログ表示中・ドラッグ・最小サイズ学習・最小化と最大化を検証 | `dotnet test` |
 | 実機 E2E | アプリ全体 | 本物の exe とテスト用ウィンドウを UI Automation と実マウスで操作し、表示・枠内・重なり順・空白ペイン・エラーログ・元位置への復帰を検査 | `dotnet run --project tests/Dockyard.UiTests`（デスクトップを 1 分ほど操作するので手動） |
 
 ## 11. 未実装

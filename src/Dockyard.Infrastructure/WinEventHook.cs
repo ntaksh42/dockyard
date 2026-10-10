@@ -1,6 +1,5 @@
 using static Dockyard.Infrastructure.Native;
 using System.Runtime.InteropServices;
-using Dockyard.Application;
 
 namespace Dockyard.Infrastructure;
 

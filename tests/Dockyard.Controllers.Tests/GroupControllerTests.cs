@@ -1,6 +1,7 @@
 using Dockyard.Domain;
+using Dockyard.Infrastructure;
 
-namespace Dockyard.Application.Tests;
+namespace Dockyard.App.Controllers.Tests;
 
 public class GroupControllerTests
 {

@@ -1,4 +1,4 @@
-namespace Dockyard.Application;
+namespace Dockyard.App.Controllers;
 
 /// <summary>Optional diagnostic trace. The host connects it to a log; it does nothing by default.</summary>
 public static class Diagnostics

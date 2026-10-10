@@ -4,7 +4,8 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Dockyard.Domain;
-using Dockyard.Application;
+using Dockyard.App.Controllers;
+using Dockyard.Infrastructure;
 using static Dockyard.Infrastructure.Native;
 
 namespace Dockyard.App;

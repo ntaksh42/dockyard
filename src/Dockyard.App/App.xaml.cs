@@ -1,6 +1,6 @@
 using System.Windows;
 using System.Windows.Threading;
-using Dockyard.Application;
+using Dockyard.App.Controllers;
 using Dockyard.Infrastructure;
 using Dockyard.Domain;
 using Forms = System.Windows.Forms;

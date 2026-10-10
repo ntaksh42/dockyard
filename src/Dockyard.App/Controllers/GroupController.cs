@@ -1,6 +1,7 @@
 using Dockyard.Domain;
+using Dockyard.Infrastructure;
 
-namespace Dockyard.Application;
+namespace Dockyard.App.Controllers;
 
 /// <summary>
 /// Keeps a group's member windows placed over their panes and stacked around the frame. External windows are

@@ -1,4 +1,3 @@
-using Dockyard.Application;
 using static Dockyard.Infrastructure.Native;
 
 namespace Dockyard.Infrastructure;

@@ -1,6 +1,7 @@
 using Dockyard.Domain;
+using Dockyard.Infrastructure;
 
-namespace Dockyard.Application.Tests;
+namespace Dockyard.App.Controllers.Tests;
 
 /// <summary>
 /// In-memory desktop. Windows have an invisible resize border (7px left, right and bottom, like Windows 10/11)

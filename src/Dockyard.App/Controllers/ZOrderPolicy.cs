@@ -1,4 +1,4 @@
-namespace Dockyard.Application;
+namespace Dockyard.App.Controllers;
 
 public enum ZPlacement
 {
