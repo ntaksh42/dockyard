@@ -276,7 +276,7 @@ public partial class App : System.Windows.Application
     private void SaveLayout(GroupWindow g)
     {
         var layouts = JsonFile.Read<List<SavedGroup>>(LayoutsFile) ?? [];
-        var replaced = LayoutLibrary.Put(layouts, new SavedGroup(g.GroupName, g.FrameBounds, g.Controller.SaveLayout()));
+        var replaced = LayoutLibrary.Put(layouts, g.Save());
         JsonFile.Write(LayoutsFile, layouts);
         _tray?.ShowBalloonTip(2000, "Dockyard",
             replaced ? $"Replaced the saved layout \"{g.GroupName}\"." : $"Saved layout \"{g.GroupName}\".", Forms.ToolTipIcon.Info);
@@ -303,8 +303,7 @@ public partial class App : System.Windows.Application
         var candidates = WindowCatalog.GetCandidates().Where(w => w.Controllable)
             .Select(w => new WindowCandidate(w.Handle, w.ProcessName, w.Title)).ToList();
         var g = into is not null && !into.Controller.Members.Any() ? into : NewGroup(saved.Name, saved.Bounds);
-        g.GroupName = saved.Name;
-        g.Controller.RestoreLayout(saved.Layout, tab => WindowMatcher.Match(tab, candidates, claimed, sameWindowOnly: false));
+        g.Restore(saved, tab => WindowMatcher.Match(tab, candidates, claimed, sameWindowOnly: false));
     }
 
     private void ShowSettings()
@@ -347,7 +346,7 @@ public partial class App : System.Windows.Application
     private void SaveSession()
     {
         var groups = _groups.Where(g => g.Controller.Members.Any())
-            .Select(g => new SavedGroup(g.GroupName, g.FrameBounds, g.Controller.SaveLayout())).ToList();
+            .Select(g => g.Save()).ToList();
         if (groups.Count == 0) JsonFile.Delete(SessionFile);
         else JsonFile.Write(SessionFile, groups);
     }
@@ -366,7 +365,7 @@ public partial class App : System.Windows.Application
         foreach (var s in saved)
         {
             var g = NewGroup(s.Name, s.Bounds);
-            var count = g.Controller.RestoreLayout(s.Layout, tab =>
+            var count = g.Restore(s, tab =>
             {
                 var h = (nint)tab.Handle;
                 return _windows.Exists(h)

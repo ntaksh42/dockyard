@@ -15,7 +15,8 @@ public sealed record SavedNode(
     IReadOnlyList<SavedTab>? Tabs = null, int ActiveIndex = 0);
 
 /// <param name="Bounds">The frame's window rectangle in screen pixels.</param>
-public sealed record SavedGroup(string Name, PixelRect Bounds, SavedNode Layout);
+/// <param name="TabBarPlacement">The group's own tab bar placement; null (layouts saved before) for the default.</param>
+public sealed record SavedGroup(string Name, PixelRect Bounds, SavedNode Layout, TabBarPlacement? TabBarPlacement = null);
 
 /// <summary>A window that could fill a saved tab.</summary>
 public sealed record WindowCandidate(nint Handle, string ProcessName, string Title);

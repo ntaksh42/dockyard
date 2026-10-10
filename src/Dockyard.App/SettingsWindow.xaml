@@ -5,7 +5,9 @@
         Title="Dockyard Settings" SizeToContent="WidthAndHeight" ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen" Icon="Assets/Dockyard.ico">
     <StackPanel Margin="16">
-        <TextBlock Text="Tab bar position" FontWeight="SemiBold" Margin="0,0,0,8" />
+        <TextBlock Text="Tab bar position" FontWeight="SemiBold" Margin="0,0,0,2" />
+        <TextBlock Text="Applies to every group. A group can change its own from its caption's right-click menu."
+                   Foreground="#6B7280" Margin="0,0,0,8" />
         <RadioButton x:Name="TopOption" Tag="Top" Content="Above the window (default)" Margin="0,0,0,6" Checked="Placement_Checked" />
         <RadioButton x:Name="TitleBarOption" Tag="TitleBar" Content="Over the window's title bar" Margin="0,0,0,6" Checked="Placement_Checked" />
         <RadioButton x:Name="LeftOption" Tag="Left" Content="Vertical, left of the window" Checked="Placement_Checked" />

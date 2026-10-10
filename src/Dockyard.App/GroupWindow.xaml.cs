@@ -476,6 +476,14 @@ public partial class GroupWindow : Window, IGroupView
         menu.Items.Add(MenuItem("Rename Group", () => Dispatcher.BeginInvoke(BeginRename, System.Windows.Threading.DispatcherPriority.Input)));
         menu.Items.Add(MenuItem("Save Layout", () => SaveLayoutRequested?.Invoke(this)));
         menu.Items.Add(OpenLayoutMenu());
+        var tabBar = new MenuItem { Header = "Tab Bar" };
+        foreach (var (placement, label) in new[] { (TabBarPlacement.Top, "Above the Window"), (TabBarPlacement.TitleBar, "Over the Title Bar"), (TabBarPlacement.Left, "Vertical, Left") })
+        {
+            var item = MenuItem(label, () => SetTabBarPlacement(placement));
+            item.IsChecked = Controller.Metrics.TabBarPlacement == placement;
+            tabBar.Items.Add(item);
+        }
+        menu.Items.Add(tabBar);
         menu.Items.Add(new Separator());
         menu.Items.Add(MenuItem("Settings…", () => SettingsRequested?.Invoke()));
         menu.IsOpen = true;
@@ -540,6 +548,16 @@ public partial class GroupWindow : Window, IGroupView
         var tl = e.PointToScreen(new Point(0, 0));
         var br = e.PointToScreen(new Point(e.ActualWidth, e.ActualHeight));
         return new PixelRect((int)tl.X, (int)tl.Y, (int)br.X, (int)br.Y);
+    }
+
+    internal SavedGroup Save() => new(GroupName, FrameBounds, Controller.SaveLayout(), Controller.Metrics.TabBarPlacement);
+
+    /// <summary>Takes a saved group's name, tab bar placement and layout (see <see cref="GroupController.RestoreLayout"/>).</summary>
+    internal int Restore(SavedGroup saved, Func<SavedTab, nint> resolve)
+    {
+        GroupName = saved.Name;
+        if (saved.TabBarPlacement is { } placement) SetTabBarPlacement(placement);
+        return Controller.RestoreLayout(saved.Layout, resolve);
     }
 
     /// <summary>The frame's window rectangle in screen pixels, for saving the group.</summary>
