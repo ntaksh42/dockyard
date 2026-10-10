@@ -18,21 +18,28 @@ public static class WindowCatalog
     /// <summary>Top-level windows that would appear in Alt+Tab, excluding this process.</summary>
     public static List<WindowInfo> GetCandidates()
     {
-        var ownPid = (uint)Environment.ProcessId;
         var result = new List<WindowInfo>();
         EnumWindows((hwnd, _) =>
         {
-            if (!IsWindowVisible(hwnd) || IsCloaked(hwnd) || GetWindow(hwnd, GW_OWNER) != 0) return true;
-            var ex = (long)GetWindowLongPtr(hwnd, GWL_EXSTYLE);
-            if ((ex & WS_EX_TOOLWINDOW) != 0 && (ex & WS_EX_APPWINDOW) == 0) return true;
-            var title = GetWindowText(hwnd);
-            if (title.Length == 0 || ShellClasses.Contains(GetClassName(hwnd))) return true;
-            GetWindowThreadProcessId(hwnd, out var pid);
-            if (pid == ownPid) return true;
-            result.Add(new WindowInfo(hwnd, title, ProcessName(pid), CanControl(hwnd)));
+            if (Describe(hwnd) is { Title.Length: > 0 } info) result.Add(info);
             return true;
         }, 0);
         return result;
+    }
+
+    /// <summary>
+    /// The window if it is an app window of another process, as Alt+Tab would list it once it has a title; null
+    /// otherwise. The title may still be empty for a window that has just appeared.
+    /// </summary>
+    public static WindowInfo? Describe(nint hwnd)
+    {
+        if (!IsWindowVisible(hwnd) || IsCloaked(hwnd) || GetWindow(hwnd, GW_OWNER) != 0) return null;
+        var ex = (long)GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+        if ((ex & WS_EX_TOOLWINDOW) != 0 && (ex & WS_EX_APPWINDOW) == 0) return null;
+        if (ShellClasses.Contains(GetClassName(hwnd))) return null;
+        GetWindowThreadProcessId(hwnd, out var pid);
+        if (pid == (uint)Environment.ProcessId) return null;
+        return new WindowInfo(hwnd, GetWindowText(hwnd), ProcessName(pid), CanControl(hwnd));
     }
 
     /// <summary>

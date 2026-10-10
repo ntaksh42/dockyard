@@ -22,7 +22,7 @@ public partial class GroupWindow : Window, IGroupView
 {
     private const double CaptionHeight = 30;
     private static readonly Brush TabBarBrush = Brush("#D1D5DB"), TabBrush = Brush("#E6E8EC"), ActiveTabBrush = Brushes.White,
-        AccentBrush = Brush("#3B82F6"), PlaceholderBrush = Brush("#1F2328"), SplitterBrush = Brushes.Transparent;
+        AccentBrush = Brush("#3B82F6"), PlaceholderBrush = Brush("#1F2328"), SplitterBrush = Brushes.Transparent, MutedTextBrush = Brush("#9CA3AF");
 
     private readonly Func<nint, bool> _isGrouped;
     private SplitterLayout? _dragging;
@@ -181,7 +181,14 @@ public partial class GroupWindow : Window, IGroupView
                 var add = new Button { Content = "Add Window…", Padding = new Thickness(12, 4, 12, 4) };
                 add.Click += (_, _) => PickAndAdopt(p.Pane, null);
                 var host = new Grid { Background = PlaceholderBrush };
-                host.Children.Add(new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Children = { add } });
+                var content = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                // A restored tab whose app is not open: say what will fill the pane once it is.
+                if (snapshot.Waiting.TryGetValue(p.Pane, out var waiting))
+                    foreach (var tab in waiting)
+                        content.Children.Add(new TextBlock { Text = $"Waiting for: {tab.ProcessName} — {tab.Title}", Foreground = MutedTextBrush,
+                            FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Center });
+                content.Children.Add(add);
+                host.Children.Add(content);
                 Place(host, p.Content);
             }
             else

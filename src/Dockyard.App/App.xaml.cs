@@ -32,6 +32,8 @@ public partial class App : System.Windows.Application
     private const string SessionFile = "session.json";
     private readonly DispatcherTimer _sessionSave = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private SettingsWindow? _settingsWindow;
+    /// <summary>Windows that appeared without a title; checked against waiting tabs again once they get one.</summary>
+    private readonly HashSet<nint> _untitled = [];
 
     private Dictionary<ShortcutAction, ShortcutKey> _shortcuts = null!;
 
@@ -207,6 +209,7 @@ public partial class App : System.Windows.Application
             if (evt != WindowEvent.Destroyed) return;
         }
         if (_externalDrag == window && evt is WindowEvent.LocationChanged or WindowEvent.Foreground) return;
+        if (evt is WindowEvent.Shown or WindowEvent.TitleChanged or WindowEvent.Destroyed) OfferToWaitingTabs(evt, window);
         if (_groups.Select(g => g.Controller).FirstOrDefault(c => c.Owns(window)) is not { } controller) return;
         switch (evt)
         {
@@ -217,6 +220,28 @@ public partial class App : System.Windows.Application
             case WindowEvent.TitleChanged: controller.OnTitleChanged(window); break;
             case WindowEvent.Destroyed: controller.OnDestroyed(window); break;
         }
+    }
+
+    /// <summary>
+    /// A window that appears may be the one a restored tab waits for (its app was not open when the layout was
+    /// restored). Many windows get their title only after they appear, so one without a title is offered again
+    /// when it gets one.
+    /// </summary>
+    private void OfferToWaitingTabs(WindowEvent evt, nint window)
+    {
+        if (evt == WindowEvent.Destroyed)
+        {
+            _untitled.Remove(window);
+            return;
+        }
+        if (evt == WindowEvent.TitleChanged && !_untitled.Remove(window)) return;
+        if (IsGrouped(window) || WindowCatalog.Describe(window) is not { Controllable: true } info) return;
+        if (info.Title.Length == 0)
+        {
+            _untitled.Add(window);
+            return;
+        }
+        _ = _groups.Any(g => g.CanDock && g.Controller.FillWaiting(window, info.ProcessName, info.Title));
     }
 
     private GroupWindow NewGroup(string? name = null, PixelRect? bounds = null)

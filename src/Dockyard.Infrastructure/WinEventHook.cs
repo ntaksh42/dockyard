@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Dockyard.Infrastructure;
 
-public enum WindowEvent { Foreground, MoveSizeStart, MoveSizeEnd, LocationChanged, TitleChanged, Destroyed }
+public enum WindowEvent { Foreground, MoveSizeStart, MoveSizeEnd, LocationChanged, TitleChanged, Shown, Destroyed }
 
 /// <summary>
 /// Out-of-context WinEvent hooks for top-level windows of other processes. Callbacks arrive on the creating
@@ -17,6 +17,7 @@ public sealed class WinEventHook : IDisposable
         [EVENT_SYSTEM_MOVESIZESTART] = WindowEvent.MoveSizeStart,
         [EVENT_SYSTEM_MOVESIZEEND] = WindowEvent.MoveSizeEnd,
         [EVENT_OBJECT_DESTROY] = WindowEvent.Destroyed,
+        [EVENT_OBJECT_SHOW] = WindowEvent.Shown,
         [EVENT_OBJECT_LOCATIONCHANGE] = WindowEvent.LocationChanged,
         [EVENT_OBJECT_NAMECHANGE] = WindowEvent.TitleChanged,
     };

@@ -32,6 +32,8 @@ public sealed class GroupController
     private readonly IRestartableTimer _settleTimer;
     private readonly LayoutTree _tree = new();
     private readonly Dictionary<nint, Member> _members = [];
+    /// <summary>Saved tabs whose windows were not open when the layout was restored, by the pane they belong in.</summary>
+    private readonly Dictionary<Pane, List<SavedTab>> _waiting = [];
     private LayoutResult? _layout;
     private nint _lastActive;
     /// <summary>Member the user is dragging or resizing, between move/size start and end.</summary>
@@ -67,11 +69,13 @@ public sealed class GroupController
 
     /// <summary>
     /// Replaces an empty group's layout with a saved one. <paramref name="resolve"/> picks the window for each
-    /// saved tab (0 for none); panes whose windows are not found stay empty (Q3). Returns how many windows joined.
+    /// saved tab (0 for none); tabs whose windows are not found wait for one (see <see cref="FillWaiting"/>), and
+    /// their panes stay empty until then (Q3). Returns how many windows joined.
     /// </summary>
     public int RestoreLayout(SavedNode layout, Func<SavedTab, nint> resolve)
     {
         if (_closing || _members.Count > 0) return 0;
+        _waiting.Clear();
         _tree.Load(Build(layout, resolve));
         _lastActive = ActiveWindows().FirstOrDefault();
         Refresh(raise: true);
@@ -82,7 +86,8 @@ public sealed class GroupController
     {
         SplitNode s => new SavedNode(s.Orientation, s.Ratio, Save(s.First), Save(s.Second)),
         Pane p => new SavedNode(
-            Tabs: p.Windows.Select(h => new SavedTab(_windows.GetProcessName(h), _members[h].Title, h, _members[h].OriginalBounds)).ToList(),
+            Tabs: p.Windows.Select(h => new SavedTab(_windows.GetProcessName(h), _members[h].Title, h, _members[h].OriginalBounds))
+                .Concat(Waiting(p)).ToList(),
             ActiveIndex: p.ActiveIndex),
         _ => throw new InvalidOperationException(),
     };
@@ -96,7 +101,13 @@ public sealed class GroupController
         for (var i = 0; i < tabs.Count; i++)
         {
             var h = resolve(tabs[i]);
-            if (h == 0 || _members.ContainsKey(h) || !_windows.Exists(h)) continue;
+            if (h == 0 || _members.ContainsKey(h) || !_windows.Exists(h))
+            {
+                // Not the window: a window of the same app may still come.
+                if (!_waiting.TryGetValue(pane, out var waiting)) _waiting[pane] = waiting = [];
+                waiting.Add(tabs[i] with { Handle = 0, OriginalBounds = null });
+                continue;
+            }
             if (_windows.IsMinimized(h) || _windows.IsMaximized(h)) _windows.Restore(h);
             // A group minimized when Dockyard went down left its windows hidden.
             _windows.Show(h);
@@ -105,6 +116,27 @@ public sealed class GroupController
             pane.Windows.Add(h);
         }
         return pane;
+    }
+
+    private IEnumerable<SavedTab> Waiting(Pane pane) => _waiting.TryGetValue(pane, out var tabs) ? tabs : [];
+
+    /// <summary>
+    /// A window just opened: if a restored tab waits for its app, the window takes that tab's place, preferring
+    /// the tab with the same title. Returns false if no tab waits for it.
+    /// </summary>
+    public bool FillWaiting(nint window, string processName, string title)
+    {
+        if (_closing) return false;
+        var candidates = _tree.Panes
+            .SelectMany(p => Waiting(p).Select(t => (Pane: p, Tab: t)))
+            .Where(w => w.Tab.ProcessName.Equals(processName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (candidates.Count == 0) return false;
+        var (pane, tab) = candidates.FirstOrDefault(w => w.Tab.Title == title) is { Pane: not null } same ? same : candidates[0];
+        _waiting[pane].Remove(tab);
+        if (Adopt(window, pane, null)) return true;
+        _waiting[pane].Add(tab);
+        return false;
     }
 
     // ---- user commands ------------------------------------------------------------------------
@@ -389,7 +421,8 @@ public sealed class GroupController
 
         if (!_members.ContainsKey(_lastActive)) _lastActive = ActiveWindows().FirstOrDefault();
         var active = _members.TryGetValue(_lastActive, out var m) ? m.Title : "";
-        _view.Render(new GroupSnapshot(_layout, _members.ToDictionary(p => p.Key, p => p.Value.Title), active));
+        var waiting = _tree.Panes.Where(p => Waiting(p).Any()).ToDictionary(p => p, p => (IReadOnlyList<SavedTab>)Waiting(p).ToList());
+        _view.Render(new GroupSnapshot(_layout, _members.ToDictionary(p => p.Key, p => p.Value.Title), active, waiting));
     }
 
     private void SyncWindows(bool raise, nint? top = null)

@@ -11,11 +11,13 @@ public class SavedLayoutTests
 
     private readonly FakeWindowSystem _ws = new();
     private readonly ManualScheduler _scheduler = new();
+    /// <summary>The view of the group created last.</summary>
+    private FakeView _view = null!;
 
     private GroupController NewGroup(nint frame = Frame)
     {
         _ws.AddToZOrder(frame);
-        var view = new FakeView(frame);
+        var view = _view = new FakeView(frame);
         var c = new GroupController(view, _ws, _scheduler);
         view.Connect(c, _scheduler);
         c.OnSurfaceResized();
@@ -81,6 +83,37 @@ public class SavedLayoutTests
 
         Assert.Equal(2, restored.Layout!.Panes.Count);
         Assert.Empty(restored.Layout.Panes[1].Pane.Windows);
+    }
+
+    [Fact]
+    public void RestoreLayout_MissingWindowsWaitAndAreSavedAgain()
+    {
+        var saved = BuildSample().SaveLayout();
+        var restored = NewGroup(1001);
+        restored.RestoreLayout(saved, t => t.ProcessName == "code" ? (nint)t.Handle : 0);
+
+        var right = restored.Layout!.Panes[1].Pane;
+        Assert.Equal(["w2", "w3"], _view.LastRender!.Waiting[right].Select(t => t.Title));
+        // Saved again (e.g. in the session file), the waiting tabs keep their place but not the old window.
+        Assert.Equal([0L, 0L], restored.SaveLayout().Second!.Tabs!.Select(t => t.Handle));
+    }
+
+    [Fact]
+    public void FillWaiting_PutsANewWindowOfTheAppInItsPane_PreferringTheSameTitle()
+    {
+        var saved = BuildSample().SaveLayout();
+        var restored = NewGroup(1001);
+        restored.RestoreLayout(saved, t => t.ProcessName == "code" ? (nint)t.Handle : 0);
+        var right = restored.Layout!.Panes[1].Pane;
+
+        Assert.False(restored.FillWaiting(Window(20, "notepad"), "notepad", "w3"));
+        Assert.True(restored.FillWaiting(Window(21, "cmd"), "cmd", "w3"));
+
+        Assert.Equal([21], right.Windows);
+        Assert.Equal(["w2"], _view.LastRender!.Waiting[right].Select(t => t.Title));
+        Assert.True(restored.FillWaiting(Window(22, "cmd"), "CMD", "other"));
+        Assert.Empty(_view.LastRender!.Waiting);
+        Assert.False(restored.FillWaiting(Window(23, "cmd"), "cmd", "w2"));
     }
 
     [Fact]
