@@ -811,6 +811,29 @@ public class GroupControllerTests
     }
 
     [Fact]
+    public void Live_KeepsMembersBehindTheFrameUntilItEnds()
+    {
+        SplitAC();
+        _c.BeginLive();
+        Assert.True(_ws.Z(Frame) < _ws.Z(A) && _ws.Z(Frame) < _ws.Z(C));
+
+        // Moving, resizing and activating the frame meanwhile neither brings them forward nor stops them following.
+        _view.Origin = (300, 100);
+        _c.OnFrameMoved();
+        _c.OnFrameActivated();
+        _scheduler.RunPosted();
+        Assert.Null(_c.OnFrameZChanging(new FrameZChange(ZPlacement.Top, 0, false)));
+        Assert.True(_ws.Z(Frame) < _ws.Z(A) && _ws.Z(Frame) < _ws.Z(C));
+        AssertPlaced(A);
+        AssertPlaced(C);
+
+        _c.EndLive();
+        Assert.True(_ws.Z(A) < _ws.Z(Frame) && _ws.Z(C) < _ws.Z(Frame));
+        AssertPlaced(A);
+        AssertPlaced(C);
+    }
+
+    [Fact]
     public void FrameMovedOrResized_MembersFollow()
     {
         SplitAC();

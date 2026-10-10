@@ -44,6 +44,11 @@ public sealed class GroupController
     /// <summary>True while we restack windows ourselves, so our own changes are not mistaken for the system's.</summary>
     private bool _raising;
     private bool _closing;
+    /// <summary>
+    /// While the frame is dragged, resized or maximized, the view shows the members as live thumbnails drawn in
+    /// the frame, which move with it exactly; the real windows wait behind the frame meanwhile (see BeginLive).
+    /// </summary>
+    private bool _live;
 
     public GroupController(IGroupView view, IWindowSystem windows, IScheduler scheduler)
     {
@@ -303,6 +308,28 @@ public sealed class GroupController
     /// <summary>The system finishes bringing the frame forward after it is activated; raise the tabs once it has.</summary>
     public void OnFrameActivated() => _scheduler.Post(() => Raise(null));
 
+    /// <summary>
+    /// The frame starts moving or changing size. The members trail a frame they follow (each move reaches them
+    /// a little after the frame's), which shows as blank or overlapping panes; until <see cref="EndLive"/> the
+    /// view draws them as thumbnails instead, and the real windows keep following behind the frame.
+    /// </summary>
+    public void BeginLive()
+    {
+        if (_live || _closing || !_view.IsOnScreen) return;
+        _live = true;
+        Stack(_view.Handle, ActiveWindows());
+    }
+
+    /// <summary>The frame has settled: the members, in place by now, come back in front of it.</summary>
+    public void EndLive()
+    {
+        if (!_live) return;
+        _live = false;
+        SyncWindows(raise: true);
+    }
+
+    public bool IsLive => _live;
+
     public void OnFrameMinimized()
     {
         foreach (var h in _members.Keys) _windows.Hide(h);
@@ -322,7 +349,7 @@ public sealed class GroupController
     /// </summary>
     public nint? OnFrameZChanging(FrameZChange change)
     {
-        if (_raising || !_view.IsOnScreen) return null;
+        if (_raising || _live || !_view.IsOnScreen) return null;
         Diagnostics.Trace?.Invoke($"frame z-change {change}");
         var actives = ActiveWindows();
         if (!ZOrderPolicy.ShouldCarryTabs(change, [.. _members.Keys, _view.TabOverlay]) || actives.Count == 0) return null;
@@ -473,7 +500,7 @@ public sealed class GroupController
     private void Raise(nint? top)
     {
         Diagnostics.Trace?.Invoke($"raise top={top:X} onScreen={_view.IsOnScreen}");
-        if (!_view.IsOnScreen) return;
+        if (!_view.IsOnScreen || _live) return;
         var actives = ActiveWindows();
         if (top is { } t && actives.Remove(t)) actives.Insert(0, t);
         var order = Overlay().Concat(actives).Append(_view.Handle).Concat(_tree.Windows.Except(actives)).ToList();
@@ -483,7 +510,7 @@ public sealed class GroupController
     /// <summary>Exposes replacement tabs at the frame's current position without raising a background group.</summary>
     private void RestackAtFrame()
     {
-        if (!_view.IsOnScreen) return;
+        if (!_view.IsOnScreen || _live) return;
         var actives = ActiveWindows();
         if (actives.Count == 0) return;
         Stack(_view.Handle, [.. Overlay(), .. actives]);

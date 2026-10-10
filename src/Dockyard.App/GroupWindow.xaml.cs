@@ -25,6 +25,13 @@ public partial class GroupWindow : Window, IGroupView
         AccentBrush = Brush("#3B82F6"), PlaceholderBrush = Brush("#1F2328"), SplitterBrush = Brushes.Transparent, MutedTextBrush = Brush("#9CA3AF");
 
     private readonly Func<nint, bool> _isGrouped;
+    private readonly IWindowSystem _windows;
+    /// <summary>Live thumbnails of the active tabs, by window, drawn while the frame moves or resizes (see BeginLive).</summary>
+    private readonly Dictionary<nint, nint> _thumbnails = [];
+    /// <summary>Ends the live view once the frame has been still for a moment, so the apps have repainted at their final size.</summary>
+    private readonly System.Windows.Threading.DispatcherTimer _liveEnd = new() { Interval = TimeSpan.FromMilliseconds(200) };
+    /// <summary>Between WM_ENTERSIZEMOVE and WM_EXITSIZEMOVE: the user is dragging the frame or one of its borders.</summary>
+    private bool _sizing;
     private SplitterLayout? _dragging;
     private nint _hwnd;
     private bool _closing;
@@ -60,7 +67,9 @@ public partial class GroupWindow : Window, IGroupView
         InitializeComponent();
         _isGrouped = isGrouped;
         GroupName = name;
+        _windows = windows;
         Controller = new GroupController(this, windows, new WpfScheduler(Dispatcher));
+        _liveEnd.Tick += (_, _) => EndLive();
         SetTabBarPlacement(placement);
         _captionHide.Tick += (_, _) => HideCaptionInfoIfLeft();
 
@@ -71,7 +80,12 @@ public partial class GroupWindow : Window, IGroupView
         };
         Surface.SizeChanged += (_, _) => Controller.OnSurfaceResized();
         // The maximized window rect is only final after the state change; re-measure the overhang on resize.
-        SizeChanged += (_, _) => UpdateMaximizedMargin();
+        SizeChanged += (_, _) =>
+        {
+            UpdateMaximizedMargin();
+            // Snapping or maximizing goes on after the user lets go: stay live until the size stops changing.
+            if (Controller.IsLive && !_sizing) EndLiveSoon();
+        };
         Activated += (_, _) => Controller.OnFrameActivated();
         StateChanged += (_, _) =>
         {
@@ -89,6 +103,7 @@ public partial class GroupWindow : Window, IGroupView
         };
         Closing += (_, _) =>
         {
+            EndLive();
             _closing = true;
             Controller.OnClosing();
             _overlay?.Close();
@@ -465,6 +480,21 @@ public partial class GroupWindow : Window, IGroupView
     {
         // The caption is non-client area: WPF gets no mouse events there, only the window does.
         if (msg == 0x00A0 /* WM_NCMOUSEMOVE */) ShowCaptionInfo();
+        switch (msg)
+        {
+            case 0x0231: // WM_ENTERSIZEMOVE
+                _sizing = true;
+                BeginLive();
+                break;
+            case 0x0232: // WM_EXITSIZEMOVE
+                _sizing = false;
+                EndLiveSoon();
+                break;
+            case 0x0112 when (wParam & 0xFFF0) is 0xF030 or 0xF120: // WM_SYSCOMMAND SC_MAXIMIZE, SC_RESTORE (e.g. a caption double-click)
+                BeginLive();
+                EndLiveSoon();
+                break;
+        }
         if (msg == 0x00A5 /* WM_NCRBUTTONUP */ && wParam == 2 /* HTCAPTION */)
         {
             ShowCaptionMenu();
@@ -626,8 +656,86 @@ public partial class GroupWindow : Window, IGroupView
     private void Minimize_Click(
 object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
-    private void Maximize_Click(object sender, RoutedEventArgs e) =>
+    private void Maximize_Click(object sender, RoutedEventArgs e)
+    {
+        BeginLive();
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        EndLiveSoon();
+    }
+
+    // ---- live view while the frame moves -------------------------------------------------------
+
+    /// <summary>
+    /// Shows the active tabs as DWM thumbnails in the frame and lets the controller keep the real windows behind
+    /// it. DWM composes a thumbnail with its destination window, so it moves and resizes with the frame on the
+    /// very same screen refresh, which the real windows cannot do (see GroupController.BeginLive).
+    /// </summary>
+    private void BeginLive()
+    {
+        if (_closing || _picker is not null || !IsOnScreen || Controller.IsLive) return;
+        // Thumbnails first, so the panes are never blank while the windows go behind the frame.
+        UpdateThumbnails(null, EventArgs.Empty);
+        Controller.BeginLive();
+        CompositionTarget.Rendering += UpdateThumbnails;
+    }
+
+    private void EndLiveSoon()
+    {
+        if (!Controller.IsLive) return;
+        _liveEnd.Stop();
+        _liveEnd.Start();
+    }
+
+    private void EndLive()
+    {
+        _liveEnd.Stop();
+        CompositionTarget.Rendering -= UpdateThumbnails;
+        // The windows come forward before the thumbnails go, so nothing blinks in between.
+        Controller.EndLive();
+        foreach (var thumbnail in _thumbnails.Values) DwmUnregisterThumbnail(thumbnail);
+        _thumbnails.Clear();
+    }
+
+    /// <summary>
+    /// Keeps a thumbnail of each active tab over its pane, at the window's own size: the real window catches up
+    /// with a resize a moment later, and scaling its picture meanwhile would make the text swim.
+    /// </summary>
+    private void UpdateThumbnails(object? sender, EventArgs e)
+    {
+        if (_rendered is null || _hwnd == 0) return;
+        var client = PointToScreen(new Point(0, 0));
+        var shown = new HashSet<nint>();
+        foreach (var p in _rendered.Panes)
+        {
+            if (p.Pane.ActiveWindow is not { } window || !_windows.Exists(window)) continue;
+            if (!_thumbnails.TryGetValue(window, out var thumbnail))
+            {
+                if (DwmRegisterThumbnail(_hwnd, window, out thumbnail) != 0) continue;
+                _thumbnails[window] = thumbnail;
+            }
+            shown.Add(window);
+            var pane = ToScreen(p.Content);
+            var full = _windows.GetBounds(window);
+            var visible = _windows.GetVisibleBounds(window);
+            int width = Math.Min(pane.Width, visible.Width), height = Math.Min(pane.Height, visible.Height);
+            int left = pane.Left - (int)Math.Round(client.X), top = pane.Top - (int)Math.Round(client.Y);
+            int sourceLeft = visible.Left - full.Left, sourceTop = visible.Top - full.Top;
+            var properties = new DWM_THUMBNAIL_PROPERTIES
+            {
+                dwFlags = DWM_TNP_RECTDESTINATION | DWM_TNP_RECTSOURCE | DWM_TNP_OPACITY | DWM_TNP_VISIBLE | DWM_TNP_SOURCECLIENTAREAONLY,
+                rcDestination = new RECT { Left = left, Top = top, Right = left + width, Bottom = top + height },
+                rcSource = new RECT { Left = sourceLeft, Top = sourceTop, Right = sourceLeft + width, Bottom = sourceTop + height },
+                opacity = 255,
+                fVisible = true,
+            };
+            DwmUpdateThumbnailProperties(thumbnail, ref properties);
+        }
+        foreach (var gone in _thumbnails.Keys.Where(w => !shown.Contains(w)).ToList())
+        {
+            DwmUnregisterThumbnail(_thumbnails[gone]);
+            _thumbnails.Remove(gone);
+        }
+    }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
