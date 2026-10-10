@@ -1,0 +1,25 @@
+{
+  "generator": "built-in image_gen",
+  "candidates": [
+    {
+      "number": 1,
+      "filename": "01-panes.png",
+      "prompt": "Use case: logo-brand. Asset type: standalone square Windows desktop app icon concept for Dockyard, a utility that groups external app windows into one frame with tabs and split panes. Create one polished app icon only, front-facing and centered, large bold simple geometry readable at 16 and 32 pixels. A rounded-square dark charcoal tile with a generous inset and crisp light and blue forms, actual transparent background outside the tile. Flat graphic design with subtly refined depth, clean silhouette, no thin strokes, no fine UI details, no words, letters, numbers, watermark, presentation board, mockup, or multiple icons. Square composition. Concept A: a single solid light window frame containing two blue rectangular panes snapped together, one larger pane and one narrow pane; a short thick blue tab along the upper edge visually explains docking. Very minimal, professional, balanced. Use the existing app's blue #3B82F6 as the accent."
+    },
+    {
+      "number": 2,
+      "filename": "02-interlock.png",
+      "prompt": "Use case: logo-brand. Asset type: standalone square Windows desktop app icon concept for Dockyard, a utility that groups external app windows into one frame with tabs and split panes. Create one polished app icon only, front-facing and centered, large bold simple geometry readable at 16 and 32 pixels. A rounded-square dark charcoal tile with a generous inset and crisp light and blue forms, actual transparent background outside the tile. Flat graphic design with subtly refined depth, clean silhouette, no thin strokes, no fine UI details, no words, letters, numbers, watermark, presentation board, mockup, or multiple icons. Square composition. Concept B: two bold rounded rectangular window shapes interlock like complementary puzzle pieces, making one compact unified mark. The upper-left component is light and the lower-right component is vivid blue #3B82F6. Make the meeting edge clever and clear, with no literal jigsaw knobs. Simple memorable geometric symbol for joining windows."
+    },
+    {
+      "number": 3,
+      "filename": "03-dock.png",
+      "prompt": "Use case: logo-brand. Asset type: standalone square Windows desktop app icon concept for Dockyard, a utility that groups external app windows into one frame with tabs and split panes. Create one polished app icon only, front-facing and centered, large bold simple geometry readable at 16 and 32 pixels. A rounded-square dark charcoal tile with a generous inset and crisp light and blue forms, actual transparent background outside the tile. Flat graphic design with subtly refined depth, clean silhouette, no thin strokes, no fine UI details, no words, letters, numbers, watermark, presentation board, mockup, or multiple icons. Square composition. Concept C: an abstract docking berth: a bold light U-shaped outer frame cradles one solid vivid blue #3B82F6 rounded rectangular panel sliding into its center. The blue panel has a tiny chunky upper tab integrated into its silhouette. Emphasize the welcoming frame and snapping-in motion through offset geometry, without arrows or literal boats."
+    },
+    {
+      "number": 4,
+      "filename": "04-stack.png",
+      "prompt": "Use case: logo-brand. Asset type: standalone square Windows desktop app icon concept for Dockyard, a utility that groups external app windows into one frame with tabs and split panes. Create one polished app icon only, front-facing and centered, large bold simple geometry readable at 16 and 32 pixels. A rounded-square dark charcoal tile with a generous inset and crisp light and blue forms, actual transparent background outside the tile. Flat graphic design with subtly refined depth, clean silhouette, no thin strokes, no fine UI details, no words, letters, numbers, watermark, presentation board, mockup, or multiple icons. Square composition. Concept D: three thick rounded window cards form a compact offset stack, and their lower front faces align into a single precise split-pane arrangement. Rear card light slate, middle card light, front card blue #3B82F6. Bold silhouette, minimal overlap, tasteful subtle soft depth. Clearly different from a folder icon; show organizing independent windows into one unified workspace."
+    }
+  ]
+}

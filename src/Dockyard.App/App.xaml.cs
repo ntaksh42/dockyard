@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Threading;
 using Dockyard.Application;
 using Dockyard.Infrastructure;
+using Dockyard.Domain;
 using Forms = System.Windows.Forms;
 
 namespace Dockyard.App;
@@ -12,11 +13,14 @@ public partial class App : System.Windows.Application
     private readonly List<GroupWindow> _groups = [];
     private readonly Win32WindowSystem _windows = new();
     private readonly DispatcherTimer _foregroundPoll = new() { Interval = TimeSpan.FromMilliseconds(200) };
+    private readonly DispatcherTimer _externalDragPoll = new() { Interval = TimeSpan.FromMilliseconds(30) };
     private WinEventHook? _hook;
     private Forms.NotifyIcon? _tray;
+    private System.Drawing.Icon? _trayIcon;
     private int _groupCount;
     private DockDrag _dockDrag = null!;
     private nint _externalDrag;
+    private nint _finishedExternalDrag;
     private (nint Window, PixelRect Bounds)? _dragOrigin;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -39,8 +43,13 @@ public partial class App : System.Windows.Application
         _dockDrag = new DockDrag(() => _groups);
 
         _hook = new WinEventHook();
-        _hook.ShiftMouseDown += (window, bounds) => _dragOrigin = window == 0 ? null : (window, bounds);
+        _hook.ShiftMouseDown += (window, bounds) =>
+        {
+            _dragOrigin = window == 0 ? null : (window, bounds);
+            if (window != 0) _externalDragPoll.Start();
+        };
         _hook.Received += Dispatch;
+        _externalDragPoll.Tick += (_, _) => CheckExternalDrag();
         // Safety net for foreground changes Windows does not report (see WinEventHook.CheckForeground).
         _foregroundPoll.Tick += (_, _) => _hook.CheckForeground();
         _foregroundPoll.Start();
@@ -48,9 +57,12 @@ public partial class App : System.Windows.Application
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("New Group", null, (_, _) => NewGroup());
         menu.Items.Add("Exit", null, (_, _) => Quit());
+        using var iconStream = GetResourceStream(new Uri("pack://application:,,,/Assets/Dockyard.ico"))!.Stream;
+        using var icon = new System.Drawing.Icon(iconStream);
+        _trayIcon = (System.Drawing.Icon)icon.Clone();
         _tray = new Forms.NotifyIcon
         {
-            Icon = System.Drawing.SystemIcons.Application,
+            Icon = _trayIcon,
             Text = "Dockyard",
             ContextMenuStrip = menu,
             Visible = true,
@@ -62,31 +74,81 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _externalDragPoll.Stop();
         _dockDrag.Finish(true);
         ReleaseAll();
         _hook?.Dispose();
         _tray?.Dispose();
+        _trayIcon?.Dispose();
         base.OnExit(e);
     }
 
     private bool IsGrouped(nint window) => _groups.Any(g => g.Controller.Owns(window));
 
+    private void BeginExternalDrag(nint window, PixelRect? originalBounds)
+    {
+        _externalDrag = window;
+        _finishedExternalDrag = 0;
+        _dockDrag.Begin(window, _groups.FirstOrDefault(g => g.Controller.Owns(window)), originalBounds);
+        _externalDragPoll.Start();
+    }
+
+    private void FinishExternalDrag(bool cancel)
+    {
+        _finishedExternalDrag = _externalDrag;
+        _externalDrag = 0;
+        _dragOrigin = null;
+        _externalDragPoll.Stop();
+        _dockDrag.Finish(cancel || (Native.GetAsyncKeyState(0x1B) & 0x8000) != 0);
+    }
+
+    private void CheckExternalDrag()
+    {
+        var window = _externalDrag != 0 ? _externalDrag : _dragOrigin?.Window ?? 0;
+        if (window == 0 || !_windows.Exists(window) || (Native.GetAsyncKeyState(0x1B) & 0x8000) != 0)
+        {
+            if (_externalDrag != 0) FinishExternalDrag(true);
+            _dragOrigin = null;
+            _externalDragPoll.Stop();
+            return;
+        }
+        if ((Native.GetAsyncKeyState(0x01) & 0x8000) == 0)
+        {
+            if (_externalDrag != 0) FinishExternalDrag(false);
+            _dragOrigin = null;
+            _externalDragPoll.Stop();
+            return;
+        }
+        if (_externalDrag != 0 || (Native.GetAsyncKeyState(0x10) & 0x8000) == 0 || _dragOrigin is not { } origin) return;
+        // Custom title bars can move windows without a standard caption hit or move/size events.
+        // Same-size movement distinguishes that drag from a resize or a click in the client area.
+        if (DragInterpreter.Interpret(origin.Bounds.ToRect(), _windows.GetBounds(window).ToRect()).Moved &&
+            WindowCatalog.GetCandidates().Any(w => w.Handle == window && w.Controllable))
+            BeginExternalDrag(window, origin.Bounds);
+    }
+
     private void Dispatch(WindowEvent evt, nint window)
     {
-        if (evt == WindowEvent.MoveSizeStart && (Native.GetAsyncKeyState(0x10) & 0x8000) != 0 &&
+        if (evt == WindowEvent.MoveSizeStart) _finishedExternalDrag = 0;
+        if (evt == WindowEvent.MoveSizeEnd && _finishedExternalDrag == window)
+        {
+            _finishedExternalDrag = 0;
+            return;
+        }
+        if (_externalDrag == 0 && evt == WindowEvent.MoveSizeStart && (Native.GetAsyncKeyState(0x10) & 0x8000) != 0 &&
             (Native.GetAsyncKeyState(0x01) & 0x8000) != 0 &&
             Native.IsCaptionDrag(window) &&
             WindowCatalog.GetCandidates().Any(w => w.Handle == window && w.Controllable))
         {
-            _externalDrag = window;
-            _dockDrag.Begin(window, _groups.FirstOrDefault(g => g.Controller.Owns(window)),
+            BeginExternalDrag(window,
                 _dragOrigin is { } origin && origin.Window == window ? origin.Bounds : null);
             return;
         }
+        if (evt == WindowEvent.LocationChanged && _externalDrag == 0 && _dragOrigin?.Window == window)
+            CheckExternalDrag();
         if (_externalDrag == window && evt is WindowEvent.MoveSizeEnd or WindowEvent.Destroyed)
         {
-            _externalDrag = 0;
-            _dockDrag.Finish(evt == WindowEvent.Destroyed);
+            FinishExternalDrag(evt == WindowEvent.Destroyed);
             if (evt != WindowEvent.Destroyed) return;
         }
         if (_externalDrag == window && evt is WindowEvent.LocationChanged or WindowEvent.Foreground) return;

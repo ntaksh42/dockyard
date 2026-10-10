@@ -25,11 +25,13 @@ internal static class Program
 
     private sealed record Subject(string Name, nint Hwnd, RECT Original);
 
+    [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Contains("--client-caption")) return RunClientCaption(args.Contains("--manual-move"));
         var root = AppContext.BaseDirectory;
         while (!File.Exists(Path.Combine(root, "Dockyard.slnx"))) root = Path.GetDirectoryName(root)!;
-        _dragOnly = args.Contains("--drag-only");
+        _dragOnly = args.Contains("--drag-only") || args.Contains("--external-only");
         var exe = Path.Combine(root, _dragOnly ? @"src\Dockyard.App\bin\DragValidation\Dockyard.exe" : @"src\Dockyard.App\bin\Debug\net10.0-windows\Dockyard.exe");
         if (!_dragOnly && File.Exists(LogPath)) File.Delete(LogPath);
 
@@ -38,7 +40,8 @@ internal static class Program
         {
             _frame = Wait(() => FindWindow(h => Pid(h) == _app.Id && IsWindowVisible(h) && Title(h).StartsWith("[")), "group frame");
             SetWindowPos(_frame, 0, 100, 60, 1400, 850, SWP_NOZORDER);
-            if (_dragOnly) RunDockDrag();
+            if (args.Contains("--external-only")) RunExternalDrag();
+            else if (_dragOnly) RunDockDrag();
             else Run();
         }
         catch (Exception ex)
@@ -61,16 +64,6 @@ internal static class Program
     {
         var a = Spawn("dyt-drag-a", ProcessWindowStyle.Normal);
         var b = Spawn("dyt-drag-b", ProcessWindowStyle.Normal);
-        void External(Subject subject)
-        {
-            Activate(subject.Hwnd);
-            Thread.Sleep(200);
-            var r = Visible(subject.Hwnd);
-            var f = Visible(_frame);
-            keybd_event(0x10, 0, 0, 0);
-            try { Drag(r.Left + r.Width / 2, r.Top + 12, f.Left + f.Width / 2, f.Top + f.Height / 2); }
-            finally { keybd_event(0x10, 0, 2, 0); }
-        }
         void Tab(Subject subject, int x, int y, bool cancel = false)
         {
             Activate(_frame);
@@ -78,8 +71,8 @@ internal static class Program
             var tab = TabText(subject).Current.BoundingRectangle;
             Drag((int)(tab.Left + tab.Width / 2), (int)(tab.Top + tab.Height / 2), x, y, cancel: cancel);
         }
-        Step("Shift external drag into empty frame", () => External(a), [a], [a]);
-        Step("Shift external drag adds a tab", () => External(b), [a, b], [b]);
+        Step("Shift external drag into empty frame", () => DragExternal(a), [a], [a]);
+        Step("Shift external drag adds a tab", () => DragExternal(b), [a, b], [b]);
         var frame = Visible(_frame);
         Step("Escape cancels tab docking", () => Tab(a, frame.Right - 30, frame.Top + frame.Height / 2, true), [a, b], [b]);
         Step("tab drag splits right", () => Tab(a, frame.Right - 30, frame.Top + frame.Height / 2), [a, b], [a, b]);
@@ -91,6 +84,85 @@ internal static class Program
         Step("tab drag outside releases original bounds", () => Tab(a, frame.Left - 40, frame.Top + 100),
             [b], [b], extra: () => Restored(a));
         Step("close releases external drag at pre-drag bounds", () => ClickTabClose(b), [], [], extra: () => Restored(b));
+        RunExternalDrag();
+    }
+
+    private static void DragExternal(Subject subject, bool shift = true)
+    {
+        Activate(subject.Hwnd);
+        Thread.Sleep(200);
+        var r = Visible(subject.Hwnd);
+        var f = Visible(_frame);
+        if (shift) keybd_event(0x10, 0, 0, 0);
+        try { Drag(r.Left + r.Width / 2, r.Top + 12, f.Left + f.Width / 2, f.Top + f.Height / 2); }
+        finally { if (shift) keybd_event(0x10, 0, 2, 0); }
+    }
+
+    private static void RunExternalDrag()
+    {
+        foreach (var manual in new[] { false, true })
+        {
+            var custom = SpawnClientCaption(manual);
+            Step($"Shift drag from client caption (manual={manual})", () => DragExternal(custom), [custom], [custom]);
+            Step("release at pre-drag bounds", () => ClickTabClose(custom), [], [], extra: () => Restored(custom));
+            Step("drag without Shift does not dock", () => DragExternal(custom, false), [], [],
+                extra: () => AllIn(_frame, custom.Name).Any() ? "window was docked without Shift" : null);
+        }
+    }
+
+    private static int RunClientCaption(bool manual)
+    {
+        var window = new System.Windows.Window
+        {
+            Title = manual ? "dyt-manual-caption" : "dyt-client-caption",
+            Width = 600,
+            Height = 400,
+            Left = 300,
+            Top = 200,
+            WindowStyle = System.Windows.WindowStyle.None,
+            Background = System.Windows.Media.Brushes.White,
+        };
+        var caption = new System.Windows.Controls.Border
+        {
+            Height = 30,
+            Background = System.Windows.Media.Brushes.SlateGray,
+            Child = new System.Windows.Controls.TextBlock { Text = window.Title },
+        };
+        var start = new System.Windows.Point();
+        double left = 0, top = 0;
+        caption.MouseLeftButtonDown += (_, e) =>
+        {
+            if (!manual) { window.DragMove(); return; }
+            start = window.PointToScreen(e.GetPosition(window));
+            left = window.Left;
+            top = window.Top;
+            caption.CaptureMouse();
+        };
+        caption.MouseMove += (_, e) =>
+        {
+            if (!manual || !caption.IsMouseCaptured) return;
+            var point = window.PointToScreen(e.GetPosition(window));
+            var scale = System.Windows.Media.VisualTreeHelper.GetDpi(window).DpiScaleX;
+            window.Left = left + (point.X - start.X) / scale;
+            window.Top = top + (point.Y - start.Y) / scale;
+        };
+        caption.MouseLeftButtonUp += (_, _) => caption.ReleaseMouseCapture();
+        var content = new System.Windows.Controls.DockPanel();
+        System.Windows.Controls.DockPanel.SetDock(caption, System.Windows.Controls.Dock.Top);
+        content.Children.Add(caption);
+        content.Children.Add(new System.Windows.Controls.Border());
+        window.Content = content;
+        return new System.Windows.Application().Run(window);
+    }
+
+    private static Subject SpawnClientCaption(bool manual)
+    {
+        var name = manual ? "dyt-manual-caption" : "dyt-client-caption";
+        var process = Process.Start(Path.Combine(AppContext.BaseDirectory, "Dockyard.UiTests.exe"),
+            manual ? "--client-caption --manual-move" : "--client-caption")!;
+        Spawned.Add(process);
+        var hwnd = Wait(() => FindWindow(h => Pid(h) == process.Id && IsWindowVisible(h) && Title(h) == name), "client-caption fixture");
+        return new Subject(name, hwnd, WindowRect(hwnd));
     }
 
     private static void Run()

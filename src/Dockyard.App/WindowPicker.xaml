@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:ClassModifier="internal"
         Title="Choose a Window" Width="560" Height="420" WindowStartupLocation="CenterOwner"
-        ShowInTaskbar="False" ResizeMode="CanResizeWithGrip">
+        ShowInTaskbar="False" ResizeMode="CanResizeWithGrip" Icon="Assets/Dockyard.ico">
     <DockPanel Margin="10">
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
             <Button Content="Add" Width="80" IsDefault="True" Click="Ok_Click" />
