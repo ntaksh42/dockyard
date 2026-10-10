@@ -7,8 +7,10 @@
         <WindowChrome CaptionHeight="30" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
     <DockPanel x:Name="Root">
-        <Grid DockPanel.Dock="Top" Height="30">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,140,0">
+        <Grid x:Name="Caption" DockPanel.Dock="Top" Height="30" MouseEnter="Caption_MouseEnter">
+            <!-- Shown only while the pointer is over the caption (see ShowCaptionInfo). -->
+            <StackPanel x:Name="CaptionInfo" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,140,0" Opacity="0">
+
                 <Border x:Name="GroupChip" Background="#3B82F6" CornerRadius="9" Padding="8,1" ToolTip="Double-click to rename"
                         WindowChrome.IsHitTestVisibleInChrome="True" MouseLeftButtonDown="GroupChip_MouseLeftButtonDown">
                     <Grid>

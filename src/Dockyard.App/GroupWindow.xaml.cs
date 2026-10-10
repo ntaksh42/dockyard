@@ -38,6 +38,8 @@ public partial class GroupWindow : Window, IGroupView
     /// <summary>Draws the tab bars above the member windows with tab bar placement B; null otherwise.</summary>
     private Window? _overlay;
     private Canvas? _overlaySurface;
+    /// <summary>Hides the group name and title again once the pointer has left the caption.</summary>
+    private readonly System.Windows.Threading.DispatcherTimer _captionHide = new() { Interval = TimeSpan.FromMilliseconds(250) };
 
     /// <param name="isGrouped">Whether a window already belongs to some group, so the picker can leave it out.</param>
     internal GroupWindow(string name, IWindowSystem windows, Func<nint, bool> isGrouped, TabBarPlacement placement)
@@ -47,6 +49,7 @@ public partial class GroupWindow : Window, IGroupView
         GroupName = name;
         Controller = new GroupController(this, windows, new WpfScheduler(Dispatcher));
         SetTabBarPlacement(placement);
+        _captionHide.Tick += (_, _) => HideCaptionInfoIfLeft();
 
         SourceInitialized += (_, _) =>
         {
@@ -387,6 +390,8 @@ public partial class GroupWindow : Window, IGroupView
     /// <summary>Hands z-order changes the system is about to make to the frame to the controller (see OnFrameZChanging).</summary>
     private nint WndProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
     {
+        // The caption is non-client area: WPF gets no mouse events there, only the window does.
+        if (msg == 0x00A0 /* WM_NCMOUSEMOVE */) ShowCaptionInfo();
         if (msg != WM_WINDOWPOSCHANGING) return 0;
         var pos = Marshal.PtrToStructure<WINDOWPOS>(lParam);
         if ((pos.flags & SWP_NOZORDER) != 0) return 0;
@@ -453,7 +458,34 @@ public partial class GroupWindow : Window, IGroupView
         GroupNameText.Visibility = Visibility.Visible;
     }
 
-    private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+    private void Caption_MouseEnter(object sender, MouseEventArgs e) => ShowCaptionInfo();
+
+    /// <summary>The group name and active title are shown only while the pointer is over the caption.</summary>
+    private void ShowCaptionInfo()
+    {
+        CaptionInfo.Opacity = 1;
+        _captionHide.Start();
+    }
+
+    private void HideCaptionInfoIfLeft()
+    {
+        if (_closing || GroupNameEdit.IsVisible) return;
+        GetCursorPos(out var cursor);
+        var caption = ToScreenRect(Caption);
+        if (cursor.X >= caption.Left && cursor.X < caption.Right && cursor.Y >= caption.Top && cursor.Y < caption.Bottom) return;
+        CaptionInfo.Opacity = 0;
+        _captionHide.Stop();
+    }
+
+    private static PixelRect ToScreenRect(FrameworkElement e)
+    {
+        var tl = e.PointToScreen(new Point(0, 0));
+        var br = e.PointToScreen(new Point(e.ActualWidth, e.ActualHeight));
+        return new PixelRect((int)tl.X, (int)tl.Y, (int)br.X, (int)br.Y);
+    }
+
+    private void Minimize_Click(
+object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
     private void Maximize_Click(object sender, RoutedEventArgs e) =>
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
