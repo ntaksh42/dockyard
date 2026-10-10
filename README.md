@@ -44,7 +44,6 @@ Add-AppxPackage artifacts\msix\Dockyard.msix
 - Dockyard が強制終了・異常終了したあとの起動では、前回のグループを同じウィンドウで組み直す（`session.json`）。閉じれば各ウィンドウは追加前の位置に戻る
 - 設定の「Start Dockyard when Windows starts」で Windows 起動時に自動で起動する（MSIX 版はスタートアップ タスク、それ以外は HKCU の Run キー）
 - 設定の「When Dockyard starts, open the groups from last time」をオンにすると、起動時に前回終了時のグループ（`last-groups.json`）をレイアウトと同じ規則（exe・タイトル）で開く。PC の再起動後でも使える
-- 枠のグループ名とアクティブなタブのタイトルは、キャプションにマウスを乗せたときだけ表示する
 - 枠のグループ名をダブルクリックして名前を変更（Enter で確定、Esc で取り消し）。枠のキャプションの右クリックメニューからも、名前の変更・レイアウトの保存・設定を開ける
 - キーボードショートカット（Q7）：Ctrl+Alt+←/→ でタブ切替、Ctrl+Alt+Shift+矢印で隣接ペインへ移動、Ctrl+Alt+W でグループから解除。グループ内のウィンドウまたは枠にフォーカスがあるときのみ有効。設定画面で割り当てを変更できる（Ctrl / Alt / Win のいずれかを含む組み合わせ）。いまの割り当てはタブバーの「+」→「Keyboard Shortcuts」で一覧できる
 
