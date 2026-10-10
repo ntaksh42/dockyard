@@ -100,6 +100,8 @@ public partial class App : System.Windows.Application
 
         _sessionSave.Tick += (_, _) =>
         {
+            // Dragging a frame, a splitter or a member changes the layout many times: write once it is released.
+            if ((Native.GetAsyncKeyState(0x01 /* VK_LBUTTON */) & 0x8000) != 0) return;
             _sessionSave.Stop();
             SaveSession();
         };
@@ -248,15 +250,15 @@ public partial class App : System.Windows.Application
     {
         var g = new GroupWindow(name ?? $"Group {++_groupCount}", _windows, IsGrouped, _settings.TabBarPlacement);
         g.SaveLayoutRequested += SaveLayout;
-        g.Controller.Changed += _sessionSave.Start;
-        g.LocationChanged += (_, _) => _sessionSave.Start();
+        g.Controller.Changed += RequestSessionSave;
+        g.LocationChanged += (_, _) => RequestSessionSave();
         g.TabDragStarted += (source, window) => _dockDrag.Begin(window, source);
         g.TabDragEnded += cancel => _dockDrag.Finish(cancel);
         g.SettingsRequested += ShowSettings;
         g.Closed += (_, _) =>
         {
             _groups.Remove(g);
-            _sessionSave.Start();
+            RequestSessionSave();
         };
         _groups.Add(g);
         g.ShowAt(bounds);
@@ -311,6 +313,13 @@ public partial class App : System.Windows.Application
         foreach (var g in _groups) g.Controller.ReleaseAll();
         _sessionSave.Stop();
         JsonFile.Delete(SessionFile);
+    }
+
+    /// <summary>Writes the session file once changes stop for a moment (see the timer's tick).</summary>
+    private void RequestSessionSave()
+    {
+        _sessionSave.Stop();
+        _sessionSave.Start();
     }
 
     private void SaveSession()
