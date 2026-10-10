@@ -38,8 +38,22 @@ public class SettleTrackerTests
         Assert.Equal(SettleAction.None, new SettleTracker().Evaluate(Target, Target));
 
     [Fact]
-    public void WithinTolerance_DoesNothing() =>
-        Assert.Equal(SettleAction.None, new SettleTracker(tolerance: 8).Evaluate(Target, Target with { Width = 506, Height = 395 }));
+    public void SmallerWithinTolerance_DoesNothing() =>
+        Assert.Equal(SettleAction.None, new SettleTracker(tolerance: 8).Evaluate(Target, Target with { Width = 494, Height = 395 }));
+
+    [Fact]
+    public void LargerByRoundingOnly_DoesNothing() =>
+        Assert.Equal(SettleAction.None, new SettleTracker().Evaluate(Target, Target with { Width = 501, Height = 401 }));
+
+    [Fact]
+    public void LargerByAFewPixels_IsLearnedRatherThanToleratedOverTheNeighbour()
+    {
+        // Regression: up to 8px of overflow used to be tolerated, leaving the window over the next pane.
+        var t = new SettleTracker(tolerance: 8);
+        var slightlyLarger = Target with { Width = 505 };
+        Assert.Equal(SettleAction.Retry, t.Evaluate(Target, slightlyLarger));
+        Assert.Equal(SettleAction.LearnMinimum, t.Evaluate(Target, slightlyLarger));
+    }
 
     [Fact]
     public void LargerOnce_Retries_ThenLearnsWhenItStaysTheSame()

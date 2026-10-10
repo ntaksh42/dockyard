@@ -96,9 +96,24 @@ internal sealed class FakeWindowSystem : IWindowSystem
 
 /// <summary>
 /// The frame. Its layout surface sits at <see cref="Origin"/> on the screen, one pixel per layout unit.
+/// Like the WPF window, it reports its own moves and resizes back (see <see cref="Connect"/>).
 /// </summary>
 internal sealed class FakeView(nint handle) : IGroupView
 {
+    private GroupController? _controller;
+    private IScheduler? _scheduler;
+
+    /// <summary>
+    /// Reports frame changes the controller causes, the way WPF does: a move right away (LocationChanged), an
+    /// edge resize after the current message (SizeChanged at the next layout pass), and growth to a new minimum
+    /// right away (the window forces a layout pass).
+    /// </summary>
+    public void Connect(GroupController controller, IScheduler scheduler)
+    {
+        _controller = controller;
+        _scheduler = scheduler;
+    }
+
     public (double X, double Y) Origin = (100, 200);
     public Size Surface = new(1000, 600);
     public Size MinimumContent;
@@ -120,7 +135,11 @@ internal sealed class FakeView(nint handle) : IGroupView
 
     public void Render(GroupSnapshot snapshot) => LastRender = snapshot;
 
-    public void MoveBy(double dx, double dy) => Origin = (Origin.X + dx, Origin.Y + dy);
+    public void MoveBy(double dx, double dy)
+    {
+        Origin = (Origin.X + dx, Origin.Y + dy);
+        _controller?.OnFrameMoved();
+    }
 
     public void ResizeEdge(DockSide edge, double delta)
     {
@@ -131,12 +150,16 @@ internal sealed class FakeView(nint handle) : IGroupView
             case DockSide.Left: Origin.X += delta; Surface = Surface with { Width = Surface.Width - delta }; break;
             case DockSide.Top: Origin.Y += delta; Surface = Surface with { Height = Surface.Height - delta }; break;
         }
+        _scheduler?.Post(() => _controller?.OnSurfaceResized());
     }
 
     public void SetMinimumContentSize(Size min)
     {
         MinimumContent = min;
-        Surface = new Size(Math.Max(Surface.Width, min.Width), Math.Max(Surface.Height, min.Height));
+        var grown = new Size(Math.Max(Surface.Width, min.Width), Math.Max(Surface.Height, min.Height));
+        if (grown == Surface) return;
+        Surface = grown;
+        _controller?.OnSurfaceResized();
     }
 
     public void Minimize() => Minimized = true;

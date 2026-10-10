@@ -17,6 +17,7 @@ public class GroupControllerTests
     {
         _ws.AddToZOrder(Frame);
         _c = new GroupController(_view, _ws, _scheduler);
+        _view.Connect(_c, _scheduler);
         _c.OnSurfaceResized();
     }
 
@@ -189,6 +190,35 @@ public class GroupControllerTests
         Assert.True(_ws.Z(A) < _ws.Z(Frame) && _ws.Z(C) < _ws.Z(Frame));
         Assert.True(_ws.Z(Frame) < _ws.Z(Other));
         Assert.Equal(_ws.Z(Frame) - 1, Math.Max(_ws.Z(A), _ws.Z(C)));
+    }
+
+    [Fact]
+    public void FramePlacedBelowAnotherApp_TabsGoThereToo()
+    {
+        SplitAC();
+        _ws.Add(Other, Initial);
+
+        var after = _c.OnFrameZChanging(new FrameZChange(ZPlacement.Below, Other));
+        Assert.NotNull(after);
+        _ws.Stack(after.Value, [Frame]);
+
+        Assert.Equal(0, _ws.Z(Other));
+        Assert.True(_ws.Z(A) < _ws.Z(Frame) && _ws.Z(C) < _ws.Z(Frame));
+        Assert.True(_ws.Z(Other) < _ws.Z(A) && _ws.Z(Other) < _ws.Z(C));
+    }
+
+    [Fact]
+    public void DragEndWithoutStart_IsReadAgainstTheLastPlacement()
+    {
+        // Move/size start can be missed (e.g. it arrived before the window joined); the end still applies.
+        SplitAC();
+        var a = _ws.GetVisibleBounds(A).Width;
+        _ws.Windows[A].Bounds = FakeWindowSystem.BoundsFor(_ws.GetVisibleBounds(A) with { Right = _ws.GetVisibleBounds(A).Right + 50 });
+
+        _c.OnMoveSizeEnd(A);
+
+        Assert.InRange(_ws.GetVisibleBounds(A).Width, a + 48, a + 52);
+        AssertPlaced(C);
     }
 
     [Theory]
@@ -412,5 +442,215 @@ public class GroupControllerTests
 
         Assert.Equal(z, _ws.ZOrder);
         Assert.True(_c.Owns(A));
+    }
+
+    // ---- splitters, vertical splits and frame changes -----------------------------------------
+
+    private void SplitAB_Vertical()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.Adopt(Window(B), RootPane, DockSide.Bottom);
+    }
+
+    [Fact]
+    public void DraggingSplitter_MovesItAndReplacesBothPanes()
+    {
+        SplitAC();
+        var s = _c.Layout!.Splitters.Single();
+
+        _c.DragSplitter(s, s.SplitBounds.X + 300);
+
+        Assert.InRange(PaneOf(A).Content.Width, 297, 299);
+        AssertPlaced(A);
+        AssertPlaced(C);
+    }
+
+    [Fact]
+    public void DraggingVerticalSplitter_MovesItAlongY()
+    {
+        SplitAB_Vertical();
+        var s = _c.Layout!.Splitters.Single();
+
+        _c.DragSplitter(s, s.SplitBounds.Y + 400);
+
+        Assert.InRange(PaneOf(A).Bounds.Height, 397, 399);
+        AssertPlaced(A);
+        AssertPlaced(B);
+    }
+
+    [Fact]
+    public void DraggingSplitter_StopsAtTheMinimum()
+    {
+        SplitAC();
+        var s = _c.Layout!.Splitters.Single();
+
+        _c.DragSplitter(s, s.SplitBounds.X - 500);
+
+        Assert.True(PaneOf(A).Bounds.Width >= GroupController.Metrics.MinPaneWidth);
+    }
+
+    [Fact]
+    public void DraggingBottomEdgeOfUpperPane_MovesTheHorizontalDivider()
+    {
+        SplitAB_Vertical();
+        var a = _ws.GetVisibleBounds(A).Height;
+
+        UserDrags(A, r => r with { Bottom = r.Bottom + 60 });
+
+        Assert.InRange(_ws.GetVisibleBounds(A).Height, a + 58, a + 62);
+        AssertPlaced(B);
+    }
+
+    [Fact]
+    public void DraggingTopEdgeOfLowerPane_MovesTheHorizontalDivider()
+    {
+        SplitAB_Vertical();
+        var b = _ws.GetVisibleBounds(B).Height;
+
+        UserDrags(B, r => r with { Top = r.Top - 60 });
+
+        Assert.InRange(_ws.GetVisibleBounds(B).Height, b + 58, b + 62);
+        AssertPlaced(A);
+    }
+
+    [Fact]
+    public void DraggingOuterLeftOrTopEdge_MovesAndResizesTheFrame()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        var (origin, size) = (_view.Origin, _view.Surface);
+
+        UserDrags(A, r => r with { Left = r.Left - 40 });
+        UserDrags(A, r => r with { Top = r.Top - 30 });
+
+        Assert.Equal((origin.X - 40, origin.Y - 30), _view.Origin);
+        Assert.Equal(new Size(size.Width + 40, size.Height + 30), _view.Surface);
+        AssertPlaced(A);
+    }
+
+    [Fact]
+    public void FrameMovedOrResized_MembersFollow()
+    {
+        SplitAC();
+
+        _view.Origin = (500, 50);
+        _c.OnFrameMoved();
+        AssertPlaced(A);
+        AssertPlaced(C);
+
+        _view.Surface = new Size(1400, 800);
+        _c.OnSurfaceResized();
+        AssertPlaced(A);
+        AssertPlaced(C);
+    }
+
+    // ---- things that must be ignored ----------------------------------------------------------
+
+    [Fact]
+    public void QueuedDragUpdate_AfterTheWindowClosed_IsIgnored()
+    {
+        SplitAC();
+        _c.OnMoveSizeStart(A);
+        _c.OnLocationChanged(A);
+        _ws.Close(A);
+        _c.OnDestroyed(A);
+
+        _scheduler.RunPosted();
+
+        AssertPlaced(C);
+        Assert.Single(_c.Layout!.Panes);
+    }
+
+    [Fact]
+    public void EventsAfterClosing_AreIgnored()
+    {
+        SplitAC();
+        _c.OnClosing();
+        var z = _ws.ZOrder.ToList();
+
+        _c.OnForeground(A);
+        _c.OnLocationChanged(A);
+        _c.OnDestroyed(A);
+        _scheduler.FireTimers();
+
+        Assert.Equal(z, _ws.ZOrder);
+        Assert.Equal(Initial, _ws.GetBounds(A));
+    }
+
+    [Fact]
+    public void WhileMinimized_NothingIsMovedOrRestacked()
+    {
+        SplitAC();
+        _view.Minimized = true;
+        _c.OnFrameMinimized();
+        var bounds = _ws.GetBounds(A);
+        var z = _ws.ZOrder.ToList();
+
+        _c.OnFrameMoved();
+        _c.ActivateTab(C);
+        Assert.Null(_c.OnFrameZChanging(new FrameZChange(ZPlacement.Top)));
+
+        Assert.Equal(bounds, _ws.GetBounds(A));
+        Assert.Equal(z, _ws.ZOrder);
+    }
+
+    [Fact]
+    public void OwnRestacking_IsNotTreatedAsASystemChange()
+    {
+        // The frame's own z-change while the controller is stacking windows must not trigger another stack.
+        var view = new ReentrantView(Frame);
+        var ws = new FakeWindowSystem();
+        ws.AddToZOrder(Frame);
+        var c = new GroupController(view, new ReentrantWindowSystem(ws, () => view.Controller!.OnFrameZChanging(new FrameZChange(ZPlacement.Top))), _scheduler);
+        view.Controller = c;
+        c.OnSurfaceResized();
+        ws.Add(A, Initial);
+
+        c.Adopt(A, c.Layout!.Panes[0].Pane, null);
+
+        Assert.True(ws.Z(A) < ws.Z(Frame));
+    }
+
+    /// <summary>A view whose z-order changes come back into the controller, as the frame's WndProc does.</summary>
+    private sealed class ReentrantView(nint handle) : IGroupView
+    {
+        private readonly FakeView _inner = new(handle);
+        public GroupController? Controller { get; set; }
+        public nint Handle => _inner.Handle;
+        public bool IsOnScreen => true;
+        public bool IsMinimized => false;
+        public Size SurfaceSize => _inner.SurfaceSize;
+        public double Scale => 1;
+        public nint ZAnchor => 0;
+        public PixelRect ToScreen(Rect r) => _inner.ToScreen(r);
+        public Rect FromScreen(PixelRect r) => _inner.FromScreen(r);
+        public void Render(GroupSnapshot s) { }
+        public void MoveBy(double dx, double dy) => _inner.MoveBy(dx, dy);
+        public void ResizeEdge(DockSide e, double d) => _inner.ResizeEdge(e, d);
+        public void SetMinimumContentSize(Size m) => _inner.SetMinimumContentSize(m);
+        public void Minimize() { }
+        public void Restore() { }
+    }
+
+    /// <summary>Calls back into the controller whenever the frame itself is restacked.</summary>
+    private sealed class ReentrantWindowSystem(FakeWindowSystem inner, Action onFrameStacked) : IWindowSystem
+    {
+        public bool Exists(nint w) => inner.Exists(w);
+        public bool IsVisible(nint w) => inner.IsVisible(w);
+        public bool IsMinimized(nint w) => inner.IsMinimized(w);
+        public bool IsMaximized(nint w) => inner.IsMaximized(w);
+        public string GetTitle(nint w) => inner.GetTitle(w);
+        public PixelRect GetVisibleBounds(nint w) => inner.GetVisibleBounds(w);
+        public PixelRect GetBounds(nint w) => inner.GetBounds(w);
+        public void Restore(nint w) => inner.Restore(w);
+        public void Show(nint w) => inner.Show(w);
+        public void Hide(nint w) => inner.Hide(w);
+        public void PlaceVisible(nint w, PixelRect t) => inner.PlaceVisible(w, t);
+        public void SetBounds(nint w, PixelRect b) => inner.SetBounds(w, b);
+
+        public void Stack(nint after, IReadOnlyList<nint> topDown)
+        {
+            inner.Stack(after, topDown);
+            if (topDown.Contains(Frame)) onFrameStacked();
+        }
     }
 }

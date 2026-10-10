@@ -44,6 +44,8 @@ public enum SettleAction
 /// <summary>
 /// Decides what to do once a window has had time to apply the bounds we asked for. Retries are capped per
 /// target so a window that refuses to move (e.g. an elevated app) cannot cause an endless re-sync loop.
+/// <paramref name="tolerance"/> is how much smaller than the target a window may come out; larger is never
+/// accepted, since it would overlap the neighbouring pane.
 /// </summary>
 public sealed class SettleTracker(double tolerance = 8, int maxRetries = 2)
 {
@@ -61,11 +63,12 @@ public sealed class SettleTracker(double tolerance = 8, int maxRetries = 2)
         }
 
         bool samePosition = Near(actual.X, target.X) && Near(actual.Y, target.Y);
-        bool larger = actual.Width > target.Width + tolerance || actual.Height > target.Height + tolerance;
-        bool sameSize = Near(actual.Width, target.Width, tolerance) && Near(actual.Height, target.Height, tolerance);
+        // Larger by more than rounding covers the neighbouring pane, so it is never let go.
+        bool larger = actual.Width > target.Width + 1 || actual.Height > target.Height + 1;
+        // Smaller only leaves a gap: windows that snap to a character grid land a few pixels short, which is fine.
+        bool closeEnough = !larger && actual.Width >= target.Width - tolerance && actual.Height >= target.Height - tolerance;
 
-        // Within tolerance: windows that snap to a character grid land a few pixels off; that is fine.
-        if (samePosition && !larger && sameSize)
+        if (samePosition && closeEnough)
         {
             _suspect = null;
             return SettleAction.None;
