@@ -19,13 +19,20 @@ internal partial class SettingsWindow : Window
     private ShortcutAction? _capturing;
 
     private readonly Action<IReadOnlyList<string>> _titleBarAppsChanged;
+    /// <summary>Options without effect on open groups: changed in place, then saved.</summary>
+    private readonly Settings _settings;
+    private readonly Action _settingsChanged;
     private string _titleBarAppsText;
 
     public SettingsWindow(TabBarPlacement placement, IReadOnlyDictionary<ShortcutAction, ShortcutKey> bindings,
         Action<TabBarPlacement> placementChanged, Action<IReadOnlyDictionary<ShortcutAction, ShortcutKey>> shortcutsChanged,
-        IReadOnlyList<string> titleBarApps, Action<IReadOnlyList<string>> titleBarAppsChanged)
+        IReadOnlyList<string> titleBarApps, Action<IReadOnlyList<string>> titleBarAppsChanged,
+        Settings settings, Action settingsChanged)
     {
         InitializeComponent();
+        _settings = settings;
+        _settingsChanged = settingsChanged;
+        LaunchMissingAppsBox.IsChecked = settings.LaunchMissingApps;
         TitleBarAppsBox.Text = _titleBarAppsText = string.Join(", ", titleBarApps);
         _titleBarAppsChanged = titleBarAppsChanged;
         // Closing with the box focused does not always move the focus first.
@@ -122,6 +129,12 @@ internal partial class SettingsWindow : Window
         _titleBarAppsText = TitleBarAppsBox.Text;
         _titleBarAppsChanged(TitleBarAppsBox.Text.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
             .Select(name => name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name).ToList());
+    }
+
+    private void Options_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.LaunchMissingApps = LaunchMissingAppsBox.IsChecked == true;
+        _settingsChanged();
     }
 
     private void ResetShortcuts_Click(object sender, RoutedEventArgs e)

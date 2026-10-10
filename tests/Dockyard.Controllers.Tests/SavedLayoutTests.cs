@@ -28,6 +28,7 @@ public class SavedLayoutTests
     {
         _ws.Add(h, Initial, $"w{h}");
         _ws.Windows[h].ProcessName = process;
+        _ws.Windows[h].ProcessPath = $@"C:/apps/{process}.exe";
         return h;
     }
 
@@ -51,7 +52,7 @@ public class SavedLayoutTests
 
         Assert.Equal(Orientation.Horizontal, saved.Split);
         Assert.Equal(0.3, saved.Ratio, 3);
-        Assert.Equal(new SavedTab("code", "w1", A, Initial), Assert.Single(saved.First!.Tabs!));
+        Assert.Equal(new SavedTab("code", "w1", A, Initial, @"C:/apps/code.exe"), Assert.Single(saved.First!.Tabs!));
         Assert.Equal(["cmd", "cmd"], saved.Second!.Tabs!.Select(t => t.ProcessName));
         Assert.Equal(1, saved.Second.ActiveIndex);
     }
@@ -94,6 +95,7 @@ public class SavedLayoutTests
 
         var right = restored.Layout!.Panes[1].Pane;
         Assert.Equal(["w2", "w3"], _view.LastRender!.Waiting[right].Select(t => t.Title));
+        Assert.Equal([@"C:/apps/cmd.exe", @"C:/apps/cmd.exe"], restored.WaitingTabs.Select(t => t.Path));
         // Saved again (e.g. in the session file), the waiting tabs keep their place but not the old window.
         Assert.Equal([0L, 0L], restored.SaveLayout().Second!.Tabs!.Select(t => t.Handle));
     }

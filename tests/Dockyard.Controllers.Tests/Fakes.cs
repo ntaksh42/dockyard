@@ -15,6 +15,7 @@ internal sealed class FakeWindowSystem : IWindowSystem
     {
         public PixelRect Bounds;
         public string Title = "", ProcessName = "app";
+        public string? ProcessPath;
         public bool Visible = true, Minimized, Maximized;
         public int MinWidth, MinHeight;
     }
@@ -49,6 +50,7 @@ internal sealed class FakeWindowSystem : IWindowSystem
     public bool IsMaximized(nint window) => Windows[window].Maximized;
     public string GetTitle(nint window) => Windows[window].Title;
     public string GetProcessName(nint window) => Windows[window].ProcessName;
+    public string? GetProcessPath(nint window) => Windows[window].ProcessPath;
     public PixelRect GetVisibleBounds(nint window) => VisibleOf(Windows[window].Bounds);
     public PixelRect GetBounds(nint window) => Windows[window].Bounds;
 

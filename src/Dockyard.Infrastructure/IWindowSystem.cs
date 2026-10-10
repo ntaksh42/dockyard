@@ -23,6 +23,9 @@ public interface IWindowSystem
     /// <summary>Name of the process that owns the window, e.g. "notepad".</summary>
     string GetProcessName(nint window);
 
+    /// <summary>Full path of the owning process's exe, or null if it cannot be read.</summary>
+    string? GetProcessPath(nint window);
+
     /// <summary>What the user sees, without the invisible resize border most windows have.</summary>
     PixelRect GetVisibleBounds(nint window);
 

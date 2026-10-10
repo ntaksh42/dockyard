@@ -19,6 +19,9 @@ public sealed class Settings
     public static IReadOnlyList<string> DefaultTitleBarApps { get; } =
         ["chrome", "msedge", "firefox", "brave", "opera", "vivaldi", "Code", "WindowsTerminal", "explorer"];
 
+    /// <summary>When a layout is opened, start the apps whose windows are missing (from the exe paths saved with it).</summary>
+    public bool LaunchMissingApps { get; set; }
+
     public static Settings Load() => JsonFile.Read<Settings>(FileName) ?? new();
 
     public void Save() => JsonFile.Write(FileName, this);

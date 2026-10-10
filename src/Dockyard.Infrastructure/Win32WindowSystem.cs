@@ -19,6 +19,12 @@ public sealed class Win32WindowSystem : IWindowSystem
         return WindowCatalog.ProcessName(pid);
     }
 
+    public string? GetProcessPath(nint window)
+    {
+        GetWindowThreadProcessId(window, out var pid);
+        return Native.GetProcessPath(pid);
+    }
+
     public PixelRect GetVisibleBounds(nint window) => ToPixel(Native.GetVisibleBounds(window));
 
     public PixelRect GetBounds(nint window) => GetWindowRect(window, out var r) ? ToPixel(r) : default;

@@ -120,6 +120,27 @@ public static class Native
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(nint hwnd, int attr, out RECT value, int size);
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(nint hwnd, int attr, out int value, int size);
 
+    [DllImport("kernel32.dll")] private static extern nint OpenProcess(uint access, bool inherit, uint pid);
+    [DllImport("kernel32.dll")] private static extern bool CloseHandle(nint handle);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern bool QueryFullProcessImageNameW(nint process, uint flags, StringBuilder name, ref uint size);
+
+    /// <summary>The exe path of a process, or null if it cannot be read.</summary>
+    public static string? GetProcessPath(uint pid)
+    {
+        var process = OpenProcess(0x1000 /* PROCESS_QUERY_LIMITED_INFORMATION */, false, pid);
+        if (process == 0) return null;
+        try
+        {
+            var sb = new StringBuilder(1024);
+            var size = (uint)sb.Capacity;
+            return QueryFullProcessImageNameW(process, 0, sb, ref size) ? sb.ToString() : null;
+        }
+        finally
+        {
+            CloseHandle(process);
+        }
+    }
+
     public static string GetWindowText(nint hwnd)
     {
         var sb = new StringBuilder(512);

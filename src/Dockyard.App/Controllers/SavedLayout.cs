@@ -7,7 +7,8 @@ namespace Dockyard.App.Controllers;
 /// A tab as saved: which app to put there (Q3: exe name and title), and for the session file also the exact
 /// window and where it was before it joined, so a restart after a crash can give it back.
 /// </summary>
-public sealed record SavedTab(string ProcessName, string Title, long Handle = 0, PixelRect? OriginalBounds = null);
+/// <param name="Path">The app's exe, to start it when a layout is opened without it; null if unknown.</param>
+public sealed record SavedTab(string ProcessName, string Title, long Handle = 0, PixelRect? OriginalBounds = null, string? Path = null);
 
 /// <summary>A layout tree node: a split when <see cref="Split"/> is set, otherwise a pane with tabs.</summary>
 public sealed record SavedNode(

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using Dockyard.App.Controllers;
@@ -305,6 +307,23 @@ public partial class App : System.Windows.Application
             .Select(w => new WindowCandidate(w.Handle, w.ProcessName, w.Title)).ToList();
         var g = into is not null && !into.Controller.Members.Any() ? into : NewGroup(saved.Name, saved.Bounds);
         g.Restore(saved, tab => WindowMatcher.Match(tab, candidates, claimed, sameWindowOnly: false));
+        // Their windows then fill the waiting tabs as they appear.
+        if (_settings.LaunchMissingApps)
+            foreach (var tab in g.Controller.WaitingTabs)
+                Launch(tab);
+    }
+
+    private static void Launch(SavedTab tab)
+    {
+        if (tab.Path is not { } path || !File.Exists(path)) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(path) });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            Log.Error($"Launch {path}", ex);
+        }
     }
 
     private void ShowSettings()
@@ -329,7 +348,7 @@ public partial class App : System.Windows.Application
             _settings.TitleBarApps = [.. apps];
             _settings.Save();
             foreach (var g in _groups) g.Controller.SetTitleBarApps(apps);
-        });
+        }, _settings, _settings.Save);
 
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Show();

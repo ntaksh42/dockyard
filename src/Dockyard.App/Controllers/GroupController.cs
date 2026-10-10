@@ -18,6 +18,7 @@ public sealed class GroupController
         public PixelRect OriginalBounds { get; } = originalBounds;
         public string Title { get; set; } = "";
         public string ProcessName { get; init; } = "";
+        public string? ProcessPath { get; init; }
         /// <summary>Smallest content size the app accepted, in layout units. Learned by observation.</summary>
         public Size MinSize { get; set; }
         /// <summary>Visible bounds last requested.</summary>
@@ -87,7 +88,7 @@ public sealed class GroupController
     {
         SplitNode s => new SavedNode(s.Orientation, s.Ratio, Save(s.First), Save(s.Second)),
         Pane p => new SavedNode(
-            Tabs: p.Windows.Select(h => new SavedTab(_windows.GetProcessName(h), _members[h].Title, h, _members[h].OriginalBounds))
+            Tabs: p.Windows.Select(h => new SavedTab(_members[h].ProcessName, _members[h].Title, h, _members[h].OriginalBounds, _members[h].ProcessPath))
                 .Concat(Waiting(p)).ToList(),
             ActiveIndex: p.ActiveIndex),
         _ => throw new InvalidOperationException(),
@@ -112,12 +113,20 @@ public sealed class GroupController
             if (_windows.IsMinimized(h) || _windows.IsMaximized(h)) _windows.Restore(h);
             // A group minimized when Dockyard went down left its windows hidden.
             _windows.Show(h);
-            _members[h] = new Member(h, tabs[i].OriginalBounds ?? _windows.GetBounds(h)) { Title = _windows.GetTitle(h), ProcessName = _windows.GetProcessName(h) };
+            _members[h] = new Member(h, tabs[i].OriginalBounds ?? _windows.GetBounds(h)) 
+            {
+                Title = _windows.GetTitle(h),
+                ProcessName = _windows.GetProcessName(h),
+                ProcessPath = _windows.GetProcessPath(h),
+            };
             if (i == node.ActiveIndex) pane.ActiveIndex = pane.Windows.Count;
             pane.Windows.Add(h);
         }
         return pane;
     }
+
+    /// <summary>Restored tabs still waiting for a window of their app.</summary>
+    public IReadOnlyList<SavedTab> WaitingTabs => _tree.Panes.SelectMany(Waiting).ToList();
 
     private IEnumerable<SavedTab> Waiting(Pane pane) => _waiting.TryGetValue(pane, out var tabs) ? tabs : [];
 
@@ -152,6 +161,7 @@ public sealed class GroupController
         {
             Title = _windows.GetTitle(window),
             ProcessName = _windows.GetProcessName(window),
+            ProcessPath = _windows.GetProcessPath(window),
         };
         if (side is { } s) _tree.Split(pane, s, window);
         else _tree.AddTab(pane, window);
