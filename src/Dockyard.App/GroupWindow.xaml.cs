@@ -124,14 +124,14 @@ public partial class GroupWindow : Window, IGroupView
     }
 
     /// <summary>
-    /// Hooks the window procedure before calling the base, which lets WindowChrome add its own hook: ours then
-    /// runs first and can take right-clicks on the caption, which WindowChrome would answer with the system menu.
+    /// Hooks the window procedure after the base has let WindowChrome add its own hook. The hook added last runs
+    /// first, so ours can take right-clicks on the caption, which WindowChrome would answer with the system menu.
     /// </summary>
     protected override void OnSourceInitialized(EventArgs e)
     {
+        base.OnSourceInitialized(e);
         _hwnd = new WindowInteropHelper(this).Handle;
         HwndSource.FromHwnd(_hwnd).AddHook(WndProc);
-        base.OnSourceInitialized(e);
     }
 
     public string GroupName
