@@ -545,6 +545,7 @@ public sealed class GroupController
     {
         if (LayoutTree.FindDivider(pane, edge) is not { } split)
         {
+            KeepOtherPanes(pane, edge, delta);
             _view.ResizeEdge(edge, delta);
             return;
         }
@@ -553,6 +554,28 @@ public sealed class GroupController
         var length = horizontal ? bounds.Width : bounds.Height;
         var origin = horizontal ? bounds.X : bounds.Y;
         split.Ratio = LayoutEngine.ClampRatio(split, (boundary - origin) / (length - Metrics.SplitterThickness), length, Metrics, MinSizeOf);
+    }
+
+    /// <summary>
+    /// The frame's <paramref name="edge"/> is about to move by <paramref name="delta"/> because the user drags
+    /// that edge of <paramref name="pane"/>'s window: give all of it to that pane. Shared out by the ratios, the
+    /// other panes would grow under the dragged window, which the user holds where it is until the drag ends.
+    /// </summary>
+    private void KeepOtherPanes(Pane pane, DockSide edge, double delta)
+    {
+        var orientation = edge is DockSide.Left or DockSide.Right ? Orientation.Horizontal : Orientation.Vertical;
+        var growth = edge is DockSide.Left or DockSide.Top ? -delta : delta;
+        for (LayoutNode child = pane; child.Parent is { } split; child = split)
+        {
+            if (split.Orientation != orientation) continue;
+            var bounds = _layout!.Splitters.First(s => s.Split == split).SplitBounds;
+            var available = (orientation == Orientation.Horizontal ? bounds.Width : bounds.Height) - Metrics.SplitterThickness;
+            if (available + growth <= 0) continue;
+            // An outer edge: the pane is on that edge's side of every split along it. The other side keeps its size.
+            split.Ratio = split.Second == child
+                ? split.Ratio * available / (available + growth)
+                : 1 - (1 - split.Ratio) * available / (available + growth);
+        }
     }
 
     /// <summary>

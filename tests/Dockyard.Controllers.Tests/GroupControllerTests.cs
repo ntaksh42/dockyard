@@ -573,6 +573,26 @@ public class GroupControllerTests
     }
 
     [Fact]
+    public void DraggingOuterEdge_GrowsOnlyThePaneBeingDragged()
+    {
+        SplitAC();
+        var a = _ws.GetVisibleBounds(A);
+        var c = _ws.GetVisibleBounds(C).Width;
+
+        // The right edge of the right pane, then the left edge of the left pane.
+        UserDrags(C, r => r with { Right = r.Right + 80 });
+        Assert.Equal(a, _ws.GetVisibleBounds(A));
+        Assert.InRange(_ws.GetVisibleBounds(C).Width, c + 79, c + 81);
+
+        var right = _ws.GetVisibleBounds(C);
+        UserDrags(A, r => r with { Left = r.Left - 40 });
+        Assert.Equal(right, _ws.GetVisibleBounds(C));
+        Assert.InRange(_ws.GetVisibleBounds(A).Width, a.Width + 39, a.Width + 41);
+        AssertPlaced(A);
+        AssertPlaced(C);
+    }
+
+    [Fact]
     public void DraggingTitleBar_MovesTheWholeGroup()
     {
         SplitAC();
