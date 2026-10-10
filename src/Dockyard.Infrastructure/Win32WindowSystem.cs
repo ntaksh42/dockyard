@@ -32,16 +32,39 @@ public sealed class Win32WindowSystem : IWindowSystem
             SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_ASYNCWINDOWPOS);
     }
 
-    public void SetBounds(nint window, PixelRect bounds) =>
-        SetWindowPos(window, HWND_TOP, bounds.Left, bounds.Top, bounds.Width, bounds.Height, SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+    public void SetBounds(nint window, PixelRect bounds)
+    {
+        SetWindowPos(window, 0, bounds.Left, bounds.Top, bounds.Width, bounds.Height, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+        BringToTop(window);
+    }
 
     public void Stack(nint after, IReadOnlyList<nint> topDown)
     {
         foreach (var w in topDown)
         {
-            SetWindowPos(w, after, 0, 0, 0, 0, ZOrderFlags);
+            if (after == 0)
+            {
+                BringToTop(w);
+            }
+            else
+            {
+                SetWindowPos(w, after, 0, 0, 0, 0, ZOrderFlags);
+                var above = GetWindow(w, GW_HWNDPREV);
+                if (above != after) Log.Trace($"stack: 0x{w:X} wanted below 0x{after:X} but is below 0x{above:X} (foreground 0x{GetForegroundWindow():X})");
+            }
             after = w;
         }
+    }
+
+    /// <summary>
+    /// Puts another app's window at the top of the z-order without activating it. SetWindowPos(HWND_TOP) is
+    /// silently ignored for other processes' windows (seen with Notepad and Paint even while Dockyard had the
+    /// foreground); passing through the topmost band is not restricted and ends at the top of the normal band.
+    /// </summary>
+    private static void BringToTop(nint window)
+    {
+        SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0, ZOrderFlags);
+        SetWindowPos(window, HWND_NOTOPMOST, 0, 0, 0, 0, ZOrderFlags);
     }
 
     private static PixelRect ToPixel(RECT r) => new(r.Left, r.Top, r.Right, r.Bottom);

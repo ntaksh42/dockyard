@@ -18,6 +18,8 @@ internal static class Program
     private static Process _app = null!;
     private static nint _frame;
     private static readonly List<Process> Spawned = [];
+    /// <summary>Windows opened through the shell (no process handle to kill); closed with WM_CLOSE.</summary>
+    private static readonly List<nint> SpawnedWindows = [];
     private static readonly List<string> Failures = [];
 
     private sealed record Subject(string Name, nint Hwnd, RECT Original);
@@ -33,7 +35,7 @@ internal static class Program
         try
         {
             _frame = Wait(() => FindWindow(h => Pid(h) == _app.Id && IsWindowVisible(h) && Title(h).StartsWith("[")), "group frame");
-            SetWindowPos(_frame, 0, 2000, 60, 1400, 850, SWP_NOZORDER);
+            SetWindowPos(_frame, 0, 100, 60, 1400, 850, SWP_NOZORDER);
             Run();
         }
         catch (Exception ex)
@@ -44,6 +46,7 @@ internal static class Program
         {
             if (!_app.HasExited) _app.Kill();
             foreach (var p in Spawned) if (!p.HasExited) p.Kill();
+            foreach (var h in SpawnedWindows) PostMessage(h, 0x0010 /* WM_CLOSE */, 0, 0);
         }
 
         Console.WriteLine();
@@ -79,11 +82,26 @@ internal static class Program
                 ? "picker still open" : null);
         }
 
+        // Regression: Win11 apps such as Paint ignore SetWindowPos(HWND_TOP) from another process, and the
+        // group used to sink behind other apps right after such a window was added. Consoles do not show it.
+        // Done first: the managed UIA client used here stops seeing dialog contents after many dialogs.
+        if (SpawnPaint() is { } paint)
+        {
+            var front = Spawn("dyt-f", ProcessWindowStyle.Normal); // in front of everything, Paint included
+            Step("add a Win11 app while another app is in front", () =>
+            {
+                Invoke(FindIn(_frame, "ウィンドウを追加…"));
+                Pick(paint);
+            }, members: [paint], active: [paint], below: [front]);
+            Step("remove the Win11 app again", () => ClickTabClose(paint), members: [], active: [],
+                extra: () => Restored(paint));
+        }
+
         Step("add a window to the empty group", () =>
         {
             Invoke(FindIn(_frame, "ウィンドウを追加…"));
             Pick(a);
-        }, members: [a], active: [a]);
+        }, members: [a], active: [a], below: [e]);
 
         Step("add a minimized window as a tab", () => AddVia(a, "タブとして追加…", b), members: [a, b], active: [b]);
 
@@ -157,6 +175,7 @@ internal static class Program
 
         Step("remove an inactive tab with ×", () => ClickTabClose(b), members: [a, c], active: [a, c],
             extra: () => Restored(b));
+
 
         Step("close the group", () => Invoke(FindIn(_frame, "✕")), members: [], active: [],
             extra: () => Restored(a) ?? Restored(c));
@@ -304,6 +323,25 @@ internal static class Program
         Click(r.Left + r.Width / 2, r.Top + 12);
         Thread.Sleep(400);
         if (GetForegroundWindow() != s.Hwnd) throw new Exception($"could not focus {s.Name}");
+    }
+
+    /// <summary>Opens a new Paint window, or returns null when Paint is not available.</summary>
+    private static Subject? SpawnPaint()
+    {
+        var before = new HashSet<nint>();
+        EnumWindows((h, _) => { before.Add(h); return true; }, 0);
+        try
+        {
+            Process.Start(new ProcessStartInfo("mspaint.exe") { UseShellExecute = true });
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return null;
+        }
+        var hwnd = Wait(() => FindWindow(h => !before.Contains(h) && IsWindowVisible(h) && Title(h).EndsWith("ペイント")), "Paint", 15);
+        Thread.Sleep(1500); // let Paint finish laying itself out
+        SpawnedWindows.Add(hwnd);
+        return new Subject(Title(hwnd), hwnd, WindowRect(hwnd));
     }
 
     private static RECT WindowRect(nint hwnd)

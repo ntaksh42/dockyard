@@ -189,7 +189,7 @@ public partial class GroupWindow : Window, IGroupView
         // Built on click: tab bars are rebuilt on every layout change, including each step of a drag.
         add.Click += (_, _) =>
         {
-            var menu = new ContextMenu { PlacementTarget = add };
+            var menu = new ContextMenu { PlacementTarget = add, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
             menu.Items.Add(MenuItem("タブとして追加…", () => PickAndAdopt(pane, null)));
             menu.Items.Add(MenuItem("右に分割して追加…", () => PickAndAdopt(pane, DockSide.Right)));
             menu.Items.Add(MenuItem("下に分割して追加…", () => PickAndAdopt(pane, DockSide.Bottom)));
