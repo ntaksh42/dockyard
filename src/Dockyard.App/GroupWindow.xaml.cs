@@ -30,6 +30,8 @@ public partial class GroupWindow : Window, IGroupView
     private readonly Dictionary<nint, nint> _thumbnails = [];
     /// <summary>Each pane's "+" button as last built, where the keyboard opens that pane's menu.</summary>
     private readonly Dictionary<Pane, Button> _addButtons = [];
+    /// <summary>The tab each pane showed when its bar was last built, to tell UI Automation when that changes.</summary>
+    private readonly Dictionary<Pane, nint> _shownTabs = [];
     /// <summary>Where each thumbnail was last put: moving the frame leaves it unchanged, and DWM need not hear it again.</summary>
     private readonly Dictionary<nint, (RECT Destination, RECT Source)> _thumbnailPlaces = [];
     /// <summary>Ends the live view once the frame has been still for a moment, so the apps have repainted at their final size.</summary>
@@ -360,7 +362,7 @@ public partial class GroupWindow : Window, IGroupView
         // Over a member the bar ends after its buttons, leaving the app's own caption buttons uncovered.
         var bar = new DockPanel { Background = overMember ? null : TabBarBrush, LastChildFill = !overMember };
         // Tabs shrink first (TabSize); past their smallest the strip scrolls, with the wheel, to the active tab.
-        var strip = new StackPanel { Orientation = vertical ? System.Windows.Controls.Orientation.Vertical : System.Windows.Controls.Orientation.Horizontal };
+        var strip = new TabStrip { Orientation = vertical ? System.Windows.Controls.Orientation.Vertical : System.Windows.Controls.Orientation.Horizontal };
         var scroller = new ScrollViewer
         {
             Content = strip,
@@ -399,7 +401,10 @@ public partial class GroupWindow : Window, IGroupView
             var active = pane.ActiveWindow == h;
             var close = new Button { Content = "×", BorderThickness = new Thickness(0), Background = Brushes.Transparent, Padding = new Thickness(4, 0, 4, 0), ToolTip = "Remove from Group" };
             close.Click += (_, _) => Controller.Remove(h);
-            var tab = new Border
+            // Selecting it from UI Automation does what a click does.
+            var announce = active && _shownTabs.TryGetValue(pane, out var shown) && shown != h;
+            if (active) _shownTabs[pane] = h;
+            var tab = new TabElement(titles[h], active, announce, () => Controller.ActivateTab(h))
             {
                 Background = active ? ActiveTabBrush : TabBrush,
                 BorderBrush = AccentBrush,

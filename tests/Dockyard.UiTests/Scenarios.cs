@@ -112,6 +112,46 @@ internal static partial class Program
             extra: () => Math.Abs(Visible(b.Hwnd).Width - width) <= 2 ? null : $"width {Visible(b.Hwnd).Width}, was {width}");
         Step("Ctrl+Alt+Win+Left moves it back", () => Keys(0x11, 0x12, 0x5B, 0x25), [a, b, c], [b, c], extra: () => Focused(b));
         Step("Ctrl+Alt+1 goes to the first tab", () => Keys(0x11, 0x12, 0x31), [a, b, c], [a, c], extra: () => Focused(a));
+        SelectionItemPattern TabItem(Subject s) => (SelectionItemPattern)AllIn(_frame, s.Name)
+            .First(t => t.Current.ControlType == ControlType.TabItem).GetCurrentPattern(SelectionItemPattern.Pattern);
+        string? Selected(Subject s, Subject other)
+        {
+            var item = TabItem(s);
+            if (!item.Current.IsSelected || TabItem(other).Current.IsSelected) return $"{s.Name} not the only selected tab";
+            var strip = item.Current.SelectionContainer;
+            return strip?.Current.ControlType == ControlType.Tab &&
+                ((SelectionPattern)strip.GetCurrentPattern(SelectionPattern.Pattern)).Current.GetSelection().Single().Current.Name == s.Name
+                ? null : "the tab strip does not report it as its selection";
+        }
+        Step("a tab is a selectable tab item for UI Automation", () => TabItem(b).Select(), [a, b, c], [b, c], extra: () => Selected(b, a));
+        Step("selecting the first tab again", () => TabItem(a).Select(), [a, b, c], [a, c], extra: () => Selected(a, b));
+        Step("Ctrl+Alt+9 goes to the last tab", () =>
+        {
+            FocusByClick(a);
+            Keys(0x11, 0x12, 0x39);
+        }, [a, b, c], [b, c], extra: () => Focused(b));
+        Step("Ctrl+Alt+Right wraps around to the first tab", () => Keys(0x11, 0x12, 0x27), [a, b, c], [a, c], extra: () => Focused(a));
+        Step("Ctrl+Alt+Win+Down splits the tab off below", () => Keys(0x11, 0x12, 0x5B, 0x28), [a, b, c], [a, b, c],
+            extra: () => Visible(a.Hwnd).Top > Visible(b.Hwnd).Bottom ? null : "not below");
+        var height = 0;
+        Step("Ctrl+Alt+] heightens the lower pane", () =>
+        {
+            height = Visible(a.Hwnd).Height;
+            Keys(0x11, 0x12, 0xDD);
+        }, [a, b, c], [a, b, c], extra: () => Visible(a.Hwnd).Height > height ? null : $"height {Visible(a.Hwnd).Height}, was {height}");
+        int upper = 0, stopped = 0;
+        Step("Ctrl+Alt+] stops at the upper pane's minimum", () =>
+        {
+            upper = Visible(b.Hwnd).Height;
+            for (var i = 0; i < 25; i++) Keys(0x11, 0x12, 0xDD);
+            Thread.Sleep(300);
+            stopped = Visible(b.Hwnd).Height;
+            Keys(0x11, 0x12, 0xDD);
+        }, [a, b, c], [a, b, c], extra: () =>
+            stopped >= upper ? $"the upper pane did not shrink ({upper} -> {stopped})"
+            : Math.Abs(Visible(b.Hwnd).Height - stopped) > 1 ? $"still moving at the minimum ({stopped} -> {Visible(b.Hwnd).Height})"
+            : null);
+        Step("Ctrl+Alt+Win+Up moves the tab back up", () => Keys(0x11, 0x12, 0x5B, 0x26), [a, b, c], [a, c], extra: () => Focused(a));
 
         var x = SpawnClientCaption(false);
         Step("tab bar over the title bar for this group", () =>
@@ -450,6 +490,7 @@ internal static partial class Program
     /// <summary>Right-clicks the frame's caption and picks the item at <paramref name="path"/> (submenus first).</summary>
     private static void CaptionMenu(nint frame, params string[] path)
     {
+        CloseTrayFlyout();
         Activate(frame);
         Thread.Sleep(150);
         var f = Visible(frame);
@@ -491,12 +532,30 @@ internal static partial class Program
         Thread.Sleep(200);
     }
 
+    private static AutomationElement TrayChevron()
+    {
+        var taskbar = AutomationElement.RootElement.FindFirst(TreeScope.Children, new PropertyCondition(AutomationElement.ClassNameProperty, "Shell_TrayWnd"));
+        return taskbar.FindAll(TreeScope.Descendants, new PropertyCondition(AutomationElement.AutomationIdProperty, "SystemTrayIcon"))
+            .Cast<AutomationElement>().First(e => e.Current.Name.Contains("非表示") || e.Current.Name.Contains("hidden", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Closes the hidden-icons flyout if a tray step left it open: it sits above everything and swallows the clicks
+    /// meant for the frame (seen as a caption menu that never opens).
+    /// </summary>
+    private static void CloseTrayFlyout()
+    {
+        // Found by class, which is the same in every display language (the title is not).
+        if (!AutomationElement.RootElement.FindAll(TreeScope.Children, Condition.TrueCondition).Cast<AutomationElement>()
+            .Any(w => w.Current.ClassName.Contains("Overflow") && !w.Current.IsOffscreen)) return;
+        Invoke(TrayChevron());
+        Thread.Sleep(300);
+    }
+
     /// <summary>Opens the tray icon's menu through the taskbar's hidden-icons flyout and picks an item.</summary>
     private static void TrayMenu(params string[] path)
     {
-        var taskbar = AutomationElement.RootElement.FindFirst(TreeScope.Children, new PropertyCondition(AutomationElement.ClassNameProperty, "Shell_TrayWnd"));
-        var chevron = taskbar.FindAll(TreeScope.Descendants, new PropertyCondition(AutomationElement.AutomationIdProperty, "SystemTrayIcon"))
-            .Cast<AutomationElement>().First(e => e.Current.Name.Contains("非表示") || e.Current.Name.Contains("hidden", StringComparison.OrdinalIgnoreCase));
+        var chevron = TrayChevron();
         List<AutomationElement>? Icons() => AutomationElement.RootElement.FindAll(TreeScope.Children, Condition.TrueCondition).Cast<AutomationElement>()
             .Where(w => w.Current.ClassName.Contains("Overflow"))
             .SelectMany(w => w.FindAll(TreeScope.Descendants, Condition.TrueCondition).Cast<AutomationElement>())
@@ -532,6 +591,7 @@ internal static partial class Program
         }
         Invoke(item!);
         Thread.Sleep(400);
+        CloseTrayFlyout();
     }
 
     /// <summary>Sets a check box in the settings window (opened from the tray), then closes the window.</summary>

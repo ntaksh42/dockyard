@@ -26,7 +26,14 @@ internal partial class LayoutsWindow : Window
     private void Reload(string? select)
     {
         _layouts = JsonFile.Read<List<SavedGroup>>(_file) ?? [];
-        List.ItemsSource = _layouts.OrderBy(l => l.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        var sorted = _layouts.OrderBy(l => l.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        // The same names as shown: keep the list as it is, so activating the window does not reset its items.
+        if (List.ItemsSource is IEnumerable<SavedGroup> shown && shown.Select(l => l.Name).SequenceEqual(sorted.Select(l => l.Name)))
+        {
+            UpdateActions();
+            return;
+        }
+        List.ItemsSource = sorted;
         List.SelectedItem = ((IEnumerable<SavedGroup>)List.ItemsSource).FirstOrDefault(l => l.Name == select)
             ?? ((IEnumerable<SavedGroup>)List.ItemsSource).FirstOrDefault();
         // With nothing to select the selection does not change: update here too.
@@ -48,7 +55,8 @@ internal partial class LayoutsWindow : Window
 
     private void Open_Click(object sender, RoutedEventArgs e)
     {
-        if (Selected is { } layout) _open(layout);
+        // By name from the file just read: the shown item may be older than a layout saved over it since.
+        if (Selected is { } layout && _layouts.Find(l => l.Name == layout.Name) is { } current) _open(current);
     }
 
     private void Rename_Click(object sender, RoutedEventArgs e)
