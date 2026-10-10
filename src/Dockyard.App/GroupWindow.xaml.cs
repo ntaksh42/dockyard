@@ -367,6 +367,8 @@ public partial class GroupWindow : Window, IGroupView
             var handle = new WindowInteropHelper(_overlay).Handle;
             SetWindowLongPtr(handle, GWL_EXSTYLE, (nint)((long)GetWindowLongPtr(handle, GWL_EXSTYLE) | 0x08000000 /* WS_EX_NOACTIVATE */ | WS_EX_TOOLWINDOW));
         };
+        // Moving to a monitor with another DPI makes WPF resize the overlay: put it back over the surface.
+        _overlay.DpiChanged += (_, _) => PositionOverlay();
     }
 
     /// <summary>Lays the overlay over the surface, showing it once the frame is on screen.</summary>
@@ -376,6 +378,10 @@ public partial class GroupWindow : Window, IGroupView
         if (!_overlay.IsVisible) _overlay.Show();
         var r = ToScreen(new DomainRect(0, 0, Surface.ActualWidth, Surface.ActualHeight));
         SetWindowPos(new WindowInteropHelper(_overlay).Handle, 0, r.Left, r.Top, r.Width, r.Height, SWP_NOZORDER | SWP_NOACTIVATE);
+        // The overlay takes the DPI of the monitor it is on, which can differ from the frame's when the group
+        // spans monitors. The tabs are laid out in the frame's units: scale them onto the same pixels.
+        var factor = Scale / VisualTreeHelper.GetDpi(_overlay).DpiScaleX;
+        _overlaySurface!.LayoutTransform = Math.Abs(factor - 1) < 0.001 ? Transform.Identity : new ScaleTransform(factor, factor);
     }
 
 
