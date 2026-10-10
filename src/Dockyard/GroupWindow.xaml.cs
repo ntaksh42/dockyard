@@ -28,6 +28,9 @@ public partial class GroupWindow : Window
         public CoreSize MinSize { get; set; }
         /// <summary>Visible bounds last requested, in physical pixels.</summary>
         public RECT? LastTarget { get; set; }
+        /// <summary>Visible bounds when the user started dragging the window.</summary>
+        public RECT? DragStart { get; set; }
+        public SettleTracker Settle { get; } = new();
     }
 
     private static readonly LayoutMetrics Metrics = new(SplitterThickness: 4, TabBarHeight: 28);
@@ -97,10 +100,12 @@ public partial class GroupWindow : Window
                 break;
             case EVENT_SYSTEM_MOVESIZESTART:
                 _dragged = hwnd;
+                m.DragStart = GetVisibleBounds(hwnd);
                 break;
             case EVENT_SYSTEM_MOVESIZEEND:
                 _dragged = 0;
                 ApplyMemberDrag(m);
+                m.DragStart = null;
                 Refresh(raise: false);
                 break;
             case EVENT_OBJECT_LOCATIONCHANGE:
@@ -305,24 +310,26 @@ public partial class GroupWindow : Window
     /// </summary>
     private void ApplyMemberDrag(Member m)
     {
-        if (m.LastTarget is not { } t || _layout is null || !IsOnScreen) return;
-        var pane = _tree.FindPane(m.Handle)!;
+        // Compare with where the drag started, not with where we last put the window: a window that keeps a
+        // minimum size larger than its pane never matches its target, and a plain move would look like a resize.
+        if ((m.DragStart ?? m.LastTarget) is not { } start || _layout is null || !IsOnScreen) return;
+        if (_tree.FindPane(m.Handle) is not { } pane) return;
         var content = _layout.Panes.First(p => p.Pane == pane).Content;
         var vb = GetVisibleBounds(m.Handle);
         var tl = Surface.PointFromScreen(new Point(vb.Left, vb.Top));
         var br = Surface.PointFromScreen(new Point(vb.Right, vb.Bottom));
 
-        if (vb.Width == t.Width && vb.Height == t.Height)
+        var change = DragInterpreter.Interpret(ToCore(start), ToCore(vb));
+        if (change.Moved)
         {
             Left += tl.X - content.X;
             Top += tl.Y - content.Y;
             return;
         }
-        // An edge counts as dragged only when the opposite edge stayed put.
-        if (vb.Left == t.Left && vb.Right != t.Right) MoveEdge(pane, DockSide.Right, br.X, br.X - (content.X + content.Width));
-        if (vb.Right == t.Right && vb.Left != t.Left) MoveEdge(pane, DockSide.Left, tl.X - Metrics.SplitterThickness, tl.X - content.X);
-        if (vb.Top == t.Top && vb.Bottom != t.Bottom) MoveEdge(pane, DockSide.Bottom, br.Y, br.Y - (content.Y + content.Height));
-        if (vb.Bottom == t.Bottom && vb.Top != t.Top) MoveEdge(pane, DockSide.Top, tl.Y - Metrics.TabBarHeight - Metrics.SplitterThickness, tl.Y - content.Y);
+        if (change.Resized.HasFlag(Edges.Right)) MoveEdge(pane, DockSide.Right, br.X, br.X - (content.X + content.Width));
+        if (change.Resized.HasFlag(Edges.Left)) MoveEdge(pane, DockSide.Left, tl.X - Metrics.SplitterThickness, tl.X - content.X);
+        if (change.Resized.HasFlag(Edges.Bottom)) MoveEdge(pane, DockSide.Bottom, br.Y, br.Y - (content.Y + content.Height));
+        if (change.Resized.HasFlag(Edges.Top)) MoveEdge(pane, DockSide.Top, tl.Y - Metrics.TabBarHeight - Metrics.SplitterThickness, tl.Y - content.Y);
     }
 
     /// <param name="boundary">Where the divider's leading side should go, in Surface coordinates.</param>
@@ -431,11 +438,10 @@ public partial class GroupWindow : Window
     /// </summary>
     private nint WndProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
     {
-        if (msg != WM_WINDOWPOSCHANGING || _raising) return 0;
+        if (msg != WM_WINDOWPOSCHANGING || _raising || !IsOnScreen) return 0;
         var pos = Marshal.PtrToStructure<WINDOWPOS>(lParam);
-        if ((pos.flags & SWP_NOZORDER) != 0) return 0;
         var actives = _tree.Panes.Select(p => p.ActiveWindow).OfType<nint>().ToList();
-        if (actives.Count == 0) return 0;
+        if (!ZOrderPolicy.ShouldCarryTabs(pos.hwndInsertAfter, pos.flags, _members.Keys) || actives.Count == 0) return 0;
 
         _raising = true;
         var after = pos.hwndInsertAfter;
@@ -451,30 +457,30 @@ public partial class GroupWindow : Window
     }
 
     /// <summary>
-    /// Runs once moves have settled. A window larger than requested has a minimum size (Q9): remember it so
-    /// splitters stop there. A window elsewhere was moved by its app: put it back once.
+    /// Runs once moves have settled. A window that stays larger than requested has a minimum size (Q9):
+    /// remember it so splitters stop there. A window that ended up elsewhere gets its target again, a few
+    /// times at most (see <see cref="SettleTracker"/>).
     /// </summary>
     private void CheckSettled()
     {
         if (!IsOnScreen) return;
         var scale = PresentationSource.FromVisual(this)?.CompositionTarget.TransformToDevice.M11 ?? 1;
-        bool moved = false, learned = false;
+        bool retry = false, learned = false;
         foreach (var m in _members.Values)
         {
-            if (m.LastTarget is not { } t || IsIconic(m.Handle) || !IsWindowVisible(m.Handle)) continue;
+            if (m.LastTarget is not { } t || m.Handle == _dragged || IsIconic(m.Handle) || !IsWindowVisible(m.Handle)) continue;
             var vb = GetVisibleBounds(m.Handle);
-            if (vb.Width > t.Width + 1 || vb.Height > t.Height + 1)
+            switch (m.Settle.Evaluate(ToCore(t), ToCore(vb)))
             {
-                var min = new CoreSize(
-                    vb.Width > t.Width + 1 ? Math.Max(m.MinSize.Width, vb.Width / scale) : m.MinSize.Width,
-                    vb.Height > t.Height + 1 ? Math.Max(m.MinSize.Height, vb.Height / scale) : m.MinSize.Height);
-                // Only a larger minimum is news; an unmet known minimum (frame cannot grow further) must not loop.
-                learned |= min != m.MinSize;
-                m.MinSize = min;
-            }
-            else if (vb.Left != t.Left || vb.Top != t.Top)
-            {
-                moved = true;
+                case SettleAction.Retry:
+                    retry = true;
+                    break;
+                case SettleAction.LearnMinimum:
+                    m.MinSize = new CoreSize(
+                        vb.Width > t.Width ? Math.Max(m.MinSize.Width, vb.Width / scale) : m.MinSize.Width,
+                        vb.Height > t.Height ? Math.Max(m.MinSize.Height, vb.Height / scale) : m.MinSize.Height);
+                    learned = true;
+                    break;
             }
         }
         if (learned)
@@ -487,11 +493,13 @@ public partial class GroupWindow : Window
             LayoutEngine.ClampAll(_tree.Root, new CoreRect(0, 0, Surface.ActualWidth, Surface.ActualHeight), Metrics, MinSizeOf);
             Refresh(raise: false);
         }
-        else if (moved)
+        else if (retry)
         {
             SyncWindows(raise: false);
         }
     }
+
+    private static CoreRect ToCore(RECT r) => new(r.Left, r.Top, r.Width, r.Height);
 
     /// <summary>False while closing, minimized or before the window has a handle; screen mapping throws then.</summary>
     private bool IsOnScreen =>
