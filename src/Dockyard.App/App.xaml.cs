@@ -25,6 +25,7 @@ public partial class App : System.Windows.Application
     private (nint Window, PixelRect Bounds)? _dragOrigin;
     private readonly Settings _settings = Settings.Load();
     private SettingsWindow? _settingsWindow;
+    private Dictionary<ShortcutAction, ShortcutKey> _shortcuts = null!;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -52,6 +53,7 @@ public partial class App : System.Windows.Application
             if (window != 0) _externalDragPoll.Start();
         };
         _hook.Received += Dispatch;
+        _shortcuts = Shortcuts.Load(_settings.Shortcuts);
         _keyboardHook = new KeyboardHook { KeyPressed = HandleShortcut };
         _externalDragPoll.Tick += (_, _) => CheckExternalDrag();
         // Safety net for foreground changes Windows does not report (see WinEventHook.CheckForeground).
@@ -91,10 +93,17 @@ public partial class App : System.Windows.Application
 
     private bool IsGrouped(nint window) => _groups.Any(g => g.Controller.Owns(window));
 
-    private bool HandleShortcut(int key, bool shift)
+    private bool HandleShortcut(int key, KeyModifiers modifiers)
     {
-        if (Shortcuts.Match(key, shift) is not { } action) return false;
         var foreground = Native.GetForegroundWindow();
+        if (_settingsWindow is { IsCapturing: true } settings && settings.Handle == foreground)
+        {
+            // Modifier keys alone are not a shortcut; wait for the key that completes it.
+            if (key is >= 0x10 and <= 0x12 or 0x5B or 0x5C or >= 0xA0 and <= 0xA5) return false;
+            Dispatcher.BeginInvoke(() => settings.Capture(new ShortcutKey(modifiers, key)));
+            return true;
+        }
+        if (Shortcuts.Match(_shortcuts, key, modifiers) is not { } action) return false;
         var group = _groups.FirstOrDefault(g => g.CanDock &&
             (g.Controller.Owns(foreground) || g.Handle == foreground));
         if (group is null || (group.Handle == foreground &&
@@ -190,6 +199,7 @@ public partial class App : System.Windows.Application
         var g = new GroupWindow($"Group {++_groupCount}", _windows, IsGrouped, _settings.TabBarPlacement);
         g.TabDragStarted += (source, window) => _dockDrag.Begin(window, source);
         g.TabDragEnded += cancel => _dockDrag.Finish(cancel);
+        g.SettingsRequested += ShowSettings;
         g.Closed += (_, _) => _groups.Remove(g);
         _groups.Add(g);
         g.Show();
@@ -202,12 +212,18 @@ public partial class App : System.Windows.Application
             _settingsWindow.Activate();
             return;
         }
-        _settingsWindow = new SettingsWindow(_settings.TabBarPlacement, placement =>
+        _settingsWindow = new SettingsWindow(_settings.TabBarPlacement, _shortcuts, placement =>
         {
             _settings.TabBarPlacement = placement;
             _settings.Save();
             foreach (var g in _groups) g.SetTabBarPlacement(placement);
+        }, shortcuts =>
+        {
+            _shortcuts = shortcuts.ToDictionary();
+            _settings.Shortcuts = Shortcuts.Save(_shortcuts);
+            _settings.Save();
         });
+
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Show();
     }

@@ -3,8 +3,11 @@ using static Dockyard.Infrastructure.Native;
 
 namespace Dockyard.Infrastructure;
 
+[Flags]
+public enum KeyModifiers { None = 0, Ctrl = 1, Alt = 2, Shift = 4, Win = 8 }
+
 /// <summary>
-/// Low-level keyboard hook for the Ctrl+Win shortcuts. A hook rather than RegisterHotKey, because some of the
+/// Low-level keyboard hook for the shortcuts. A hook rather than RegisterHotKey, because some of the default
 /// keys belong to Windows (Ctrl+Win+←/→ switches virtual desktops) and must keep working when no group has the
 /// focus: the receiver decides per key press whether to take it.
 /// </summary>
@@ -17,8 +20,8 @@ public sealed class KeyboardHook : IDisposable
     private readonly nint _hook;
     private readonly HashSet<uint> _swallowed = [];
 
-    /// <summary>A key pressed with Ctrl and Win held, and whether Shift is held. Returns true to take the key.</summary>
-    public Func<int, bool, bool>? KeyPressed { get; set; }
+    /// <summary>A key pressed with Ctrl, Alt or Win held, and the modifiers held. Returns true to take the key.</summary>
+    public Func<int, KeyModifiers, bool>? KeyPressed { get; set; }
 
     public KeyboardHook()
     {
@@ -37,8 +40,8 @@ public sealed class KeyboardHook : IDisposable
                 var down = message is 0x0100 or 0x0104; // WM_KEYDOWN, WM_SYSKEYDOWN
                 // The key-up of a key we took goes too, or the app would see a release without a press.
                 if (!down && _swallowed.Remove(key.vkCode)) return 1;
-                if (down && IsDown(VK_CONTROL) && !IsDown(VK_MENU) && (IsDown(VK_LWIN) || IsDown(VK_RWIN)) &&
-                    KeyPressed?.Invoke((int)key.vkCode, IsDown(VK_SHIFT)) == true)
+                if (down && Modifiers() is var modifiers && (modifiers & ~KeyModifiers.Shift) != 0 &&
+                    KeyPressed?.Invoke((int)key.vkCode, modifiers) == true)
                 {
                     _swallowed.Add(key.vkCode);
                     // Releasing Win after a combination Windows did not see would open the Start menu.
@@ -55,6 +58,11 @@ public sealed class KeyboardHook : IDisposable
     }
 
     private static bool IsDown(int key) => (GetAsyncKeyState(key) & 0x8000) != 0;
+
+    private static KeyModifiers Modifiers() =>
+        (IsDown(VK_CONTROL) ? KeyModifiers.Ctrl : 0) | (IsDown(VK_MENU) ? KeyModifiers.Alt : 0) |
+        (IsDown(VK_SHIFT) ? KeyModifiers.Shift : 0) | (IsDown(VK_LWIN) || IsDown(VK_RWIN) ? KeyModifiers.Win : 0);
+
 
     public void Dispose()
     {

@@ -33,6 +33,7 @@ public partial class GroupWindow : Window, IGroupView
     private bool _tabDragging;
     internal event Action<GroupWindow, nint>? TabDragStarted;
     internal event Action<bool>? TabDragEnded;
+    internal event Action? SettingsRequested;
     /// <summary>The open window picker. Tabs must stay below it, so raising starts there instead of at the top.</summary>
     private WindowPicker? _picker;
     /// <summary>Draws the tab bars above the member windows with tab bar placement B; null otherwise.</summary>
@@ -277,6 +278,9 @@ public partial class GroupWindow : Window, IGroupView
             menu.Items.Add(MenuItem("Add as Tab…", () => PickAndAdopt(pane, null)));
             menu.Items.Add(MenuItem("Split Right…", () => PickAndAdopt(pane, DockSide.Right)));
             menu.Items.Add(MenuItem("Split Down…", () => PickAndAdopt(pane, DockSide.Bottom)));
+            menu.Items.Add(new Separator());
+            menu.Items.Add(MenuItem("Settings…", () => SettingsRequested?.Invoke()));
+
             menu.IsOpen = true;
         };
         // Added first so it keeps its room when the tabs overflow; over a member it follows the tabs instead.

@@ -456,7 +456,42 @@ public class GroupControllerTests
     [InlineData(0x57, false, ShortcutAction.RemoveFromGroup)]
     [InlineData(0x26, false, null)]
     [InlineData(0x57, true, null)]
-    public void Shortcuts_MapKeys(int key, bool shift, ShortcutAction? expected) => Assert.Equal(expected, Shortcuts.Match(key, shift));
+    public void Shortcuts_DefaultsMapKeys(int key, bool shift, ShortcutAction? expected)
+    {
+        var modifiers = KeyModifiers.Ctrl | KeyModifiers.Win | (shift ? KeyModifiers.Shift : 0);
+        Assert.Equal(expected, Shortcuts.Match(Shortcuts.Defaults, key, modifiers));
+    }
+
+    [Theory]
+    [InlineData("Ctrl+Win+Left")]
+    [InlineData("Ctrl+Alt+Shift+Win+F12")]
+    [InlineData("Alt+K")]
+    [InlineData("Ctrl+,")]
+    [InlineData("Ctrl+0xE9")]
+    public void ShortcutKey_RoundTripsThroughText(string text) => Assert.Equal(text, ShortcutKey.Parse(text)?.ToString());
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Ctrl+Hyper+K")]
+    [InlineData("Ctrl+NoSuchKey")]
+    public void ShortcutKey_RejectsUnknownText(string text) => Assert.Null(ShortcutKey.Parse(text));
+
+    [Fact]
+    public void Shortcuts_LoadOverridesDefaultsAndKeepsTheRest()
+    {
+        var bindings = Shortcuts.Load(new Dictionary<string, string>
+        {
+            ["NextTab"] = "Alt+Right",
+            ["RemoveFromGroup"] = "",
+            ["PreviousTab"] = "garbage",
+            ["NoSuchAction"] = "Alt+X",
+        });
+
+        Assert.Equal(ShortcutAction.NextTab, Shortcuts.Match(bindings, 0x27, KeyModifiers.Alt));
+        Assert.Null(Shortcuts.Match(bindings, 0x57, KeyModifiers.Ctrl | KeyModifiers.Win));
+        Assert.Equal(Shortcuts.Defaults[ShortcutAction.PreviousTab], bindings[ShortcutAction.PreviousTab]);
+        Assert.Equal(bindings, Shortcuts.Load(Shortcuts.Save(bindings)));
+    }
 
     [Fact]
     public void FrameActivated_RaisesTabsAfterTheSystemIsDone()

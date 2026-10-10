@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -10,6 +11,8 @@ public static class JsonFile
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
+        // Local files meant to be readable by hand: keep "+" in "Ctrl+Win+Left" as it is.
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         Converters = { new JsonStringEnumConverter() },
     };
 

@@ -9,6 +9,21 @@
         <RadioButton x:Name="TopOption" Tag="Top" Content="Above the window (default)" Margin="0,0,0,6" Checked="Placement_Checked" />
         <RadioButton x:Name="TitleBarOption" Tag="TitleBar" Content="Over the window's title bar" Margin="0,0,0,6" Checked="Placement_Checked" />
         <RadioButton x:Name="LeftOption" Tag="Left" Content="Vertical, left of the window" Checked="Placement_Checked" />
-        <Button Content="Close" Width="80" HorizontalAlignment="Right" Margin="0,16,0,0" IsCancel="True" IsDefault="True" Click="Close_Click" />
+
+        <TextBlock Text="Keyboard shortcuts" FontWeight="SemiBold" Margin="0,20,0,4" />
+        <TextBlock Text="Click a shortcut, then press the new keys (Ctrl, Alt or Win plus a key). Esc cancels."
+                   Foreground="#6B7280" Margin="0,0,0,8" />
+        <Grid x:Name="ShortcutGrid">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="180" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+        </Grid>
+
+        <DockPanel Margin="0,16,0,0" LastChildFill="False">
+            <Button Content="Reset Shortcuts" Padding="10,2" Click="ResetShortcuts_Click" />
+            <Button Content="Close" Width="80" DockPanel.Dock="Right" IsCancel="True" Click="Close_Click" />
+        </DockPanel>
     </StackPanel>
 </Window>
