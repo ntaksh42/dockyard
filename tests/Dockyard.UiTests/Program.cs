@@ -45,7 +45,7 @@ internal static partial class Program
         }
         var features = args.Contains("--features");
         var stress = args.Contains("--stress");
-        var backup = features || stress ? BackUpData() : null;
+        var backup = features || stress || args.Contains("--perf") ? BackUpData() : null;
         if (backup is not null) WriteTestSettings();
 
         _app = Process.Start(_exe)!;
@@ -57,6 +57,7 @@ internal static partial class Program
             else if (_dragOnly) RunDockDrag();
             else if (features) RunFeatures();
             else if (stress) RunStress();
+            else if (args.Contains("--perf")) RunPerf();
             else Run();
         }
         catch (Exception ex)
