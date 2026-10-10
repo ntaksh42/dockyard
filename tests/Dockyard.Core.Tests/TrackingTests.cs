@@ -59,6 +59,27 @@ public class SettleTrackerTests
     }
 
     [Fact]
+    public void LargerThenAtTargetThenLarger_DoesNotLearnAnAcceptedSizeAsMinimum()
+    {
+        var t = new SettleTracker();
+        var big = Target with { Width = 690 };
+        Assert.Equal(SettleAction.Retry, t.Evaluate(Target, big));
+        Assert.Equal(SettleAction.None, t.Evaluate(Target, Target));
+        Assert.Equal(SettleAction.Retry, t.Evaluate(Target, big));
+    }
+
+    [Fact]
+    public void LargerThenWrongPositionThenLarger_RequiresConsecutiveObservations()
+    {
+        var t = new SettleTracker(maxRetries: 3);
+        var big = Target with { Width = 690 };
+        Assert.Equal(SettleAction.Retry, t.Evaluate(Target, big));
+        Assert.Equal(SettleAction.Retry, t.Evaluate(Target, big with { X = 100 }));
+        Assert.Equal(SettleAction.Retry, t.Evaluate(Target, big));
+        Assert.Equal(SettleAction.LearnMinimum, t.Evaluate(Target, big));
+    }
+
+    [Fact]
     public void WindowThatNeverMoves_StopsRetrying()
     {
         var t = new SettleTracker(maxRetries: 2);

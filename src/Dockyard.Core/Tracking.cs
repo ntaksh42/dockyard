@@ -65,7 +65,11 @@ public sealed class SettleTracker(double tolerance = 8, int maxRetries = 2)
         bool sameSize = Near(actual.Width, target.Width, tolerance) && Near(actual.Height, target.Height, tolerance);
 
         // Within tolerance: windows that snap to a character grid land a few pixels off; that is fine.
-        if (samePosition && !larger && sameSize) return SettleAction.None;
+        if (samePosition && !larger && sameSize)
+        {
+            _suspect = null;
+            return SettleAction.None;
+        }
 
         if (samePosition && larger)
         {
@@ -76,6 +80,10 @@ public sealed class SettleTracker(double tolerance = 8, int maxRetries = 2)
                 return SettleAction.LearnMinimum;
             }
             _suspect = size;
+        }
+        else
+        {
+            _suspect = null;
         }
 
         if (_retries >= maxRetries) return SettleAction.None;
