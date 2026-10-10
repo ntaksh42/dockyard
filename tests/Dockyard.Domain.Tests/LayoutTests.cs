@@ -263,3 +263,91 @@ public class LayoutEngineTests
         Assert.Equal(0.5, ratio, 6);
     }
 }
+
+public class LayoutEdgeCaseTests
+{
+    private static readonly LayoutMetrics M = new(SplitterThickness: 4, TabBarHeight: 20, MinPaneWidth: 50, MinPaneHeight: 30);
+
+    private static LayoutTree TwoPanes(DockSide side)
+    {
+        var tree = new LayoutTree();
+        var a = (Pane)tree.Root;
+        tree.AddTab(a, 1);
+        tree.Split(a, side, 2);
+        return tree;
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    public void Arrange_SplitShorterThanSplitter_StaysInsideItsBounds(double length)
+    {
+        // Regression: the splitter used to keep its full thickness and spill outside (e.g. a 0x0 frame at startup).
+        var result = LayoutEngine.Arrange(TwoPanes(DockSide.Right).Root, new Rect(10, 0, length, 100), M);
+        var s = Assert.Single(result.Splitters).Bounds;
+        Assert.Equal(length, s.Width);
+        Assert.All(result.Panes, p => Assert.True(p.Bounds.X >= 10 && p.Bounds.X + p.Bounds.Width <= 10 + length));
+    }
+
+    [Fact]
+    public void Arrange_NestedSplitInZeroWidthPane_DoesNotOverlapParentSplitter()
+    {
+        var tree = new LayoutTree();
+        var a = (Pane)tree.Root;
+        tree.AddTab(a, 1);
+        var b = tree.Split(a, DockSide.Right, 2);
+        tree.Split(a, DockSide.Right, 3);
+        ((SplitNode)tree.Root).Ratio = 0; // the nested split gets no width at all
+
+        var result = LayoutEngine.Arrange(tree.Root, new Rect(0, 0, 300, 100), M);
+
+        var outer = result.Splitters.Single(s => s.Split == tree.Root).Bounds;
+        Assert.All(result.Splitters.Where(s => s.Split != tree.Root), s => Assert.True(s.Bounds.X + s.Bounds.Width <= outer.X));
+        Assert.Equal(new Rect(4, 0, 296, 100), result.Panes.Single(p => p.Pane == b).Bounds);
+    }
+
+    [Theory]
+    [InlineData(-0.5, 0)]
+    [InlineData(1.7, 400)]
+    public void Arrange_RatioOutsideZeroToOne_IsTreatedAsTheNearestEnd(double ratio, double firstWidth)
+    {
+        var tree = TwoPanes(DockSide.Right);
+        ((SplitNode)tree.Root).Ratio = ratio;
+        var result = LayoutEngine.Arrange(tree.Root, new Rect(0, 0, 404, 100), M);
+        Assert.Equal(firstWidth, result.Panes[0].Bounds.Width);
+        Assert.Equal(400 - firstWidth, result.Panes[1].Bounds.Width);
+    }
+
+    [Fact]
+    public void Arrange_PaneShorterThanTabBar_GetsNoContentArea()
+    {
+        var result = LayoutEngine.Arrange(new LayoutTree().Root, new Rect(0, 0, 100, 12), M);
+        var p = Assert.Single(result.Panes);
+        Assert.Equal(12, p.TabBar.Height);
+        Assert.Equal(0, p.Content.Height);
+    }
+
+    [Fact]
+    public void MinSize_VerticalSplit_StacksHeights()
+    {
+        var tree = TwoPanes(DockSide.Bottom);
+        var size = LayoutEngine.MinSize(tree.Root, M, w => w == 1 ? new Size(200, 100) : new Size(0, 0));
+        Assert.Equal(new Size(200, (100 + 20) + 4 + (30 + 20)), size);
+    }
+
+    [Fact]
+    public void ClampRatio_VerticalSplit_UsesHeights()
+    {
+        var tree = TwoPanes(DockSide.Bottom);
+        var ratio = LayoutEngine.ClampRatio((SplitNode)tree.Root, 0.01, 504, M, w => w == 1 ? new Size(0, 180) : new Size(0, 0));
+        Assert.Equal(200.0 / 500, ratio, 6); // 180 content + 20 tab bar of 500 available
+    }
+
+    [Fact]
+    public void RemoveOrActivate_UnknownWindow_Throws()
+    {
+        var tree = new LayoutTree();
+        Assert.Throws<ArgumentException>(() => tree.Remove(9));
+        Assert.Throws<ArgumentException>(() => tree.Activate(9));
+    }
+}

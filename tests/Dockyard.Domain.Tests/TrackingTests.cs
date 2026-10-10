@@ -108,3 +108,42 @@ public class SettleTrackerTests
         Assert.Equal(SettleAction.LearnMinimum, t.Evaluate(Target, Target with { Width = 620 }));
     }
 }
+
+public class TrackingEdgeCaseTests
+{
+    private static readonly Rect Target = new(0, 0, 500, 400);
+
+    [Fact]
+    public void Drag_VerticalOnlyResize_ReportsTopOrBottom()
+    {
+        var start = new Rect(100, 100, 400, 300);
+        Assert.Equal(Edges.Bottom, DragInterpreter.Interpret(start, start with { Height = 340 }).Resized);
+        Assert.Equal(Edges.Top, DragInterpreter.Interpret(start, new Rect(100, 60, 400, 340)).Resized);
+    }
+
+    [Fact]
+    public void Settle_SmallerThanTargetBeyondTolerance_Retries()
+    {
+        var t = new SettleTracker(tolerance: 8);
+        Assert.Equal(SettleAction.Retry, t.Evaluate(Target, Target with { Width = 450 }));
+    }
+
+    [Fact]
+    public void Settle_LargerButAlsoMoved_IsNotLearnedAsMinimum()
+    {
+        var t = new SettleTracker(maxRetries: 5);
+        var bigElsewhere = new Rect(50, 0, 700, 400);
+        Assert.Equal(SettleAction.Retry, t.Evaluate(Target, bigElsewhere));
+        Assert.Equal(SettleAction.Retry, t.Evaluate(Target, bigElsewhere));
+        Assert.Equal(SettleAction.Retry, t.Evaluate(Target, bigElsewhere));
+    }
+
+    [Fact]
+    public void Settle_LargerInHeightOnly_IsLearned()
+    {
+        var t = new SettleTracker();
+        var tall = Target with { Height = 600 };
+        Assert.Equal(SettleAction.Retry, t.Evaluate(Target, tall));
+        Assert.Equal(SettleAction.LearnMinimum, t.Evaluate(Target, tall));
+    }
+}
