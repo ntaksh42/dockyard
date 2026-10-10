@@ -54,6 +54,9 @@ public sealed class GroupController
 
     public bool Owns(nint window) => _members.ContainsKey(window);
 
+    /// <summary>The tab the user last worked in, which keyboard shortcuts act on when the frame has the focus.</summary>
+    public nint? LastActive => _members.ContainsKey(_lastActive) ? _lastActive : null;
+
     // ---- user commands ------------------------------------------------------------------------
 
     /// <summary>Adds a window as a tab of <paramref name="pane"/>, or in a new pane split off it on <paramref name="side"/>.</summary>
@@ -129,6 +132,32 @@ public sealed class GroupController
         _lastActive = window;
         RenderVisuals();
         Raise(window);
+    }
+
+    /// <summary>Runs a keyboard shortcut on behalf of <paramref name="window"/>, a member that has the focus.</summary>
+    public void Execute(ShortcutAction action, nint window)
+    {
+        if (!Accepts(window, out _) || _tree.FindPane(window) is not { } pane) return;
+        if (action == ShortcutAction.RemoveFromGroup)
+        {
+            Remove(window);
+            _windows.Focus(window);
+            return;
+        }
+        nint? target = null;
+        if (action is ShortcutAction.PreviousTab or ShortcutAction.NextTab)
+        {
+            var step = action == ShortcutAction.NextTab ? 1 : -1;
+            var count = pane.Windows.Count;
+            target = pane.Windows[(pane.Windows.IndexOf(window) + step + count) % count];
+        }
+        else if (Shortcuts.Direction(action) is { } side && _layout is not null)
+        {
+            target = Navigation.FindNeighbor(_layout, pane, side)?.Pane.ActiveWindow;
+        }
+        if (target is not { } t) return;
+        ActivateTab(t);
+        _windows.Focus(t);
     }
 
     /// <summary>The picker closed without adding anything: put the tabs back above the frame.</summary>

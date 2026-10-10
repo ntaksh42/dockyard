@@ -29,6 +29,9 @@ public interface IWindowSystem
     void Show(nint window);
     void Hide(nint window);
 
+    /// <summary>Gives the window the keyboard focus (makes it the foreground window).</summary>
+    void Focus(nint window);
+
     /// <summary>Moves the window so its visible bounds match <paramref name="target"/>. Does not wait for the app.</summary>
     void PlaceVisible(nint window, PixelRect target);
 

@@ -402,6 +402,61 @@ public class GroupControllerTests
         AssertPlaced(C);
     }
 
+    // ---- keyboard shortcuts -----------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(ShortcutAction.NextTab, 1, 2)]
+    [InlineData(ShortcutAction.NextTab, 2, 1)]
+    [InlineData(ShortcutAction.PreviousTab, 1, 2)]
+    public void TabShortcuts_CycleWithinThePane(ShortcutAction action, int from, int expected)
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.Adopt(Window(B), RootPane, null);
+        _c.ActivateTab(from);
+
+        _c.Execute(action, from);
+
+        Assert.Equal(expected, RootPane.ActiveWindow);
+        Assert.Equal(expected, _ws.Focused);
+        Assert.True(_ws.Z(expected) < _ws.Z(Frame));
+    }
+
+    [Fact]
+    public void PaneShortcuts_FocusTheNeighbour()
+    {
+        SplitAC();
+
+        _c.Execute(ShortcutAction.FocusRight, A);
+        Assert.Equal(C, _ws.Focused);
+        _c.Execute(ShortcutAction.FocusRight, C);
+        Assert.Equal(C, _ws.Focused);
+        _c.Execute(ShortcutAction.FocusLeft, C);
+        Assert.Equal(A, _ws.Focused);
+        Assert.Equal(A, _c.LastActive);
+    }
+
+    [Fact]
+    public void RemoveShortcut_ReleasesTheWindowToItsOriginalBounds()
+    {
+        SplitAC();
+
+        _c.Execute(ShortcutAction.RemoveFromGroup, C);
+
+        Assert.False(_c.Owns(C));
+        Assert.Equal(Initial, _ws.GetBounds(C));
+        Assert.Equal(C, _ws.Focused);
+        AssertPlaced(A);
+    }
+
+    [Theory]
+    [InlineData(0x25, false, ShortcutAction.PreviousTab)]
+    [InlineData(0x27, true, ShortcutAction.FocusRight)]
+    [InlineData(0x28, true, ShortcutAction.FocusDown)]
+    [InlineData(0x57, false, ShortcutAction.RemoveFromGroup)]
+    [InlineData(0x26, false, null)]
+    [InlineData(0x57, true, null)]
+    public void Shortcuts_MapKeys(int key, bool shift, ShortcutAction? expected) => Assert.Equal(expected, Shortcuts.Match(key, shift));
+
     [Fact]
     public void FrameActivated_RaisesTabsAfterTheSystemIsDone()
     {
@@ -789,6 +844,7 @@ public class GroupControllerTests
         public void Restore(nint w) => inner.Restore(w);
         public void Show(nint w) => inner.Show(w);
         public void Hide(nint w) => inner.Hide(w);
+        public void Focus(nint w) => inner.Focus(w);
         public void PlaceVisible(nint w, PixelRect t) => inner.PlaceVisible(w, t);
         public void SetBounds(nint w, PixelRect b) => inner.SetBounds(w, b);
 

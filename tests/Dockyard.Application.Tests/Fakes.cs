@@ -59,6 +59,14 @@ internal sealed class FakeWindowSystem : IWindowSystem
     public void Show(nint window) => Windows[window].Visible = true;
     public void Hide(nint window) => Windows[window].Visible = false;
 
+    public nint Focused { get; private set; }
+
+    public void Focus(nint window)
+    {
+        Focused = window;
+        BringToTop(window);
+    }
+
     public void PlaceVisible(nint window, PixelRect target)
     {
         var w = Windows[window];

@@ -15,6 +15,7 @@ public partial class App : System.Windows.Application
     private readonly DispatcherTimer _foregroundPoll = new() { Interval = TimeSpan.FromMilliseconds(200) };
     private readonly DispatcherTimer _externalDragPoll = new() { Interval = TimeSpan.FromMilliseconds(30) };
     private WinEventHook? _hook;
+    private KeyboardHook? _keyboardHook;
     private Forms.NotifyIcon? _tray;
     private System.Drawing.Icon? _trayIcon;
     private int _groupCount;
@@ -51,6 +52,7 @@ public partial class App : System.Windows.Application
             if (window != 0) _externalDragPoll.Start();
         };
         _hook.Received += Dispatch;
+        _keyboardHook = new KeyboardHook { KeyPressed = HandleShortcut };
         _externalDragPoll.Tick += (_, _) => CheckExternalDrag();
         // Safety net for foreground changes Windows does not report (see WinEventHook.CheckForeground).
         _foregroundPoll.Tick += (_, _) => _hook.CheckForeground();
@@ -77,6 +79,7 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _keyboardHook?.Dispose();
         _externalDragPoll.Stop();
         _dockDrag.Finish(true);
         ReleaseAll();
@@ -87,6 +90,21 @@ public partial class App : System.Windows.Application
     }
 
     private bool IsGrouped(nint window) => _groups.Any(g => g.Controller.Owns(window));
+
+    private bool HandleShortcut(int key, bool shift)
+    {
+        if (Shortcuts.Match(key, shift) is not { } action) return false;
+        var foreground = Native.GetForegroundWindow();
+        var group = _groups.FirstOrDefault(g => g.CanDock &&
+            (g.Controller.Owns(foreground) || g.Handle == foreground));
+        if (group is null || (group.Handle == foreground &&
+            System.Windows.Input.Keyboard.FocusedElement is System.Windows.Controls.TextBox)) return false;
+        var window = group.Controller.Owns(foreground) ? foreground : group.Controller.LastActive;
+        if (window is not { } member) return false;
+        // Return from the native hook promptly; layout and focus changes run on the UI dispatcher.
+        Dispatcher.BeginInvoke(() => group.Controller.Execute(action, member));
+        return true;
+    }
 
     private void BeginExternalDrag(nint window, PixelRect? originalBounds)
     {

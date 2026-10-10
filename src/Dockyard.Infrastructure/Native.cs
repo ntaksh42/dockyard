@@ -25,6 +25,14 @@ public static class Native
         public nuint extraInfo;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KBDLLHOOKSTRUCT
+    {
+        public uint vkCode, scanCode, flags, time;
+        public nuint extraInfo;
+    }
+
+    /// <summary>Low-level hook callback, for both the mouse and the keyboard hook.</summary>
     public delegate nint MouseHookProc(int code, nint message, nint data);
 
     [StructLayout(LayoutKind.Sequential)]
@@ -79,6 +87,8 @@ public static class Native
     [DllImport("user32.dll")] public static extern bool SetWindowPos(nint hwnd, nint insertAfter, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] public static extern bool ShowWindow(nint hwnd, int cmd);
     [DllImport("user32.dll")] public static extern nint GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(nint hwnd);
+    [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, nuint extraInfo);
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT point);
     [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] public static extern nint SetWindowLongPtr(nint hwnd, int index, nint value);

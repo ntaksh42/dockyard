@@ -22,6 +22,16 @@ public sealed class Win32WindowSystem : IWindowSystem
     public void Show(nint window) => ShowWindow(window, SW_SHOWNOACTIVATE);
     public void Hide(nint window) => ShowWindow(window, SW_HIDE);
 
+    public void Focus(nint window)
+    {
+        if (SetForegroundWindow(window)) return;
+        // Windows only hands the foreground to the process that received the last input. A synthetic press of
+        // an unassigned key makes that this process.
+        keybd_event(0xE8, 0, 0, 0);
+        keybd_event(0xE8, 0, 2 /* KEYEVENTF_KEYUP */, 0);
+        SetForegroundWindow(window);
+    }
+
     /// <summary>Compensates for the invisible resize border, and does not wait for a slow or hung app.</summary>
     public void PlaceVisible(nint window, PixelRect target)
     {
