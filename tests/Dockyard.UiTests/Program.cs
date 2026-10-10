@@ -9,7 +9,7 @@ namespace Dockyard.UiTests;
 /// End-to-end check of the main cases against a real Dockyard.exe and real console windows.
 /// Each step drives the UI the way a user would, then waits for the group to satisfy its invariants.
 /// </summary>
-internal static class Program
+internal static partial class Program
 {
     private const int Margin = 4, Caption = 30, TabBar = 28;
     private static readonly string LogPath =
@@ -43,6 +43,10 @@ internal static class Program
             Console.WriteLine($"{SessionPath} exists: start Dockyard once and close its groups first.");
             return 1;
         }
+        var features = args.Contains("--features");
+        var stress = args.Contains("--stress");
+        var backup = features || stress ? BackUpData() : null;
+        if (backup is not null) WriteTestSettings();
 
         _app = Process.Start(_exe)!;
         try
@@ -51,6 +55,8 @@ internal static class Program
             SetWindowPos(_frame, 0, 100, 60, 1400, 850, SWP_NOZORDER);
             if (args.Contains("--external-only")) RunExternalDrag();
             else if (_dragOnly) RunDockDrag();
+            else if (features) RunFeatures();
+            else if (stress) RunStress();
             else Run();
         }
         catch (Exception ex)
@@ -62,6 +68,14 @@ internal static class Program
             if (!_app.HasExited) _app.Kill();
             foreach (var p in Spawned) if (!p.HasExited) p.Kill();
             foreach (var h in SpawnedWindows) PostMessage(h, 0x0010 /* WM_CLOSE */, 0, 0);
+            // Lists only the test windows, all gone now; left behind it would stop the next run.
+            File.Delete(SessionPath);
+            if (backup is not null)
+            {
+                RestoreData(backup);
+                using var run = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
+                if (run?.GetValue("Dockyard") is string command && command.Contains(_exe)) run.DeleteValue("Dockyard");
+            }
         }
 
         Console.WriteLine();
@@ -318,14 +332,15 @@ internal static class Program
 
     private static void Step(string name, Action act, Subject[] members, Subject[] active, Subject[]? below = null, Func<string?>? extra = null)
     {
-        Console.Write($"- {name} ... ");
+        Console.Write(Environment.GetEnvironmentVariable("DOCKYARD_TRACE") == "1" ? $"- {DateTime.Now:HH:mm:ss.fff} {name} ... " : $"- {name} ... ");
         try
         {
             act();
         }
         catch (Exception ex)
         {
-            Fail(name, $"action threw: {ex.Message}");
+            var at = ex.StackTrace?.Split(Environment.NewLine).FirstOrDefault(l => l.Contains("Dockyard.UiTests"))?.Trim();
+            Fail(name, $"action threw: {ex.Message} ({at})");
             return;
         }
 
