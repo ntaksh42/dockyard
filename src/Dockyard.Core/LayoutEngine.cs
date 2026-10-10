@@ -77,12 +77,15 @@ public static class LayoutEngine
     public static double ClampRatio(SplitNode split, double ratio, double length, LayoutMetrics m, Func<nint, Size> windowMinSize)
     {
         var available = length - m.SplitterThickness;
-        if (available <= 0) return split.Ratio;
+        if (!double.IsFinite(ratio) || !(available > 0)) return split.Ratio;
         var horizontal = split.Orientation == Orientation.Horizontal;
         var min1 = Along(MinSize(split.First, m, windowMinSize), horizontal);
         var min2 = Along(MinSize(split.Second, m, windowMinSize), horizontal);
-        if (min1 + min2 > available) return min1 / (min1 + min2);
-        return Math.Clamp(ratio, min1 / available, 1 - min2 / available);
+        var lo = min1 / available;
+        var hi = 1 - min2 / available;
+        // When the minimums (nearly) fill the space, rounding can put lo a hair above hi; share proportionally.
+        if (lo >= hi) return min1 / (min1 + min2);
+        return Math.Clamp(ratio, lo, hi);
     }
 
     /// <summary>Re-clamps every split ratio top-down so each side fits its minimum within <paramref name="bounds"/>.</summary>
