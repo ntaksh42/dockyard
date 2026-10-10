@@ -1,6 +1,18 @@
 namespace Dockyard.Domain;
 
-public sealed record LayoutMetrics(double SplitterThickness = 4, double TabBarHeight = 28, double MinPaneWidth = 80, double MinPaneHeight = 40);
+/// <summary>Where each pane's tabs go (Q2).</summary>
+public enum TabBarPlacement
+{
+    /// <summary>A. A tab row above the content.</summary>
+    Top,
+    /// <summary>B. Over the top of the content, where the app's own title bar is.</summary>
+    TitleBar,
+    /// <summary>C. A tab column left of the content.</summary>
+    Left,
+}
+
+public sealed record LayoutMetrics(double SplitterThickness = 4, double TabBarHeight = 28, double MinPaneWidth = 80, double MinPaneHeight = 40,
+    TabBarPlacement TabBarPlacement = TabBarPlacement.Top, double TabColumnWidth = 160);
 
 public sealed record PaneLayout(Pane Pane, Rect Bounds, Rect TabBar, Rect Content);
 
@@ -26,7 +38,13 @@ public static class LayoutEngine
         {
             case Pane pane:
                 var tab = Math.Min(m.TabBarHeight, r.Height);
-                panes.Add(new PaneLayout(pane, r, r with { Height = tab }, r with { Y = r.Y + tab, Height = r.Height - tab }));
+                var column = Math.Min(m.TabColumnWidth, r.Width);
+                panes.Add(m.TabBarPlacement switch
+                {
+                    TabBarPlacement.TitleBar => new PaneLayout(pane, r, r with { Height = tab }, r),
+                    TabBarPlacement.Left => new PaneLayout(pane, r, r with { Width = column }, r with { X = r.X + column, Width = r.Width - column }),
+                    _ => new PaneLayout(pane, r, r with { Height = tab }, r with { Y = r.Y + tab, Height = r.Height - tab }),
+                });
                 break;
             case SplitNode s when s.Orientation == Orientation.Horizontal:
             {
@@ -65,7 +83,12 @@ public static class LayoutEngine
                     w = Math.Max(w, s.Width);
                     h = Math.Max(h, s.Height);
                 }
-                return new Size(w, h + m.TabBarHeight);
+                return m.TabBarPlacement switch
+                {
+                    TabBarPlacement.TitleBar => new Size(w, Math.Max(h, m.TabBarHeight)),
+                    TabBarPlacement.Left => new Size(w + m.TabColumnWidth, h),
+                    _ => new Size(w, h + m.TabBarHeight),
+                };
             case SplitNode split:
                 var a = MinSize(split.First, m, windowMinSize);
                 var b = MinSize(split.Second, m, windowMinSize);

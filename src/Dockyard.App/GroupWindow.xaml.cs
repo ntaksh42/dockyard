@@ -35,21 +35,29 @@ public partial class GroupWindow : Window, IGroupView
     internal event Action<bool>? TabDragEnded;
     /// <summary>The open window picker. Tabs must stay below it, so raising starts there instead of at the top.</summary>
     private WindowPicker? _picker;
+    /// <summary>Draws the tab bars above the member windows with tab bar placement B; null otherwise.</summary>
+    private Window? _overlay;
+    private Canvas? _overlaySurface;
 
     /// <param name="isGrouped">Whether a window already belongs to some group, so the picker can leave it out.</param>
-    internal GroupWindow(string name, IWindowSystem windows, Func<nint, bool> isGrouped)
+    internal GroupWindow(string name, IWindowSystem windows, Func<nint, bool> isGrouped, TabBarPlacement placement)
     {
         InitializeComponent();
         _isGrouped = isGrouped;
         GroupName = name;
         Controller = new GroupController(this, windows, new WpfScheduler(Dispatcher));
+        SetTabBarPlacement(placement);
 
         SourceInitialized += (_, _) =>
         {
             _hwnd = new WindowInteropHelper(this).Handle;
             HwndSource.FromHwnd(_hwnd).AddHook(WndProc);
         };
-        LocationChanged += (_, _) => Controller.OnFrameMoved();
+        LocationChanged += (_, _) =>
+        {
+            PositionOverlay();
+            Controller.OnFrameMoved();
+        };
         Surface.SizeChanged += (_, _) => Controller.OnSurfaceResized();
         // The maximized window rect is only final after the state change; re-measure the overhang on resize.
         SizeChanged += (_, _) => UpdateMaximizedMargin();
@@ -57,13 +65,22 @@ public partial class GroupWindow : Window, IGroupView
         StateChanged += (_, _) =>
         {
             UpdateMaximizedMargin();
-            if (WindowState == WindowState.Minimized) Controller.OnFrameMinimized();
-            else Controller.OnFrameRestored();
+            if (WindowState == WindowState.Minimized)
+            {
+                _overlay?.Hide();
+                Controller.OnFrameMinimized();
+            }
+            else
+            {
+                PositionOverlay();
+                Controller.OnFrameRestored();
+            }
         };
         Closing += (_, _) =>
         {
             _closing = true;
             Controller.OnClosing();
+            _overlay?.Close();
         };
         Surface.MouseMove += (_, e) =>
         {
@@ -127,6 +144,7 @@ public partial class GroupWindow : Window, IGroupView
     public double Scale => PresentationSource.FromVisual(this)?.CompositionTarget.TransformToDevice.M11 ?? 1;
 
     public nint ZAnchor => _picker is { } p ? new WindowInteropHelper(p).Handle : 0;
+    public nint TabOverlay => _overlay is { IsVisible: true } o ? new WindowInteropHelper(o).Handle : 0;
     internal bool CanDock => IsOnScreen && _picker is null;
 
     public PixelRect ToScreen(DomainRect r)
@@ -146,9 +164,13 @@ public partial class GroupWindow : Window, IGroupView
     public void Render(GroupSnapshot snapshot)
     {
         Surface.Children.Clear();
+        _overlaySurface?.Children.Clear();
+        PositionOverlay();
         foreach (var p in snapshot.Layout.Panes)
         {
-            Place(BuildTabBar(p.Pane, snapshot.Titles), p.TabBar);
+            // Over a member window the tabs must be in the overlay; the frame is below the members.
+            var overMember = _overlaySurface is not null && p.Pane.Windows.Count > 0;
+            Place(BuildTabBar(p.Pane, snapshot.Titles, p.TabBar, overMember), p.TabBar, overMember ? _overlaySurface : null);
             if (p.Pane.Windows.Count == 0)
             {
                 var add = new Button { Content = "Add Window…", Padding = new Thickness(12, 4, 12, 4) };
@@ -220,13 +242,31 @@ public partial class GroupWindow : Window, IGroupView
 
     public void Restore() => WindowState = WindowState.Normal;
 
+    internal void SetTabBarPlacement(TabBarPlacement placement)
+    {
+        if (placement == TabBarPlacement.TitleBar && _overlay is null) CreateOverlay();
+        else if (placement != TabBarPlacement.TitleBar && _overlay is not null)
+        {
+            _overlay.Close();
+            _overlay = null;
+            _overlaySurface = null;
+        }
+        Controller.SetTabBarPlacement(placement);
+    }
+
     // ---- drawing helpers ----------------------------------------------------------------------
 
-    private FrameworkElement BuildTabBar(Pane pane, IReadOnlyDictionary<nint, string> titles)
+    /// <param name="overMember">
+    /// Drawn over a member's title bar (placement B): only the tabs themselves, so the app's own caption buttons
+    /// stay visible and clickable through the transparent rest of the overlay.
+    /// </param>
+    private FrameworkElement BuildTabBar(Pane pane, IReadOnlyDictionary<nint, string> titles, DomainRect bounds, bool overMember)
     {
-        var bar = new DockPanel { Background = TabBarBrush, LastChildFill = false };
+        var vertical = Controller.Metrics.TabBarPlacement == TabBarPlacement.Left;
+        var bar = new DockPanel { Background = overMember ? null : TabBarBrush, LastChildFill = false };
 
-        var add = new Button { Content = "+", Width = 28, BorderThickness = new Thickness(0), Background = Brushes.Transparent, ToolTip = "Add Window" };
+        var add = new Button { Content = "+", Width = vertical ? double.NaN : 28, Height = vertical ? 28 : double.NaN, BorderThickness = new Thickness(0),
+            Background = overMember ? TabBarBrush : Brushes.Transparent, ToolTip = "Add Window" };
         // Built on click: tab bars are rebuilt on every layout change, including each step of a drag.
         add.Click += (_, _) =>
         {
@@ -236,8 +276,9 @@ public partial class GroupWindow : Window, IGroupView
             menu.Items.Add(MenuItem("Split Down…", () => PickAndAdopt(pane, DockSide.Bottom)));
             menu.IsOpen = true;
         };
-        DockPanel.SetDock(add, Dock.Right);
-        bar.Children.Add(add);
+        // Added first so it keeps its room when the tabs overflow; over a member it follows the tabs instead.
+        DockPanel.SetDock(add, vertical ? Dock.Bottom : overMember ? Dock.Left : Dock.Right);
+        if (!overMember) bar.Children.Add(add);
 
         foreach (var h in pane.Windows)
         {
@@ -248,16 +289,17 @@ public partial class GroupWindow : Window, IGroupView
             {
                 Background = active ? ActiveTabBrush : TabBrush,
                 BorderBrush = AccentBrush,
-                BorderThickness = new Thickness(0, active ? 2 : 0, 0, 0),
+                BorderThickness = vertical ? new Thickness(active ? 2 : 0, 0, 0, 0) : new Thickness(0, active ? 2 : 0, 0, 0),
                 Padding = new Thickness(10, 0, 4, 0),
-                Margin = new Thickness(0, 0, 1, 0),
+                Margin = vertical ? new Thickness(0, 0, 0, 1) : new Thickness(0, 0, 1, 0),
+                Height = vertical ? 28 : double.NaN,
                 Child = new StackPanel
                 {
                     Orientation = System.Windows.Controls.Orientation.Horizontal,
                     VerticalAlignment = VerticalAlignment.Center,
                     Children =
                     {
-                        new TextBlock { Text = titles[h], MaxWidth = 200, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, FontSize = 12 },
+                        new TextBlock { Text = titles[h], MaxWidth = vertical ? Math.Max(0, bounds.Width - 40) : 200, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, FontSize = 12 },
                         close,
                     },
                 },
@@ -271,20 +313,56 @@ public partial class GroupWindow : Window, IGroupView
                 if (Surface.CaptureMouse()) _tabWindow = h;
                 e.Handled = true;
             };
-            DockPanel.SetDock(tab, Dock.Left);
+            DockPanel.SetDock(tab, vertical ? Dock.Top : Dock.Left);
             bar.Children.Add(tab);
         }
+        if (overMember) bar.Children.Add(add);
         return bar;
     }
 
-    private void Place(FrameworkElement e, DomainRect r)
+    private void Place(FrameworkElement e, DomainRect r, Canvas? canvas = null)
     {
         Canvas.SetLeft(e, r.X);
         Canvas.SetTop(e, r.Y);
         e.Width = Math.Max(0, r.Width);
         e.Height = Math.Max(0, r.Height);
-        Surface.Children.Add(e);
+        (canvas ?? Surface).Children.Add(e);
     }
+
+    /// <summary>
+    /// A transparent window over the surface. Its empty areas let clicks through to the member windows; it never
+    /// takes the foreground, so clicking a tab leaves the focus with the apps.
+    /// </summary>
+    private void CreateOverlay()
+    {
+        _overlaySurface = new Canvas { ClipToBounds = true };
+        _overlay = new Window
+        {
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.NoResize,
+            AllowsTransparency = true,
+            Background = Brushes.Transparent,
+            ShowActivated = false,
+            ShowInTaskbar = false,
+            Content = _overlaySurface,
+            Title = "Dockyard Tabs",
+        };
+        _overlay.SourceInitialized += (_, _) =>
+        {
+            var handle = new WindowInteropHelper(_overlay).Handle;
+            SetWindowLongPtr(handle, GWL_EXSTYLE, (nint)((long)GetWindowLongPtr(handle, GWL_EXSTYLE) | 0x08000000 /* WS_EX_NOACTIVATE */ | WS_EX_TOOLWINDOW));
+        };
+    }
+
+    /// <summary>Lays the overlay over the surface, showing it once the frame is on screen.</summary>
+    private void PositionOverlay()
+    {
+        if (_overlay is null || !IsOnScreen) return;
+        if (!_overlay.IsVisible) _overlay.Show();
+        var r = ToScreen(new DomainRect(0, 0, Surface.ActualWidth, Surface.ActualHeight));
+        SetWindowPos(new WindowInteropHelper(_overlay).Handle, 0, r.Left, r.Top, r.Width, r.Height, SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+
 
     private void PickAndAdopt(Pane pane, DockSide? side)
     {

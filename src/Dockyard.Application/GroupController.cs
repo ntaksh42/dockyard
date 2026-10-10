@@ -9,7 +9,7 @@ namespace Dockyard.Application;
 /// </summary>
 public sealed class GroupController
 {
-    public static readonly LayoutMetrics Metrics = new(SplitterThickness: 4, TabBarHeight: 28);
+    public LayoutMetrics Metrics { get; private set; } = new(SplitterThickness: 4, TabBarHeight: 28);
 
     private sealed class Member(nint handle, PixelRect originalBounds)
     {
@@ -144,6 +144,13 @@ public sealed class GroupController
         Refresh(raise: false);
     }
 
+    public void SetTabBarPlacement(TabBarPlacement placement)
+    {
+        if (Metrics.TabBarPlacement == placement) return;
+        Metrics = Metrics with { TabBarPlacement = placement };
+        Refresh(raise: true);
+    }
+
     /// <summary>Puts every member back where it was before it joined.</summary>
     public void ReleaseAll()
     {
@@ -181,8 +188,8 @@ public sealed class GroupController
         if (_raising || !_view.IsOnScreen) return null;
         Diagnostics.Trace?.Invoke($"frame z-change {change}");
         var actives = ActiveWindows();
-        if (!ZOrderPolicy.ShouldCarryTabs(change, _members.Keys) || actives.Count == 0) return null;
-        Stack(change.Placement == ZPlacement.Top ? 0 : change.Below, actives);
+        if (!ZOrderPolicy.ShouldCarryTabs(change, [.. _members.Keys, _view.TabOverlay]) || actives.Count == 0) return null;
+        Stack(change.Placement == ZPlacement.Top ? 0 : change.Below, [.. Overlay(), .. actives]);
         return actives[^1];
     }
 
@@ -329,7 +336,7 @@ public sealed class GroupController
         if (!_view.IsOnScreen) return;
         var actives = ActiveWindows();
         if (top is { } t && actives.Remove(t)) actives.Insert(0, t);
-        var order = actives.Append(_view.Handle).Concat(_tree.Windows.Except(actives)).ToList();
+        var order = Overlay().Concat(actives).Append(_view.Handle).Concat(_tree.Windows.Except(actives)).ToList();
         Stack(_view.ZAnchor, order);
     }
 
@@ -339,9 +346,12 @@ public sealed class GroupController
         if (!_view.IsOnScreen) return;
         var actives = ActiveWindows();
         if (actives.Count == 0) return;
-        Stack(_view.Handle, actives);
+        Stack(_view.Handle, [.. Overlay(), .. actives]);
         Stack(actives[^1], [_view.Handle]);
     }
+
+    /// <summary>The window drawing tab bars over the members (placement B), which goes above the active tabs.</summary>
+    private nint[] Overlay() => _view.TabOverlay == 0 ? [] : [_view.TabOverlay];
 
     private void Stack(nint after, IReadOnlyList<nint> topDown)
     {
@@ -371,7 +381,7 @@ public sealed class GroupController
         // minimum size larger than its pane never matches its target, and a plain move would look like a resize.
         if ((m.DragStart ?? m.LastTarget) is not { } start || _layout is null || !_view.IsOnScreen) return;
         if (_tree.FindPane(m.Handle) is not { } pane) return;
-        var content = _layout.Panes.First(p => p.Pane == pane).Content;
+        var (paneBounds, content) = _layout.Panes.Where(p => p.Pane == pane).Select(p => (p.Bounds, p.Content)).First();
         var now = _windows.GetVisibleBounds(m.Handle);
         var r = _view.FromScreen(now);
         double left = r.X, top = r.Y, right = r.X + r.Width, bottom = r.Y + r.Height;
@@ -383,9 +393,10 @@ public sealed class GroupController
             return;
         }
         if (change.Resized.HasFlag(Edges.Right)) MoveEdge(pane, DockSide.Right, right, right - (content.X + content.Width));
-        if (change.Resized.HasFlag(Edges.Left)) MoveEdge(pane, DockSide.Left, left - Metrics.SplitterThickness, left - content.X);
+        // The content may be inset from the pane by its tabs (above it, or left of it with placement C).
+        if (change.Resized.HasFlag(Edges.Left)) MoveEdge(pane, DockSide.Left, left - (content.X - paneBounds.X) - Metrics.SplitterThickness, left - content.X);
         if (change.Resized.HasFlag(Edges.Bottom)) MoveEdge(pane, DockSide.Bottom, bottom, bottom - (content.Y + content.Height));
-        if (change.Resized.HasFlag(Edges.Top)) MoveEdge(pane, DockSide.Top, top - Metrics.TabBarHeight - Metrics.SplitterThickness, top - content.Y);
+        if (change.Resized.HasFlag(Edges.Top)) MoveEdge(pane, DockSide.Top, top - (content.Y - paneBounds.Y) - Metrics.SplitterThickness, top - content.Y);
     }
 
     /// <param name="boundary">Where the divider's leading side should go, in surface coordinates.</param>

@@ -357,6 +357,52 @@ public class GroupControllerTests
     }
 
     [Fact]
+    public void TabOverlay_StaysAboveTheActiveTabs()
+    {
+        const nint overlay = 960;
+        _ws.AddToZOrder(overlay);
+        _view.TabOverlay = overlay;
+        SplitAC();
+        _ws.BringToTop(Other);
+
+        Assert.NotNull(_c.OnFrameZChanging(new FrameZChange(ZPlacement.Top)));
+        Assert.Equal(0, _ws.Z(overlay));
+        Assert.True(_ws.Z(overlay) < _ws.Z(A) && _ws.Z(overlay) < _ws.Z(C));
+
+        _ws.BringToTop(A);
+        _c.OnForeground(A);
+        Assert.Equal(0, _ws.Z(overlay));
+        Assert.True(_ws.Z(A) < _ws.Z(Frame));
+    }
+
+    [Theory]
+    [InlineData(TabBarPlacement.TitleBar)]
+    [InlineData(TabBarPlacement.Left)]
+    public void TabBarPlacement_PlacesMembersInTheNewContentArea(TabBarPlacement placement)
+    {
+        SplitAC();
+        _c.SetTabBarPlacement(placement);
+        AssertPlaced(A);
+        AssertPlaced(C);
+        if (placement == TabBarPlacement.TitleBar) Assert.Equal(PaneOf(A).Bounds, PaneOf(A).Content);
+        else Assert.Equal(PaneOf(A).Bounds.X + _c.Metrics.TabColumnWidth, PaneOf(A).Content.X);
+    }
+
+    [Fact]
+    public void LeftPlacement_DraggingLeftEdgeOfRightPane_MovesTheDivider()
+    {
+        SplitAC();
+        _c.SetTabBarPlacement(TabBarPlacement.Left);
+        var splitter = _c.Layout!.Splitters.Single().Bounds.X;
+
+        UserDrags(C, r => r with { Left = r.Left - 50 });
+
+        Assert.InRange(_c.Layout!.Splitters.Single().Bounds.X, splitter - 52, splitter - 48);
+        AssertPlaced(A);
+        AssertPlaced(C);
+    }
+
+    [Fact]
     public void FrameActivated_RaisesTabsAfterTheSystemIsDone()
     {
         _c.Adopt(Window(A), RootPane, null);
@@ -584,7 +630,7 @@ public class GroupControllerTests
 
         _c.DragSplitter(s, s.SplitBounds.X - 500);
 
-        Assert.True(PaneOf(A).Bounds.Width >= GroupController.Metrics.MinPaneWidth);
+        Assert.True(PaneOf(A).Bounds.Width >= _c.Metrics.MinPaneWidth);
     }
 
     [Fact]
@@ -719,6 +765,7 @@ public class GroupControllerTests
         public Size SurfaceSize => _inner.SurfaceSize;
         public double Scale => 1;
         public nint ZAnchor => 0;
+        public nint TabOverlay => 0;
         public PixelRect ToScreen(Rect r) => _inner.ToScreen(r);
         public Rect FromScreen(PixelRect r) => _inner.FromScreen(r);
         public void Render(GroupSnapshot s) { }

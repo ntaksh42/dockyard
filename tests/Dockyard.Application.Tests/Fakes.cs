@@ -126,6 +126,7 @@ internal sealed class FakeView(nint handle) : IGroupView
     public Size SurfaceSize => Surface;
     public double Scale => 1;
     public nint ZAnchor { get; set; }
+    public nint TabOverlay { get; set; }
 
     public PixelRect ToScreen(Rect r) => new(
         (int)Math.Round(Origin.X + r.X), (int)Math.Round(Origin.Y + r.Y),

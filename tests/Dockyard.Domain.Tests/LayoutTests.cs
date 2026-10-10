@@ -164,6 +164,36 @@ public class LayoutEngineTests
     }
 
     [Fact]
+    public void Arrange_TitleBarPlacement_OverlaysTabsOnContent()
+    {
+        var m = M with { TabBarPlacement = TabBarPlacement.TitleBar };
+        var p = Assert.Single(LayoutEngine.Arrange(new LayoutTree().Root, new Rect(0, 0, 200, 100), m).Panes);
+        Assert.Equal(new Rect(0, 0, 200, 20), p.TabBar);
+        Assert.Equal(new Rect(0, 0, 200, 100), p.Content);
+    }
+
+    [Fact]
+    public void Arrange_LeftPlacement_PutsTabColumnBesideContent()
+    {
+        var m = M with { TabBarPlacement = TabBarPlacement.Left, TabColumnWidth = 60 };
+        var p = Assert.Single(LayoutEngine.Arrange(new LayoutTree().Root, new Rect(0, 0, 200, 100), m).Panes);
+        Assert.Equal(new Rect(0, 0, 60, 100), p.TabBar);
+        Assert.Equal(new Rect(60, 0, 140, 100), p.Content);
+    }
+
+    [Theory]
+    [InlineData(TabBarPlacement.Top, 90, 120)]
+    [InlineData(TabBarPlacement.TitleBar, 90, 100)]
+    [InlineData(TabBarPlacement.Left, 150, 100)]
+    public void MinSize_ReservesRoomForTabsByPlacement(TabBarPlacement placement, double width, double height)
+    {
+        var tree = new LayoutTree();
+        tree.AddTab((Pane)tree.Root, 1);
+        var m = M with { TabBarPlacement = placement, TabColumnWidth = 60 };
+        Assert.Equal(new Size(width, height), LayoutEngine.MinSize(tree.Root, m, _ => new Size(90, 100)));
+    }
+
+    [Fact]
     public void Arrange_HorizontalSplit_UsesRatioAndSplitter()
     {
         var tree = new LayoutTree();

@@ -22,6 +22,8 @@ public partial class App : System.Windows.Application
     private nint _externalDrag;
     private nint _finishedExternalDrag;
     private (nint Window, PixelRect Bounds)? _dragOrigin;
+    private readonly Settings _settings = Settings.Load();
+    private SettingsWindow? _settingsWindow;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -56,6 +58,7 @@ public partial class App : System.Windows.Application
 
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("New Group", null, (_, _) => NewGroup());
+        menu.Items.Add("Settings…", null, (_, _) => ShowSettings());
         menu.Items.Add("Exit", null, (_, _) => Quit());
         using var iconStream = GetResourceStream(new Uri("pack://application:,,,/Assets/Dockyard.ico"))!.Stream;
         using var icon = new System.Drawing.Icon(iconStream);
@@ -166,7 +169,7 @@ public partial class App : System.Windows.Application
 
     private void NewGroup()
     {
-        var g = new GroupWindow($"Group {++_groupCount}", _windows, IsGrouped);
+        var g = new GroupWindow($"Group {++_groupCount}", _windows, IsGrouped, _settings.TabBarPlacement);
         g.TabDragStarted += (source, window) => _dockDrag.Begin(window, source);
         g.TabDragEnded += cancel => _dockDrag.Finish(cancel);
         g.Closed += (_, _) => _groups.Remove(g);
@@ -174,7 +177,25 @@ public partial class App : System.Windows.Application
         g.Show();
     }
 
+    private void ShowSettings()
+    {
+        if (_settingsWindow is not null)
+        {
+            _settingsWindow.Activate();
+            return;
+        }
+        _settingsWindow = new SettingsWindow(_settings.TabBarPlacement, placement =>
+        {
+            _settings.TabBarPlacement = placement;
+            _settings.Save();
+            foreach (var g in _groups) g.SetTabBarPlacement(placement);
+        });
+        _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+        _settingsWindow.Show();
+    }
+
     private void ReleaseAll()
+
     {
         foreach (var g in _groups) g.Controller.ReleaseAll();
     }
