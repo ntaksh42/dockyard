@@ -39,6 +39,8 @@ public partial class App : System.Windows.Application
     private readonly DispatcherTimer _sessionSave = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private SettingsWindow? _settingsWindow;
     private LayoutsWindow? _layoutsWindow;
+    /// <summary>The group the user last worked in, to give the focus back to when one of Dockyard's own windows closes.</summary>
+    private GroupWindow? _lastGroup;
     /// <summary>
     /// Top-level windows created while Dockyard runs and not offered to waiting tabs yet. Only these can fill a
     /// waiting tab: a window that already existed, such as one a minimized group lets go and shows again, is not
@@ -227,7 +229,10 @@ public partial class App : System.Windows.Application
         if (_groups.Select(g => g.Controller).FirstOrDefault(c => c.Owns(window)) is not { } controller) return;
         switch (evt)
         {
-            case WindowEvent.Foreground: controller.OnForeground(window); break;
+            case WindowEvent.Foreground:
+                _lastGroup = _groups.FirstOrDefault(g => g.Controller == controller);
+                controller.OnForeground(window);
+                break;
             case WindowEvent.MoveSizeStart: controller.OnMoveSizeStart(window); break;
             case WindowEvent.MoveSizeEnd: controller.OnMoveSizeEnd(window); break;
             case WindowEvent.LocationChanged: controller.OnLocationChanged(window); break;
@@ -266,6 +271,7 @@ public partial class App : System.Windows.Application
             ShortcutBindings = () => _shortcuts,
         };
         g.Controller.SetTitleBarApps(_settings.TitleBarApps ?? Settings.DefaultTitleBarApps);
+        g.Activated += (_, _) => _lastGroup = g;
         g.SaveLayoutRequested += SaveLayout;
         g.OpenLayoutRequested += (target, saved) => OpenLayout(saved, target);
         g.Controller.Changed += RequestSessionSave;
@@ -298,6 +304,7 @@ public partial class App : System.Windows.Application
         if (_layoutsWindow is null)
         {
             _layoutsWindow = new LayoutsWindow(LayoutsFile, saved => OpenLayout(saved));
+            _layoutsWindow.Closing += (_, _) => ReturnFocusToGroup();
             _layoutsWindow.Closed += (_, _) => _layoutsWindow = null;
             _layoutsWindow.Show();
         }
@@ -358,8 +365,19 @@ public partial class App : System.Windows.Application
             foreach (var g in _groups) g.Controller.SetTitleBarApps(apps);
         }, _settings, _settings.Save);
 
+        _settingsWindow.Closing += (_, _) => ReturnFocusToGroup();
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Show();
+    }
+
+    /// <summary>
+    /// Dockyard's own windows belong to no group: when one closes, Windows activates a window of its choosing,
+    /// which can be an inactive tab behind a frame and would then become the active tab. Give the focus back
+    /// to the tab the user last worked in first.
+    /// </summary>
+    private void ReturnFocusToGroup()
+    {
+        if (_lastGroup is { CanDock: true } g && _groups.Contains(g) && g.Controller.LastActive is { } tab) _windows.Focus(tab);
     }
 
     private void ReleaseAll()
