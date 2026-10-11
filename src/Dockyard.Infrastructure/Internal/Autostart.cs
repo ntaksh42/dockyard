@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using Dockyard.Application;
 using Microsoft.Win32;
 using Windows.ApplicationModel;
@@ -18,7 +17,7 @@ internal sealed class Autostart : IAutostart
     {
         try
         {
-            if (!IsPackaged)
+            if (!AppPackage.IsPackaged)
             {
                 using var key = Registry.CurrentUser.OpenSubKey(RunKey);
                 return key?.GetValue("Dockyard") is not null;
@@ -38,7 +37,7 @@ internal sealed class Autostart : IAutostart
     {
         try
         {
-            if (!IsPackaged)
+            if (!AppPackage.IsPackaged)
             {
                 using var key = Registry.CurrentUser.CreateSubKey(RunKey);
                 if (enable) key.SetValue("Dockyard", $"\"{Environment.ProcessPath}\"");
@@ -55,16 +54,4 @@ internal sealed class Autostart : IAutostart
         }
         return await IsEnabledAsync();
     }
-
-    internal static bool IsPackaged
-    {
-        get
-        {
-            var length = 0u;
-            return GetCurrentPackageFullName(ref length, null) != 15700 /* APPMODEL_ERROR_NO_PACKAGE */;
-        }
-    }
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-    private static extern int GetCurrentPackageFullName(ref uint length, char[]? name);
 }

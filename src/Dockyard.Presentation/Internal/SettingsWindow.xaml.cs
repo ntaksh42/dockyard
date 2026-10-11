@@ -11,15 +11,22 @@ namespace Dockyard.Presentation.Internal;
 /// <summary>Preferences and the saved layouts. Changes apply to every group right away.</summary>
 internal partial class SettingsWindow : Window
 {
+    /// <summary>What waits for the keys the keyboard hook delivers (see <see cref="Capture"/>).</summary>
+    private abstract record CaptureTarget;
+    private sealed record ActionCapture(ShortcutAction Action) : CaptureTarget;
+    private sealed record LayoutCapture(string Layout) : CaptureTarget;
+
+    private const double HotkeyButtonWidth = 190;
+    private static readonly Thickness RowButtonPadding = new(8, 3, 8, 3);
+    private static readonly Thickness RowButtonMargin = new(0, 3, 4, 3);
+
     private readonly Workspace _workspace;
     private readonly IAutostart _autostart;
     private readonly ILayoutStore _layoutStore;
     private readonly Dictionary<ShortcutAction, ShortcutKey> _bindings;
     private readonly Dictionary<ShortcutAction, Button> _bindingButtons = [];
-    /// <summary>The action waiting for its new keys, which the keyboard hook delivers (see <see cref="Capture"/>).</summary>
-    private ShortcutAction? _capturing;
-    /// <summary>The layout waiting for its hotkey, the same way.</summary>
-    private string? _capturingLayout;
+    /// <summary>The action or the layout waiting for its new keys; only one at a time.</summary>
+    private CaptureTarget? _capturing;
     /// <summary>The layout whose name is being edited in its row.</summary>
     private string? _renaming;
     /// <summary>The layout the user last worked on, drawn lighter; the one a clicked notification names.</summary>
@@ -69,7 +76,7 @@ internal partial class SettingsWindow : Window
         };
         PreviewKeyDown += (_, e) =>
         {
-            if (_capturing is null && _capturingLayout is null) return;
+            if (_capturing is null) return;
             e.Handled = true;
             // Shortcut keys come from the keyboard hook (see IsCapturing); here only Esc, which cancels.
             if (e.Key == Key.Escape) StopCapture();
@@ -82,37 +89,41 @@ internal partial class SettingsWindow : Window
     /// True while a shortcut or a layout hotkey waits for its keys. The keyboard hook then sends key presses here
     /// instead: many shortcuts (anything with Win) never reach a WPF window.
     /// </summary>
-    public bool IsCapturing => _capturing is not null || _capturingLayout is not null;
+    public bool IsCapturing => _capturing is not null;
 
     /// <summary>Brings the Layouts tab forward, with the layout of that name chosen when given.</summary>
-    public void ShowLayoutsTab(string? select)
+    public void ShowLayoutsTab(string? layoutName)
     {
         SettingsTabs.SelectedItem = LayoutsTab;
-        if (select is not null) _selectedLayout = select;
+        if (layoutName is not null) _selectedLayout = layoutName;
         BuildLayoutRows();
     }
 
     public void Capture(ShortcutKey binding)
     {
-        if (_capturingLayout is { } layout)
+        var target = _capturing;
+        _capturing = null;
+        switch (target)
         {
-            _capturingLayout = null;
-            // The workspace takes the key from the action or the other layout that had it.
-            _workspace.SetLayoutHotkey(layout, binding);
-            _bindings.Clear();
-            foreach (var (bound, key) in _workspace.ShortcutBindings) _bindings[bound] = key;
-            ShowBindings();
-            BuildLayoutRows();
-            return;
+            case ActionCapture capture:
+                _workspace.BindShortcut(capture.Action, binding);
+                break;
+            case LayoutCapture capture:
+                _workspace.SetLayoutHotkey(capture.Layout, binding);
+                break;
+            default:
+                return;
         }
-        if (_capturing is not { } action) return;
-        // A key combination does one thing: taking it for this action unbinds whatever had it.
-        foreach (var other in _bindings.Where(b => b.Value == binding && b.Key != action).Select(b => b.Key).ToList())
-            _bindings.Remove(other);
-        _bindings[action] = binding;
-        StopCapture();
-        _workspace.SetShortcuts(_bindings);
-        // A layout may have lost its hotkey to this action.
+        // The workspace took the key from whatever action or layout had it: show both lists as they are now.
+        ReloadBindings();
+        ShowBindings();
+        BuildLayoutRows();
+    }
+
+    private void StartCapture(CaptureTarget target)
+    {
+        _capturing = target;
+        ShowBindings();
         BuildLayoutRows();
     }
 
@@ -131,76 +142,106 @@ internal partial class SettingsWindow : Window
     {
         var row = LayoutGrid.RowDefinitions.Count;
         LayoutGrid.RowDefinitions.Add(new RowDefinition());
-        var name = layout.Name;
-
-        var background = new Border { CornerRadius = new CornerRadius(4), Margin = new Thickness(0, 1, 0, 1) };
-        if (name == _selectedLayout && TryFindResource("ControlFillColorSecondaryBrush") is Brush selected) background.Background = selected;
-        Grid.SetRow(background, row);
+        var background = RowBackground(layout.Name);
         Grid.SetColumnSpan(background, 3);
-        LayoutGrid.Children.Add(background);
+        AddLayoutCell(background, row, column: 0);
+        AddLayoutCell(NameCell(layout.Name), row, column: 0);
+        AddLayoutCell(HotkeyCell(layout), row, column: 1);
+        AddLayoutCell(ActionsCell(layout.Name), row, column: 2);
+    }
 
-        FrameworkElement nameCell = _renaming == name
+    private void AddLayoutCell(UIElement cell, int row, int column)
+    {
+        Grid.SetRow(cell, row);
+        Grid.SetColumn(cell, column);
+        LayoutGrid.Children.Add(cell);
+    }
+
+    /// <summary>The row's background, drawn lighter for the layout the user last worked on.</summary>
+    private Border RowBackground(string name)
+    {
+        var background = new Border { CornerRadius = new CornerRadius(4), Margin = new Thickness(0, 1, 0, 1) };
+        if (name == _selectedLayout && TryFindResource("ControlFillColorSecondaryBrush") is Brush selected)
+            background.Background = selected;
+        return background;
+    }
+
+    private FrameworkElement NameCell(string name)
+    {
+        FrameworkElement cell = _renaming == name
             ? RenameBox(name)
             : new TextBlock { Text = name, TextTrimming = TextTrimming.CharacterEllipsis };
-        nameCell.Margin = new Thickness(8, 4, 12, 4);
-        nameCell.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetRow(nameCell, row);
-        LayoutGrid.Children.Add(nameCell);
+        cell.Margin = new Thickness(8, 4, 12, 4);
+        cell.VerticalAlignment = VerticalAlignment.Center;
+        return cell;
+    }
 
-        var hotkey = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        var waiting = _capturingLayout == name;
-        var field = new Button
+    private StackPanel HotkeyCell(SavedGroup layout)
+    {
+        var name = layout.Name;
+        var waiting = _capturing is LayoutCapture capture && capture.Layout == name;
+        var hotkeyButton = new Button
         {
-            Width = 190,
+            Width = HotkeyButtonWidth,
             HorizontalContentAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(8, 3, 8, 3),
-            Margin = new Thickness(0, 3, 4, 3),
+            Padding = RowButtonPadding,
+            Margin = RowButtonMargin,
             Content = waiting ? "Press keys…  (Esc: cancel)" : layout.Hotkey ?? "Click, then press keys",
         };
-        if (layout.Hotkey is null && !waiting) field.SetResourceReference(Control.ForegroundProperty, "TextFillColorSecondaryBrush");
-        System.Windows.Automation.AutomationProperties.SetName(field, $"Hotkey of {name}");
-        field.Click += (_, _) =>
+        if (layout.Hotkey is null && !waiting)
+            hotkeyButton.SetResourceReference(Control.ForegroundProperty, "TextFillColorSecondaryBrush");
+        System.Windows.Automation.AutomationProperties.SetName(hotkeyButton, $"Hotkey of {name}");
+        hotkeyButton.Click += (_, _) =>
         {
-            _capturing = null;
-            _capturingLayout = name;
             _selectedLayout = name;
-            ShowBindings();
-            BuildLayoutRows();
+            StartCapture(new LayoutCapture(name));
         };
-        hotkey.Children.Add(field);
-        var clear = new Button { Content = "✕", Padding = new Thickness(6, 3, 6, 3), Margin = new Thickness(0, 3, 8, 3), Visibility = layout.Hotkey is null ? Visibility.Hidden : Visibility.Visible };
-        System.Windows.Automation.AutomationProperties.SetName(clear, $"Clear hotkey of {name}");
-        clear.Click += (_, _) =>
+        var clearButton = new Button
+        {
+            Content = "✕",
+            Padding = new Thickness(6, 3, 6, 3),
+            Margin = new Thickness(0, 3, 8, 3),
+            Visibility = layout.Hotkey is null ? Visibility.Hidden : Visibility.Visible,
+        };
+        System.Windows.Automation.AutomationProperties.SetName(clearButton, $"Clear hotkey of {name}");
+        clearButton.Click += (_, _) =>
         {
             _selectedLayout = name;
             _workspace.SetLayoutHotkey(name, null);
             BuildLayoutRows();
         };
-        hotkey.Children.Add(clear);
-        Grid.SetRow(hotkey, row);
-        Grid.SetColumn(hotkey, 1);
-        LayoutGrid.Children.Add(hotkey);
+        var cell = HorizontalCell();
+        cell.Children.Add(hotkeyButton);
+        cell.Children.Add(clearButton);
+        return cell;
+    }
 
-        var actions = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        actions.Children.Add(ActionButton("Open", $"Open {name}", () =>
+    private StackPanel ActionsCell(string name)
+    {
+        var cell = HorizontalCell();
+        cell.Children.Add(ActionButton("Open", $"Open {name}", () =>
         {
             // By name from the file just read: the row may be older than a layout saved over it since.
             if (_layoutStore.Load().Find(l => l.Name == name) is { } current) _workspace.OpenLayout(current);
         }));
-        actions.Children.Add(ActionButton("Desktop shortcut", $"Desktop shortcut for {name}", () =>
+        cell.Children.Add(ActionButton("Desktop shortcut", $"Desktop shortcut for {name}", () =>
         {
             _selectedLayout = name;
             _workspace.CreateLayoutShortcut(name);
         }));
-        actions.Children.Add(MoreButton(name));
-        Grid.SetRow(actions, row);
-        Grid.SetColumn(actions, 2);
-        LayoutGrid.Children.Add(actions);
+        cell.Children.Add(MoreButton(name));
+        return cell;
     }
+
+    private static StackPanel HorizontalCell() => new()
+    {
+        Orientation = System.Windows.Controls.Orientation.Horizontal,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
 
     private static Button ActionButton(string text, string automationName, Action click)
     {
-        var button = new Button { Content = text, Padding = new Thickness(8, 3, 8, 3), Margin = new Thickness(0, 3, 4, 3) };
+        var button = new Button { Content = text, Padding = RowButtonPadding, Margin = RowButtonMargin };
         System.Windows.Automation.AutomationProperties.SetName(button, automationName);
         button.Click += (_, _) => click();
         return button;
@@ -220,7 +261,7 @@ internal partial class SettingsWindow : Window
         delete.Click += (_, _) => DeleteLayout(name);
         menu.Items.Add(rename);
         menu.Items.Add(delete);
-        var more = new Button { Content = "⋯", Padding = new Thickness(8, 3, 8, 3), Margin = new Thickness(0, 3, 4, 3), ContextMenu = menu };
+        var more = new Button { Content = "⋯", Padding = RowButtonPadding, Margin = RowButtonMargin, ContextMenu = menu };
         System.Windows.Automation.AutomationProperties.SetName(more, $"More actions for {name}");
         more.Click += (_, _) =>
         {
@@ -284,7 +325,9 @@ internal partial class SettingsWindow : Window
 
     private void DeleteLayout(string name)
     {
-        if (MessageBox.Show(this, $"Delete the layout \"{name}\"?", "Dockyard", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
+        var answer = MessageBox.Show(
+            this, $"Delete the layout \"{name}\"?", "Dockyard", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+        if (answer != MessageBoxResult.OK) return;
         var layouts = _layoutStore.Load();
         layouts.RemoveAll(l => l.Name == name);
         _layoutStore.Save(layouts);
@@ -304,10 +347,7 @@ internal partial class SettingsWindow : Window
             var binding = new Button { Margin = new Thickness(0, 0, 4, 4), Padding = new Thickness(6, 2, 6, 2), HorizontalContentAlignment = HorizontalAlignment.Left };
             binding.Click += (_, _) =>
             {
-                _capturingLayout = null;
-                _capturing = action;
-                ShowBindings();
-                BuildLayoutRows();
+                StartCapture(new ActionCapture(action));
                 binding.Content = "Press keys…";
             };
             var clear = new Button { Content = "Clear", Margin = new Thickness(0, 0, 0, 4), Padding = new Thickness(8, 2, 8, 2) };
@@ -341,9 +381,14 @@ internal partial class SettingsWindow : Window
     {
         var waiting = IsCapturing;
         _capturing = null;
-        _capturingLayout = null;
         ShowBindings();
         if (waiting) BuildLayoutRows();
+    }
+
+    private void ReloadBindings()
+    {
+        _bindings.Clear();
+        foreach (var (action, binding) in _workspace.ShortcutBindings) _bindings[action] = binding;
     }
 
     private void Placement_Checked(object sender, RoutedEventArgs e)

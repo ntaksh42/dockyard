@@ -160,14 +160,16 @@ public sealed class Workspace : IFrameContext
         return true;
     }
 
-    /// <summary>Gives the saved layout a hotkey that opens it from anywhere, or removes it with null.</summary>
+    /// <summary>
+    /// Gives the saved layout a hotkey that opens it from anywhere, or removes it with null. A key does one thing:
+    /// this, <see cref="BindShortcut"/> and <see cref="SetShortcuts"/> take it from whatever action or layout had it.
+    /// </summary>
     public void SetLayoutHotkey(string name, ShortcutKey? hotkey)
     {
         var layouts = _platform.Layouts.Load();
         if (!LayoutLibrary.SetHotkey(layouts, name, hotkey)) return;
         _platform.Layouts.Save(layouts);
         RefreshLayoutHotkeys();
-        // A key does one thing: an action bound to it is unbound, as when the key is taken in the settings.
         if (hotkey is { } key && _shortcuts.ContainsValue(key))
             SetShortcuts(_shortcuts.Where(b => b.Value != key).ToDictionary());
     }
@@ -233,6 +235,15 @@ public sealed class Workspace : IFrameContext
         foreach (var g in _groups) g.Frame.SetTabBarPlacement(placement);
     }
 
+    /// <summary>Binds the key to the action, taking it from the other action or the layout that had it.</summary>
+    public void BindShortcut(ShortcutAction action, ShortcutKey key)
+    {
+        var bindings = _shortcuts.Where(b => b.Value != key).ToDictionary();
+        bindings[action] = key;
+        SetShortcuts(bindings);
+    }
+
+    /// <summary>Replaces every binding; a layout whose hotkey an action is bound to now loses it.</summary>
     public void SetShortcuts(IReadOnlyDictionary<ShortcutAction, ShortcutKey> bindings)
     {
         _shortcuts = bindings.ToDictionary();

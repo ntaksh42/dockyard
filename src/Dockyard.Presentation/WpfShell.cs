@@ -60,7 +60,7 @@ public sealed class WpfShell : IShell, IDisposable
 
     void IShell.ShowSettings() => ShowSettingsWindow();
 
-    void IShell.ShowLayouts(string? select) => ShowSettingsWindow(layoutsTab: true, select);
+    void IShell.ShowLayouts(string? layoutName) => ShowSettingsWindow().ShowLayoutsTab(layoutName);
 
     void IShell.Notify(string message, Action? onClick)
     {
@@ -70,8 +70,8 @@ public sealed class WpfShell : IShell, IDisposable
 
     void IShell.Exit() => _exit();
 
-    /// <summary>Opens the settings window, or brings the open one forward, on the Layouts tab if asked to.</summary>
-    private void ShowSettingsWindow(bool layoutsTab = false, string? select = null)
+    /// <summary>Opens the settings window, or brings the open one forward.</summary>
+    private SettingsWindow ShowSettingsWindow()
     {
         if (_settingsWindow is null)
         {
@@ -81,8 +81,8 @@ public sealed class WpfShell : IShell, IDisposable
             _settingsWindow.Closed += (_, _) => _settingsWindow = null;
             _settingsWindow.Show();
         }
-        if (layoutsTab) _settingsWindow.ShowLayoutsTab(select);
         _settingsWindow.Activate();
+        return _settingsWindow;
     }
 
     // ---- tray -----------------------------------------------------------------------------------

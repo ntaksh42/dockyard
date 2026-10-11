@@ -130,10 +130,10 @@ internal sealed class FakeShell(ManualScheduler scheduler) : IShell
     public bool IsCapturingShortcut(nint foreground) => Capturing;
     public void CaptureShortcut(ShortcutKey key) => Captured.Add(key);
     public void ShowSettings() => SettingsShown++;
-    public void ShowLayouts(string? select = null)
+    public void ShowLayouts(string? layoutName = null)
     {
         LayoutsShown++;
-        LayoutsSelected.Add(select);
+        LayoutsSelected.Add(layoutName);
     }
 
     public void Notify(string message, Action? onClick = null)

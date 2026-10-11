@@ -20,7 +20,7 @@ internal sealed class LayoutShortcuts : ILayoutShortcuts
             var path = Path.Combine(desktop, $"Dockyard - {FileSafe(layoutName)}.lnk");
             var exe = Environment.ProcessPath!;
             var link = (IShellLink)new ShellLink();
-            link.SetPath(Autostart.IsPackaged
+            link.SetPath(AppPackage.IsPackaged
                 ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WindowsApps", PackageAlias)
                 : exe);
             link.SetArguments(LaunchCommand.Format(layoutName));

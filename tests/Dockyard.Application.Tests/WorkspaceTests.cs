@@ -372,6 +372,21 @@ public class WorkspaceTests
     }
 
     [Fact]
+    public void BindShortcut_TakesTheKeyFromAnotherActionAndFromALayout()
+    {
+        StoreLayout("Dev", "Ctrl+Alt+F1");
+        Workspace.Start();
+        var nextTabKey = Shortcuts.Defaults[ShortcutAction.NextTab];
+
+        Workspace.BindShortcut(ShortcutAction.PreviousTab, nextTabKey);
+        Workspace.BindShortcut(ShortcutAction.NextTab, new ShortcutKey(CtrlAlt, 0x70 /* F1 */));
+
+        Assert.Equal(nextTabKey, Workspace.ShortcutBindings[ShortcutAction.PreviousTab]);
+        Assert.Equal(new ShortcutKey(CtrlAlt, 0x70), Workspace.ShortcutBindings[ShortcutAction.NextTab]);
+        Assert.Null(_platform.LayoutStore.Layouts.Single().Hotkey);
+    }
+
+    [Fact]
     public void SavingAGroupAgain_KeepsTheHotkeyOfTheLayout()
     {
         StoreLayout("Dev", "Ctrl+Alt+1");

@@ -128,7 +128,7 @@ public interface IShell
     void ShowSettings();
 
     /// <summary>Shows the settings window on its Layouts tab, with the layout of that name chosen when given.</summary>
-    void ShowLayouts(string? select = null);
+    void ShowLayouts(string? layoutName = null);
 
     /// <summary>
     /// Tells the user something briefly, e.g. with a tray balloon. <paramref name="onClick"/>, if given, runs when
