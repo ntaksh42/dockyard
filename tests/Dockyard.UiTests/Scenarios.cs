@@ -19,14 +19,52 @@ internal static partial class Program
 
     private static string DataFile(string name) => Path.Combine(Path.GetDirectoryName(LogPath)!, name);
 
-    private static Dictionary<string, string?> BackUpData() =>
-        DataFiles.ToDictionary(f => f, f => File.Exists(DataFile(f)) ? File.ReadAllText(DataFile(f)) : null);
+    /// <summary>
+    /// Where the user's files wait while a run has replaced them. On disk, so that a run that is stopped halfway
+    /// (Ctrl+C, a closed terminal, a kill) leaves them for the next run to put back.
+    /// </summary>
+    private static string BackupFolder => Path.Combine(Path.GetDirectoryName(LogPath)!, "uitest-backup");
+
+    private const string AbsentList = "absent.txt";
+
+    private static Dictionary<string, string?> BackUpData()
+    {
+        // A backup still here belongs to a run that did not finish: those are the user's files, not these.
+        RestoreLeftoverBackup();
+        Directory.CreateDirectory(BackupFolder);
+        var saved = DataFiles.ToDictionary(f => f, f => File.Exists(DataFile(f)) ? File.ReadAllText(DataFile(f)) : null);
+        foreach (var (file, text) in saved)
+            if (text is not null) File.WriteAllText(Path.Combine(BackupFolder, file), text);
+        File.WriteAllLines(Path.Combine(BackupFolder, AbsentList), saved.Where(s => s.Value is null).Select(s => s.Key));
+        return saved;
+    }
 
     private static void RestoreData(Dictionary<string, string?> saved)
     {
         foreach (var (file, text) in saved)
             if (text is null) File.Delete(DataFile(file));
             else File.WriteAllText(DataFile(file), text);
+        if (Directory.Exists(BackupFolder)) Directory.Delete(BackupFolder, recursive: true);
+    }
+
+    /// <summary>Puts back the files of a run that was stopped before it could (see <see cref="BackupFolder"/>).</summary>
+    private static void RestoreLeftoverBackup()
+    {
+        // The list is written last: without it the backup is incomplete and the files in place are still the user's.
+        if (!File.Exists(Path.Combine(BackupFolder, AbsentList)))
+        {
+            if (Directory.Exists(BackupFolder)) Directory.Delete(BackupFolder, recursive: true);
+            return;
+        }
+        var absent = File.ReadAllLines(Path.Combine(BackupFolder, AbsentList));
+        foreach (var file in DataFiles)
+        {
+            var backup = Path.Combine(BackupFolder, file);
+            if (absent.Contains(file)) File.Delete(DataFile(file));
+            else if (File.Exists(backup)) File.Copy(backup, DataFile(file), overwrite: true);
+        }
+        Directory.Delete(BackupFolder, recursive: true);
+        Console.WriteLine("Restored the settings and layouts of an earlier run that was stopped halfway.");
     }
 
     /// <summary>Settings for the run: the client-caption fixture plays an app with controls in its title bar.</summary>
