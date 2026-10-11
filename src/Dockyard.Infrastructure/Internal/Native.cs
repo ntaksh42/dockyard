@@ -83,6 +83,7 @@ internal static class Native
     [DllImport("user32.dll")] public static extern nint GetWindow(nint hwnd, uint cmd);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] public static extern nint GetWindowLongPtr(nint hwnd, int index);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(nint hwnd, out uint pid);
+    [DllImport("user32.dll")] private static extern bool EnumChildWindows(nint parent, EnumWindowsProc proc, nint lParam);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(nint hwnd, out RECT rect);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(nint hwnd, nint insertAfter, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] public static extern bool ShowWindow(nint hwnd, int cmd);
@@ -189,6 +190,34 @@ internal static class Native
         var coordinates = (nint)((point.X & 0xffff) | ((point.Y & 0xffff) << 16));
         return SendMessageTimeout(hwnd, 0x0084 /* WM_NCHITTEST */, 0, coordinates,
             2 /* SMTO_ABORTIFHUNG */, 50, out var hit) != 0 && hit == 2 /* HTCAPTION */;
+    }
+
+    /// <summary>
+    /// The process of the app that shows the window. A UWP app's frame window belongs to ApplicationFrameHost, the
+    /// same process for every such app. The app's own process owns a child window of the frame or, as seen on
+    /// Windows 11, a top-level CoreWindow with the frame's title.
+    /// </summary>
+    public static uint GetAppProcessId(nint hwnd)
+    {
+        GetWindowThreadProcessId(hwnd, out var host);
+        if (GetClassName(hwnd) != "ApplicationFrameWindow") return host;
+        var app = host;
+        EnumChildWindows(hwnd, (child, _) =>
+        {
+            GetWindowThreadProcessId(child, out var pid);
+            if (pid == host) return true;
+            app = pid;
+            return false;
+        }, 0);
+        if (app != host || GetWindowText(hwnd) is not { Length: > 0 } title) return app;
+        EnumWindows((window, _) =>
+        {
+            GetWindowThreadProcessId(window, out var pid);
+            if (pid == host || GetClassName(window) != "Windows.UI.Core.CoreWindow" || GetWindowText(window) != title) return true;
+            app = pid;
+            return false;
+        }, 0);
+        return app;
     }
 
     public static string GetClassName(nint hwnd)

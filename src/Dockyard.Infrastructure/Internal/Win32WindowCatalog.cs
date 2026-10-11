@@ -31,7 +31,7 @@ internal sealed class Win32WindowCatalog : IWindowCatalog
         var ex = (long)GetWindowLongPtr(hwnd, GWL_EXSTYLE);
         if ((ex & WS_EX_TOOLWINDOW) != 0 && (ex & WS_EX_APPWINDOW) == 0) return null;
         if (ShellClasses.Contains(GetClassName(hwnd))) return null;
-        GetWindowThreadProcessId(hwnd, out var pid);
+        var pid = GetAppProcessId(hwnd);
         if (pid == (uint)Environment.ProcessId) return null;
         return new WindowInfo(hwnd, GetWindowText(hwnd), ProcessName(pid), CanControl(hwnd));
     }

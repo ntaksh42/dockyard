@@ -42,6 +42,7 @@ pwsh installer/build.ps1 -Dev                  # 署名せず layout フォル�
 - 外部ウィンドウの見えないリサイズ枠が仕切りや外周にかぶさるため、「メンバーの端を引く」操作を仕切り移動・枠リサイズとして解釈する。
 - Win11 のメモ帳などは他プロセスからの `SetWindowPos(HWND_TOP)` を無視するので、最前面へは topmost を経由し、2 つ目以降は「直下へ」の移動で並べる。
 - 重なり順の `SetWindowPos` に `SWP_NOOWNERZORDER` を付けない。付けるとオーナーだけが動いてオーナー付きのダイアログの上に出て、モーダルダイアログが本体の背後に隠れる。
+- UWP アプリの枠（`ApplicationFrameWindow`）は全部 ApplicationFrameHost.exe のウィンドウなので、アプリの識別（exe 名・パス）には `Native.GetAppProcessId` で求めた実プロセスを使う。
 - WinEvent のコールバックで例外が漏れるとプロセスが即終了するので、インフラ層の受け口で受け止めて記録する。
 - 強制終了に備え、グループとメンバー（ハンドルと追加前の位置）を `session.json` に書き続け、正常終了で消す。起動時に残っていれば組み直す。閉じたウィンドウは追加前の位置・サイズに戻す。
 - 保存ファイルは `%LOCALAPPDATA%\Dockyard\` の `settings.json` / `layouts.json` / `session.json` / `last-groups.json`。

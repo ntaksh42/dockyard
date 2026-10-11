@@ -31,17 +31,9 @@ internal sealed class Win32WindowSystem : IWindowSystem
         return windows;
     }
 
-    public string GetProcessName(nint window)
-    {
-        GetWindowThreadProcessId(window, out var pid);
-        return Win32WindowCatalog.ProcessName(pid);
-    }
+    public string GetProcessName(nint window) => Win32WindowCatalog.ProcessName(GetAppProcessId(window));
 
-    public string? GetProcessPath(nint window)
-    {
-        GetWindowThreadProcessId(window, out var pid);
-        return Native.GetProcessPath(pid);
-    }
+    public string? GetProcessPath(nint window) => Native.GetProcessPath(GetAppProcessId(window));
 
     public PixelRect GetVisibleBounds(nint window) => ToPixel(Native.GetVisibleBounds(window));
 
