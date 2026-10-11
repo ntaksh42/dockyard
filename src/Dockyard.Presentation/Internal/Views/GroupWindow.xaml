@@ -1,0 +1,45 @@
+<Window x:Class="Dockyard.Presentation.Internal.Views.GroupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:ClassModifier="internal"
+        Width="1000" Height="700" WindowStartupLocation="CenterScreen" Icon="pack://application:,,,/Dockyard.Presentation;component/Assets/Dockyard.ico"
+        WindowStyle="None" ResizeMode="CanResize" Background="#2B2F36">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="24" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+    <DockPanel x:Name="Root">
+        <Grid x:Name="Caption" DockPanel.Dock="Top" Height="24">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <!-- Columns rather than a horizontal stack, so a long title is cut short before the caption buttons. -->
+            <Grid x:Name="CaptionInfo" VerticalAlignment="Center" Margin="10,0,8,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border x:Name="GroupChip" Background="#3B82F6" CornerRadius="9" Padding="8,1" ToolTip="Double-click to rename" MaxWidth="240"
+                        WindowChrome.IsHitTestVisibleInChrome="True" MouseLeftButtonDown="GroupChip_MouseLeftButtonDown">
+                    <Grid>
+                        <TextBlock x:Name="GroupNameText" Foreground="White" FontSize="12" TextTrimming="CharacterEllipsis" />
+                        <TextBox x:Name="GroupNameEdit" FontSize="12" MinWidth="80" Padding="0" BorderThickness="0" Visibility="Collapsed"
+                                 KeyDown="GroupNameEdit_KeyDown" LostKeyboardFocus="GroupNameEdit_LostKeyboardFocus" />
+                    </Grid>
+                </Border>
+                <TextBlock x:Name="ActiveTitleText" Grid.Column="1" Foreground="#E5E7EB" FontSize="12" Margin="8,0,0,0"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            </Grid>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Content="&#xE74E;" FontSize="12" ToolTip="Save Layout" AutomationProperties.Name="Save Layout" Click="SaveLayout_Click" Style="{StaticResource CaptionButton}" />
+                <Button Content="&#xE921;" ToolTip="Minimize" AutomationProperties.Name="Minimize" Click="Minimize_Click" Style="{StaticResource CaptionButton}" />
+                <Button x:Name="MaximizeButton" Content="&#xE922;" ToolTip="Maximize" AutomationProperties.Name="Maximize" Click="Maximize_Click" Style="{StaticResource CaptionButton}" />
+                <Button Content="&#xE8BB;" ToolTip="Close" AutomationProperties.Name="Close" Click="Close_Click" Style="{StaticResource CaptionCloseButton}" />
+            </StackPanel>
+        </Grid>
+        <!-- The empty-pane colour: panes and splitters cover the whole surface, so one fixed background stands behind
+             every pane instead of an element per pane that would be redrawn at each step of a resize. -->
+        <Canvas x:Name="Surface" Margin="4,0,4,4" ClipToBounds="True" Background="#1F2328" />
+    </DockPanel>
+</Window>

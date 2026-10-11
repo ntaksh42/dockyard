@@ -16,7 +16,7 @@ reparent（SetParent）を採らないのは、UWP・一部の Electron アプ�
 
 ## 2. プロジェクト構成
 
-層ごとにプロジェクトを分け、依存を Domain に向ける。各アセンブリが外に見せる型はルート名前空間（`Dockyard.<層>`）に置き、実装は `Internal/` フォルダ（`Dockyard.<層>.Internal` 名前空間）に入れて `internal` にする。
+層ごとにプロジェクトを分け、依存を Domain に向ける。各アセンブリが外に見せる型はルート名前空間（`Dockyard.<層>`）に置き、実装は `Internal/` フォルダ（`Dockyard.<層>.Internal` 名前空間）に入れて `internal` にする。公開型は `Ports/` などのフォルダに分けても名前空間はルートのままにし、`Internal/` 配下のサブフォルダ（`Win32/`・`Views/` など）は名前空間もフォルダに合わせる。
 
 | プロジェクト | 役割 | 依存先 | 窓口 | Windows 依存 |
 |---|---|---|---|---|

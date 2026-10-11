@@ -3,6 +3,7 @@ using Dockyard.Application;
 using Dockyard.Domain;
 using Forms = System.Windows.Forms;
 using Dockyard.Presentation.Internal;
+using Dockyard.Presentation.Internal.Views;
 
 namespace Dockyard.Presentation;
 

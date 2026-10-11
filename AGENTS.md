@@ -21,6 +21,8 @@ pwsh installer/build.ps1 -Dev                  # 署名せず layout フォル�
 
 4 つの層と入口。依存は内側（Domain）へ向く。公開する型は各アセンブリのルート名前空間（`Dockyard.<層>`）に置き、実装は `Internal/` フォルダ・`Dockyard.<層>.Internal` 名前空間に入れて `internal` にする（ASP.NET Core の Kestrel と同じ流儀）。Domain は全型が語彙なのでそのまま公開する。
 
+- **フォルダと名前空間。** 公開型はフォルダで分けても名前空間はルートのまま（Application の `Ports/Machine/`・`Ports/Screen/`・`Model/` はすべて `Dockyard.Application`）。公開ポートは 1 型 1 ファイル。`Internal/` 配下のサブフォルダは名前空間もフォルダに合わせる（Infrastructure の `Internal/Win32`・`Storage`・`Logging`・`Launching`、Presentation の `Internal/Views`）。
+
 | プロジェクト | 役割 | 参照してよい先 | 窓口（public） | TFM |
 |---|---|---|---|---|
 | `Dockyard.Domain` | レイアウトの二分木、ペイン矩形の計算と最小サイズ制約、ドラッグの意味付け、配置結果の検証ルール | なし | レイアウトの語彙（`Pane`・`LayoutEngine` など） | `net10.0` |
@@ -71,8 +73,8 @@ pwsh installer/build.ps1 -Dev                  # 署名せず layout フォル�
 - **タスクバーなどのアイコンは `Square44x44Logo.targetsize-N(_altform-unplated).png` と `resources.pri` で決まる。** 修飾子付きのファイル名は `makepri` で resources.pri に索引しないと使われない。targetsize 版は ico の同じサイズのエントリーをそのまま使う（16〜24px は縮小ではなくピクセル単位で描いてある）。
 - **ロゴは PNG が必須で、ico からは自前で切り出す。** `System.Drawing.Icon(path, 256, 256)` は ico 内の 256px（PNG 圧縮のエントリ）を返さず 128px になる。`build.ps1` は ico のディレクトリを読み、幅 0（= 256px）のエントリの PNG バイト列を直接取り出している。
 - **`makeappx` / `signtool` は PATH に無い。** Windows SDK の `C:\Program Files (x86)\Windows Kits\10\bin\<ver>\x64\` にある。`build.ps1` は最新バージョンを探して使う。
-- **レイアウトのデスクトップショートカットは実行エイリアス `dockyard.exe` を指す。** MSIX 内の exe（`WindowsApps`）はショートカットから直接起動できないので、マニフェストの `uap5:AppExecutionAlias` を `%LOCALAPPDATA%\Microsoft\WindowsApps\dockyard.exe` として使う（`Infrastructure/Internal/LayoutShortcuts.cs` の `PackageAlias` と一致させる。エイリアスの要素名は `uap5:ExecutionAlias` で、`desktop:` ではスキーマ検証に通らない）。
-- **自動起動は `windows.startupTask`（TaskId `DockyardStartup`）。** `src/Dockyard.Infrastructure/Autostart.cs` の TaskId と一致させる。既定は無効で、設定画面かタスク マネージャーのスタートアップ アプリでオンにする。WinRT の `StartupTask` を使うため Infrastructure と Exe の TFM は `net10.0-windows10.0.19041.0`。パッケージ外で起動したときは HKCU の Run キーを使う。
+- **レイアウトのデスクトップショートカットは実行エイリアス `dockyard.exe` を指す。** MSIX 内の exe（`WindowsApps`）はショートカットから直接起動できないので、マニフェストの `uap5:AppExecutionAlias` を `%LOCALAPPDATA%\Microsoft\WindowsApps\dockyard.exe` として使う（`Infrastructure/Internal/Launching/LayoutShortcuts.cs` の `PackageAlias` と一致させる。エイリアスの要素名は `uap5:ExecutionAlias` で、`desktop:` ではスキーマ検証に通らない）。
+- **自動起動は `windows.startupTask`（TaskId `DockyardStartup`）。** `src/Dockyard.Infrastructure/Internal/Launching/Autostart.cs` の TaskId と一致させる。既定は無効で、設定画面かタスク マネージャーのスタートアップ アプリでオンにする。WinRT の `StartupTask` を使うため Infrastructure と Exe の TFM は `net10.0-windows10.0.19041.0`。パッケージ外で起動したときは HKCU の Run キーを使う。
 - **バージョンは 4 つ組で、更新するときは上げる。** 同じ Identity で中身だけ違うパッケージは上書きインストールできない。`-Version 1.0.1.0` のように指定する。
 
 ### 開発中の登録（`build.ps1 -Dev`）
