@@ -49,6 +49,7 @@ public partial class App : System.Windows.Application
             catch (Exception ex) { log.Error("Fatal cleanup", ex); }
         };
         Diagnostics.Trace = log.Trace;
+        log.Trace($"start pid={Environment.ProcessId}");
 
         _shell = new WpfShell(_platform, Shutdown);
         _workspace = new Workspace(_platform, _shell);

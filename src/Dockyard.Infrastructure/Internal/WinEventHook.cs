@@ -81,7 +81,14 @@ internal sealed class WinEventHook : IWindowEventSource, IDisposable
 
     private void OnEvent(nint hook, uint eventType, nint hwnd, int idObject, int idChild, uint thread, uint time)
     {
-        if (eventType == EVENT_SYSTEM_FOREGROUND) Log.Trace($"raw foreground hwnd=0x{hwnd:X} obj={idObject} child={idChild}");
+        if (eventType == EVENT_SYSTEM_FOREGROUND)
+        {
+            // The owner chain shows whether an owned popup or dialog of a member took the foreground, which the
+            // receiver does not map back to the member.
+            GetWindowThreadProcessId(hwnd, out var pid);
+            Log.Trace($"raw foreground hwnd=0x{hwnd:X} obj={idObject} child={idChild} owner=0x{GetWindow(hwnd, GW_OWNER):X} " +
+                $"rootOwner=0x{GetAncestor(hwnd, 3 /* GA_ROOTOWNER */):X} pid={pid} title=\"{GetWindowText(hwnd)}\"");
+        }
         // Object events fire for every child element too; only the window itself matters. System events
         // (foreground, move/size) always concern the window, and console windows report them with other ids.
         if (hwnd == 0 || (eventType >= 0x8000 && (idObject != OBJID_WINDOW || idChild != CHILDID_SELF))) return;

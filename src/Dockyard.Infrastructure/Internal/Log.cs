@@ -8,9 +8,13 @@ internal static class Log
     public static string FilePath { get; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Dockyard", "dockyard.log");
 
+#if DEBUG
+    private static readonly bool Tracing = true;
+#else
     private static readonly bool Tracing = Environment.GetEnvironmentVariable("DOCKYARD_TRACE") == "1";
+#endif
 
-    /// <summary>Diagnostic trace, written only when DOCKYARD_TRACE=1.</summary>
+    /// <summary>Diagnostic trace, written always in Debug builds and otherwise only when DOCKYARD_TRACE=1.</summary>
     public static void Trace(string message)
     {
         if (!Tracing) return;

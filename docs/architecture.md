@@ -104,7 +104,7 @@ flowchart TB
 - **ウィンドウ操作**: Win32 で移動・リサイズ・重なり順を変える。Windows 10/11 のウィンドウは周囲に見えないリサイズ枠を持つので、その分を補正する。応答しないアプリで止まらないよう、移動は非同期で送る。
 - **イベント監視**: 前面化・ドラッグ開始と終了・移動・タイトル変更・終了を WinEvent で受け取る。前面化の通知は届かないことがあるため、前面ウィンドウを定期的に確認して補う。
 - **追加候補の列挙**: Alt+Tab に出るウィンドウを列挙し、操作できるか（管理者権限のアプリでないか）を確かめる。
-- **ログ**: `%LOCALAPPDATA%\Dockyard\dockyard.log`。`DOCKYARD_TRACE=1` で詳細なトレースを出す。
+- **ログ**: `%LOCALAPPDATA%\Dockyard\dockyard.log`。詳細なトレースは `dockyard.trace.log` に出す。Debug ビルドは常に、Release は `DOCKYARD_TRACE=1` のときだけ。
 
 ## 6. 主な処理の流れ
 

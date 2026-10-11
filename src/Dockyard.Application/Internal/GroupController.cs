@@ -233,6 +233,7 @@ internal sealed class GroupController : IGroupControl
     public void ActivateTab(nint window)
     {
         if (!_members.ContainsKey(window)) return;
+        Diagnostics.Trace?.Invoke($"activate tab {window:X}");
         _tree.Activate(window);
         _lastActive = window;
         RenderVisuals();
@@ -543,7 +544,8 @@ internal sealed class GroupController : IGroupControl
     /// <summary>Z-order: [top, other active tabs..., frame, inactive tabs...].</summary>
     private void Raise(nint? top)
     {
-        Diagnostics.Trace?.Invoke($"raise top={top:X} onScreen={_view.IsOnScreen}");
+        Diagnostics.Trace?.Invoke(
+            $"raise top={top:X} actives={string.Join(",", ActiveWindows().Select(h => h.ToString("X")))} onScreen={_view.IsOnScreen} live={_live}");
         if (!_view.IsOnScreen || _live) return;
         var actives = ActiveWindows();
         if (top is { } t && actives.Remove(t)) actives.Insert(0, t);
