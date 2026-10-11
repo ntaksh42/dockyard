@@ -54,6 +54,8 @@ public partial class App : System.Windows.Application
         _shell = new WpfShell(_platform, Shutdown);
         _workspace = new Workspace(_platform, _shell);
         _shell.Attach(_workspace);
+        // Before the apps close, or their closing would be written over the groups to reopen at the next start.
+        SessionEnding += (_, _) => _workspace.SessionEnding();
         _workspace.Start();
     }
 

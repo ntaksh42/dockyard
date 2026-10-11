@@ -342,6 +342,43 @@ public class WorkspaceTests
     }
 
     [Fact]
+    public void WhenWindowsEndsTheSession_TheAppsClosingDoNotOverwriteTheGroupsToReopen()
+    {
+        Add(1);
+        Workspace.Start();
+        var frame = _shell.Frames[0];
+        frame.Controller!.Adopt(1, PaneOf(frame), null);
+        _scheduler.FireTimers();
+
+        Workspace.SessionEnding();
+        _platform.Desktop.Close(1);
+        _platform.Events.Raise(WindowEvent.Destroyed, 1);
+        _scheduler.FireTimers();
+
+        var tab = Assert.Single(Assert.Single(_platform.SessionStore.LastGroups!).Layout.Tabs!);
+        Assert.Equal("app", tab.ProcessName);
+    }
+
+    [Fact]
+    public void WhenTheSessionEndIsCancelled_TheGroupsAreWrittenAgain()
+    {
+        Add(1);
+        Workspace.Start();
+        var frame = _shell.Frames[0];
+        frame.Controller!.Adopt(1, PaneOf(frame), null);
+        Workspace.SessionEnding();
+        _scheduler.FireTimers();
+
+        // Dockyard is still running seconds later: the session did not end.
+        _platform.Desktop.Close(1);
+        _platform.Events.Raise(WindowEvent.Destroyed, 1);
+        _scheduler.FireTimers();
+        _scheduler.FireTimers();
+
+        Assert.Empty(_platform.SessionStore.LastGroups!);
+    }
+
+    [Fact]
     public void Stop_PutsMembersBackAndRemovesTheSession()
     {
         Add(1);

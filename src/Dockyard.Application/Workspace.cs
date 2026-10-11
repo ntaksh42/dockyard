@@ -28,6 +28,9 @@ public sealed class Workspace : IFrameContext
     private (nint Window, PixelRect Bounds)? _dragOrigin;
     /// <summary>Set while quitting: the groups are closed one by one then, which must not empty the last groups.</summary>
     private bool _quitting;
+    /// <summary>Set from the moment Windows asks to end the session: apps then close, which must not be written down.</summary>
+    private bool _sessionEnding;
+    private readonly IRestartableTimer _sessionEndGuard;
     /// <summary>The group the user last worked in, to give the focus back to when one of Dockyard's own windows closes.</summary>
     private OpenGroup? _lastGroup;
     /// <summary>
@@ -50,6 +53,7 @@ public sealed class Workspace : IFrameContext
         _foregroundPoll = scheduler.CreateTimer(TimeSpan.FromMilliseconds(200), PollForeground);
         _externalDragPoll = scheduler.CreateTimer(TimeSpan.FromMilliseconds(30), PollExternalDrag);
         _sessionSave = scheduler.CreateTimer(TimeSpan.FromMilliseconds(500), WriteSessionWhenIdle);
+        _sessionEndGuard = scheduler.CreateTimer(TimeSpan.FromSeconds(10), ResumeAfterCancelledSessionEnd);
     }
 
     /// <summary>Safety net for foreground changes Windows does not report.</summary>
@@ -124,6 +128,26 @@ public sealed class Workspace : IFrameContext
     /// Opens a saved layout, filling its tabs with matching windows that are open now, as a new group.
     /// </summary>
     public void OpenLayout(SavedGroup saved) => OpenLayout(saved, null);
+
+    /// <summary>
+    /// Windows asks to log off or shut down, before any app has closed. What is open now is what the next start
+    /// should reopen: it is written once, and the closing of the apps that follows is not written over it.
+    /// </summary>
+    public void SessionEnding()
+    {
+        if (_quitting) return;
+        _sessionSave.Stop();
+        SaveSession();
+        _sessionEnding = true;
+        _sessionEndGuard.Restart();
+    }
+
+    /// <summary>The session did not end after all (another app or the user cancelled): Dockyard is still running.</summary>
+    private void ResumeAfterCancelledSessionEnd()
+    {
+        _sessionEnding = false;
+        RequestSessionSave();
+    }
 
     public void Quit()
     {
@@ -275,7 +299,7 @@ public sealed class Workspace : IFrameContext
 
     private void SaveSession()
     {
-        if (_quitting) return;
+        if (_quitting || _sessionEnding) return;
         var groups = _groups.Where(g => g.Controller.Members.Any()).Select(g => Save(g, includeWindows: true)).ToList();
         if (groups.Count == 0) _platform.Sessions.ClearSession();
         else _platform.Sessions.SaveSession(groups);
