@@ -21,6 +21,30 @@ public class DockingTests
         Assert.Equal(side is DockSide.Top or DockSide.Bottom ? 164 : 328, target.Preview.Height);
     }
 
+    [Fact]
+    public void WithTabsOnTheLeft_ThePaneEdgeOfTheContentSplitsHoweverNarrowThePaneIs()
+    {
+        var metrics = new LayoutMetrics(TabBarPlacement: TabBarPlacement.Left);
+        _tree.AddTab((Pane)_tree.Root, 1);
+        // The pane is 400 wide: 160 of tab column, 240 of content. Its content edge is the edge the user aims for.
+        var layout = LayoutEngine.Arrange(_tree.Root, new Rect(0, 0, 400, 328), metrics);
+
+        // 10 units into the content: well inside a quarter of 240.
+        var target = Docking.HitTest(layout, 170, 178)!;
+
+        Assert.Equal(DockSide.Left, target.Side);
+    }
+
+    [Fact]
+    public void WithTabsOnTheLeft_TheMiddleOfTheContentStillAddsATab()
+    {
+        var metrics = new LayoutMetrics(TabBarPlacement: TabBarPlacement.Left);
+        _tree.AddTab((Pane)_tree.Root, 1);
+        var layout = LayoutEngine.Arrange(_tree.Root, new Rect(0, 0, 400, 328), metrics);
+
+        Assert.Null(Docking.HitTest(layout, 280, 178)!.Side);
+    }
+
     [Theory]
     [InlineData(200, 178)]
     [InlineData(10, 10)]

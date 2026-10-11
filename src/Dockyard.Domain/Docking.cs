@@ -13,8 +13,11 @@ public static class Docking
         // The tab bar always accepts tabs. Content edges split, the middle adds a tab.
         if (!Contains(pane.TabBar, x, y) && pane.Pane.Windows.Count > 0)
         {
-            var distances = new[] { (x - r.X) / r.Width, (r.X + r.Width - x) / r.Width,
-                (y - pane.Content.Y) / pane.Content.Height, (r.Y + r.Height - y) / pane.Content.Height };
+            // Measured in the content, whose far edges are the pane's: with tabs on the left the content starts
+            // after the tab column, and measuring from the pane would never reach the left quarter in a narrow pane.
+            var c = pane.Content;
+            var distances = new[] { (x - c.X) / c.Width, (c.X + c.Width - x) / c.Width,
+                (y - c.Y) / c.Height, (c.Y + c.Height - y) / c.Height };
             var nearest = Array.IndexOf(distances, distances.Min());
             if (distances[nearest] < .25) side = (DockSide)nearest;
         }
