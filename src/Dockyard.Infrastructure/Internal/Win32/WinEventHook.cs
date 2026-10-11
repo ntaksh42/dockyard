@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Dockyard.Application;
 using Dockyard.Domain;
 using Dockyard.Infrastructure.Internal.Logging;
@@ -24,6 +25,9 @@ internal sealed class WinEventHook : IWindowEventSource, IDisposable
         [EVENT_OBJECT_LOCATIONCHANGE] = WindowEvent.LocationChanged,
         [EVENT_OBJECT_NAMECHANGE] = WindowEvent.TitleChanged,
     };
+
+    /// <summary>Handling an event for longer than this is traced.</summary>
+    private const long SlowEventMs = 100;
 
     private readonly WinEventProc _proc; // kept alive so the GC does not collect the callback
     private readonly List<nint> _hooks = [];
@@ -101,6 +105,7 @@ internal sealed class WinEventHook : IWindowEventSource, IDisposable
     private void Raise(uint eventType, nint hwnd)
     {
         if (eventType == EVENT_SYSTEM_FOREGROUND) _lastForeground = hwnd;
+        var watch = Stopwatch.StartNew();
         // This may run inside a native callback: an exception escaping here kills the process outright,
         // without reaching WPF's unhandled-exception handler.
         try
@@ -111,6 +116,9 @@ internal sealed class WinEventHook : IWindowEventSource, IDisposable
         {
             Log.Error($"WinEvent 0x{eventType:X} hwnd=0x{hwnd:X}", ex);
         }
+        // The UI thread that runs the handlers also runs the input hooks: a slow handler delays every app's input.
+        if (watch.ElapsedMilliseconds >= SlowEventMs)
+            Log.Trace($"slow event {Events[eventType]} hwnd=0x{hwnd:X}: handled in {watch.ElapsedMilliseconds}ms");
     }
 
     public void Dispose()

@@ -106,7 +106,8 @@ internal static class Native
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT point);
     [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] public static extern nint SetWindowLongPtr(nint hwnd, int index, nint value);
-    [DllImport("user32.dll")] private static extern nint SendMessageTimeout(nint hwnd, uint msg, nint wParam, nint lParam, uint flags, uint timeout, out nint result);
+    [DllImport("user32.dll", SetLastError = true)] private static extern nint SendMessageTimeout(nint hwnd, uint msg, nint wParam, nint lParam, uint flags, uint timeout, out nint result);
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowTextW(nint hwnd, StringBuilder text, int max);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(nint hwnd, StringBuilder text, int max);
     [DllImport("user32.dll")] public static extern nint SetWinEventHook(uint min, uint max, nint module, WinEventProc proc, uint pid, uint thread, uint flags);
@@ -191,6 +192,21 @@ internal static class Native
         var coordinates = (nint)((point.X & 0xffff) | ((point.Y & 0xffff) << 16));
         return SendMessageTimeout(hwnd, 0x0084 /* WM_NCHITTEST */, 0, coordinates,
             2 /* SMTO_ABORTIFHUNG */, 50, out var hit) != 0 && hit == 2 /* HTCAPTION */;
+    }
+
+    /// <summary>
+    /// Whether the thread of the window answers within <paramref name="timeoutMs"/>, so that a request sent to it
+    /// does not make the caller wait. A window of this thread, a window that is gone, and one that refuses the
+    /// message (elevated: the request that follows fails at once as well) count as answering.
+    /// </summary>
+    public static bool Responds(nint hwnd, uint timeoutMs)
+    {
+        const uint WM_NULL = 0, SMTO_ABORTIFHUNG = 2;
+        const int ERROR_ACCESS_DENIED = 5, ERROR_INVALID_WINDOW_HANDLE = 1400;
+        var thread = GetWindowThreadProcessId(hwnd, out _);
+        if (thread == 0 || thread == GetCurrentThreadId()) return true;
+        if (SendMessageTimeout(hwnd, WM_NULL, 0, 0, SMTO_ABORTIFHUNG, timeoutMs, out _) != 0) return true;
+        return Marshal.GetLastWin32Error() is ERROR_ACCESS_DENIED or ERROR_INVALID_WINDOW_HANDLE;
     }
 
     /// <summary>
