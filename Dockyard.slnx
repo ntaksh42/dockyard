@@ -1,11 +1,14 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/Dockyard.App/Dockyard.App.csproj" />
+    <Project Path="src/Dockyard.Application/Dockyard.Application.csproj" />
     <Project Path="src/Dockyard.Domain/Dockyard.Domain.csproj" />
+    <Project Path="src/Dockyard.Exe/Dockyard.Exe.csproj" />
     <Project Path="src/Dockyard.Infrastructure/Dockyard.Infrastructure.csproj" />
+    <Project Path="src/Dockyard.Presentation/Dockyard.Presentation.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Dockyard.Controllers.Tests/Dockyard.Controllers.Tests.csproj" />
+    <Project Path="tests/Dockyard.Application.Tests/Dockyard.Application.Tests.csproj" />
+    <Project Path="tests/Dockyard.Architecture.Tests/Dockyard.Architecture.Tests.csproj" />
     <Project Path="tests/Dockyard.Domain.Tests/Dockyard.Domain.Tests.csproj" />
     <Project Path="tests/Dockyard.UiTests/Dockyard.UiTests.csproj" />
   </Folder>

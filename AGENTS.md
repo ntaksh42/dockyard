@@ -6,25 +6,33 @@ Dockyard は、別々のアプリのウィンドウを 1 つの枠（グルー�
 
 ```
 dotnet build                                   # Dockyard.slnx 全体
-dotnet run --project src/Dockyard.App          # トレイに常駐し、空のグループ枠が 1 つ開く
-dotnet test                                    # Domain.Tests と Controllers.Tests
+dotnet run --project src/Dockyard.Exe            # トレイに常駐し、空のグループ枠が 1 つ開く
+dotnet test                                    # Domain.Tests・Application.Tests・Architecture.Tests
 dotnet test tests/Dockyard.Domain.Tests --filter "FullyQualifiedName~LayoutTests"   # 単一クラス・単一テスト
 pwsh installer/build.ps1                       # 署名付き MSIX（artifacts/msix/）
 pwsh installer/build.ps1 -Dev                  # 署名せず layout フォルダを開発登録（開発者モード）
 ```
 
 - Dockyard は多重起動しない（2 つ目はすぐ終了する）。起動中の Dockyard.exe はビルド出力をロックするので、ビルド前に終了する。
-- 実機 E2E の `tests/Dockyard.UiTests` は `dotnet test` の対象ではない。デスクトップを実マウスで 1 分ほど操作するので、ユーザーに確認してから `dotnet run --project tests/Dockyard.UiTests` で実行する。`src/Dockyard.App/bin/Debug/.../Dockyard.exe` を起動するので先に App を Debug でビルドしておく。`-- --features`（メニュー・レイアウト・設定・復元）、`-- --stress`（負荷）、`-- --perf` がある。`%LOCALAPPDATA%\Dockyard\session.json` が残っていると開始しない。
+- 実機 E2E の `tests/Dockyard.UiTests` は `dotnet test` の対象ではない。デスクトップを実マウスで 1 分ほど操作するので、ユーザーに確認してから `dotnet run --project tests/Dockyard.UiTests` で実行する。`src/Dockyard.Exe/bin/Debug/.../Dockyard.exe` を起動するので先に Dockyard.Exe を Debug でビルドしておく。`-- --features`（メニュー・レイアウト・設定・復元）、`-- --stress`（負荷）、`-- --perf` がある。`%LOCALAPPDATA%\Dockyard\session.json` が残っていると開始しない。
 - ログは `%LOCALAPPDATA%\Dockyard\dockyard.log`（MSIX 版はパッケージ専用の場所へリダイレクトされる。下の「MSIX パッケージ」節参照）。`DOCKYARD_TRACE=1` で詳細トレース。
 
 ## アーキテクチャ
 
-依存は `App → Infrastructure → Domain`、`App → Domain`。
+4 つの層と入口。依存は内側（Domain）へ向く。公開する型は各アセンブリのルート名前空間（`Dockyard.<層>`）に置き、実装は `Internal/` フォルダ・`Dockyard.<層>.Internal` 名前空間に入れて `internal` にする（ASP.NET Core の Kestrel と同じ流儀）。Domain は全型が語彙なのでそのまま公開する。
 
-- **`Dockyard.Domain`**（`net10.0`、Windows 非依存）: レイアウトの二分木（葉 = タブを持つペイン、節 = 縦横 2 分割、空ペインは親の分割を畳む）、枠サイズからのペイン矩形計算と最小サイズ制約、ドラッグの意味付け（移動か・どの辺のリサイズか）、配置結果の検証ルール。
-- **`Dockyard.Infrastructure`**: `IWindowSystem`（ウィンドウ操作と物理ピクセル座標型）とその Win32 実装、WinEvent フック、キーボードフック、候補ウィンドウ列挙、設定・JSON 保存、ログ。
-- **`Dockyard.App/Controllers`**（名前空間 `Dockyard.App.Controllers`）: グループ 1 つにつき 1 つの `GroupController` が「いつ・どのウィンドウを・どこへ・どの順に」動かすかを決める。WPF も Win32 も直接呼ばず、`Ports.cs` の `IGroupView`（枠）・`IScheduler`（後回し・タイマー）と `IWindowSystem` だけを使う。このため `tests/Dockyard.Controllers.Tests/Fakes.cs` の偽実装で単体テストできる。制御ロジックはここに置き、XAML のコードビハインドには描画と入力の受付だけを置く。
-- **`Dockyard.App`** の残り: `GroupWindow`（`IGroupView` の WPF 実装）、ダイアログ類、トレイ常駐、`App.xaml.cs` での組み立て。`WpfScheduler` が `IScheduler` の実装。
+| プロジェクト | 役割 | 参照してよい先 | 窓口（public） | TFM |
+|---|---|---|---|---|
+| `Dockyard.Domain` | レイアウトの二分木、ペイン矩形の計算と最小サイズ制約、ドラッグの意味付け、配置結果の検証ルール | なし | レイアウトの語彙（`Pane`・`LayoutEngine` など） | `net10.0` |
+| `Dockyard.Application` | 「いつ・どのウィンドウを・どこへ・どの順に」。グループ単位の `GroupController`、全グループを束ねる `Workspace`、機械側と画面側のポート | Domain | `Workspace` とポート（`IPlatform`・`IShell` ほか）と、ポートを越える値 | `net10.0` |
+| `Dockyard.Infrastructure` | ポートの Win32・ファイル実装（ウィンドウ操作、WinEvent・キーボードフック、候補列挙、JSON 保存、自動起動、ログ） | Application、Domain | `PlatformServices`（`IPlatform` の実装） | `net10.0-windows10.0.19041.0` |
+| `Dockyard.Presentation` | WPF の枠・ダイアログ・タブ・トレイ・スタイル | Application、Domain | `WpfShell`（`IShell` の実装） | `net10.0-windows` |
+| `Dockyard.Exe` | 入口。多重起動の判定、例外フック、3 層の組み立て（`App.xaml.cs` は 60 行ほど） | Application、Infrastructure、Presentation | なし | `net10.0-windows10.0.19041.0` |
+
+- **書く場所の目安。** 制御ロジックは Application に置く（偽実装で単体テストできる）。XAML のコードビハインドには描画と入力の受付だけを置く。Win32 やファイルに触るものは Infrastructure に実装し、インターフェースを Application に置く。
+- **ポートは Application が定義する。** `IWindowSystem`（他アプリのウィンドウ操作）・`IWindowCatalog`・`IInputState`・`IWindowEventSource`・`IKeyboardSource`・各ストア・`IAppLauncher`・`IAutostart`・`ILog` は機械側、`IShell`・`IGroupFrame`・`IDockGuide`・`IScheduler` は画面側。`Workspace` は `IPlatform` と `IShell` だけを受け取る。
+- **外へ出す型を増やすとき。** ルート名前空間に置く。`tests/Dockyard.Architecture.Tests/PublicApi.cs` が各アセンブリの公開一覧で、`ArchitectureTests` が「公開型はルート名前空間にだけある」ことと、一覧との一致、参照関係（Domain は何も参照しない、Application は Domain だけ、Presentation は Infrastructure を参照しない）を検査する。型を public にしたらそこも直す。
+- `tests/Dockyard.Application.Tests/Fakes.cs`・`WorkspaceFakes.cs` が偽の機械・画面。内部の `GroupController` は `InternalsVisibleTo` でテストから使う。
 
 ### 設計上の前提（変更時に壊しやすい点）
 
@@ -40,7 +48,7 @@ pwsh installer/build.ps1 -Dev                  # 署名せず layout フォル�
 ## 規約
 
 - ドキュメント・コミットメッセージは日本語、コード内のコメントと識別子は英語。
-- App とテストの TFM は `net10.0-windows10.0.19041.0`（MSIX の `StartupTask` のため）。Domain.Tests は `net10.0` で Windows に依存させない。
+- Domain と Application は Windows・WPF を参照させず `net10.0` のままにし（Application.Tests・Domain.Tests も `net10.0`）、Infrastructure・Exe とそのテストの TFM は `net10.0-windows10.0.19041.0`（MSIX の `StartupTask` のため）にする。
 - C# のコーディングポリシー（可読性）は次に従う。
 
 @docs/csharp-coding-policy.md
@@ -61,7 +69,7 @@ pwsh installer/build.ps1 -Dev                  # 署名せず layout フォル�
 - **タスクバーなどのアイコンは `Square44x44Logo.targetsize-N(_altform-unplated).png` と `resources.pri` で決まる。** 修飾子付きのファイル名は `makepri` で resources.pri に索引しないと使われない。targetsize 版は ico の同じサイズのエントリーをそのまま使う（16〜24px は縮小ではなくピクセル単位で描いてある）。
 - **ロゴは PNG が必須で、ico からは自前で切り出す。** `System.Drawing.Icon(path, 256, 256)` は ico 内の 256px（PNG 圧縮のエントリ）を返さず 128px になる。`build.ps1` は ico のディレクトリを読み、幅 0（= 256px）のエントリの PNG バイト列を直接取り出している。
 - **`makeappx` / `signtool` は PATH に無い。** Windows SDK の `C:\Program Files (x86)\Windows Kits\10\bin\<ver>\x64\` にある。`build.ps1` は最新バージョンを探して使う。
-- **自動起動は `windows.startupTask`（TaskId `DockyardStartup`）。** `Autostart.cs` の TaskId と一致させる。既定は無効で、設定画面かタスク マネージャーのスタートアップ アプリでオンにする。WinRT の `StartupTask` を使うため App の TFM は `net10.0-windows10.0.19041.0`。パッケージ外で起動したときは HKCU の Run キーを使う。
+- **自動起動は `windows.startupTask`（TaskId `DockyardStartup`）。** `src/Dockyard.Infrastructure/Autostart.cs` の TaskId と一致させる。既定は無効で、設定画面かタスク マネージャーのスタートアップ アプリでオンにする。WinRT の `StartupTask` を使うため Infrastructure と Exe の TFM は `net10.0-windows10.0.19041.0`。パッケージ外で起動したときは HKCU の Run キーを使う。
 - **バージョンは 4 つ組で、更新するときは上げる。** 同じ Identity で中身だけ違うパッケージは上書きインストールできない。`-Version 1.0.1.0` のように指定する。
 
 ### 開発中の登録（`build.ps1 -Dev`）

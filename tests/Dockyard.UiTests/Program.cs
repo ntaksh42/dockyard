@@ -34,7 +34,7 @@ internal static partial class Program
         var root = AppContext.BaseDirectory;
         while (!File.Exists(Path.Combine(root, "Dockyard.slnx"))) root = Path.GetDirectoryName(root)!;
         _dragOnly = args.Contains("--drag-only") || args.Contains("--external-only");
-        _exe = Path.Combine(root, _dragOnly ? @"src\Dockyard.App\bin\DragValidation\Dockyard.exe" : @"src\Dockyard.App\bin\Debug\net10.0-windows10.0.19041.0\Dockyard.exe");
+        _exe = Path.Combine(root, _dragOnly ? @"src\Dockyard.Exe\bin\DragValidation\Dockyard.exe" : @"src\Dockyard.Exe\bin\Debug\net10.0-windows10.0.19041.0\Dockyard.exe");
         if (!_dragOnly && File.Exists(LogPath)) File.Delete(LogPath);
         // Left by a Dockyard that went down with grouped windows: it would restore those groups instead of
         // opening the empty frame the test starts from.

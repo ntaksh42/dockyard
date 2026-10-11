@@ -5,7 +5,7 @@
 ## 実行
 
 ```
-dotnet run --project src/Dockyard.App
+dotnet run --project src/Dockyard.Exe
 dotnet test
 ```
 

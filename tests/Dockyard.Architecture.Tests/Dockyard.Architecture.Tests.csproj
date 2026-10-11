@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Keeps the layering from eroding: who may reference whom, and what each assembly exposes. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- Presentation is a WPF library: its assembly needs the WPF framework to be loaded for reflection. -->
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Dockyard.Domain\Dockyard.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Dockyard.Application\Dockyard.Application.csproj" />
+    <ProjectReference Include="..\..\src\Dockyard.Infrastructure\Dockyard.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Dockyard.Presentation\Dockyard.Presentation.csproj" />
+  </ItemGroup>
+
+</Project>

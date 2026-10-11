@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The program: starts it and wires the layers together. Nothing else belongs here. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Dockyard.Application\Dockyard.Application.csproj" />
+    <ProjectReference Include="..\Dockyard.Infrastructure\Dockyard.Infrastructure.csproj" />
+    <ProjectReference Include="..\Dockyard.Presentation\Dockyard.Presentation.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Infrastructure reaches the Windows 10 SDK (startup task), and a reference cannot target a newer platform than its referrer. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <!-- Keep the exe named Dockyard.exe. -->
+    <AssemblyName>Dockyard</AssemblyName>
+    <RootNamespace>Dockyard.Exe</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\Dockyard.Presentation\Assets\Dockyard.ico</ApplicationIcon>
+  </PropertyGroup>
+
+</Project>

@@ -61,14 +61,14 @@ Get-AppxPackage Dockyard | Where-Object { $Dev -or ($_.InstallLocation -and $_.I
 # 1. The package layout: the published app plus the manifest and logos at its root.
 Remove-Item $out -Recurse -Force -ErrorAction SilentlyContinue
 # The app's own version is the package version, so the two always agree.
-dotnet publish (Join-Path $root 'src/Dockyard.App') -c Release -r "win-$Runtime" --self-contained false -p:Version=$Version -o $layout
+dotnet publish (Join-Path $root 'src/Dockyard.Exe') -c Release -r "win-$Runtime" --self-contained false -p:Version=$Version -o $layout
 if ($LASTEXITCODE) { throw 'dotnet publish failed.' }
 (Get-Content (Join-Path $PSScriptRoot 'AppxManifest.xml') -Raw).Replace('$Version$', $Version).Replace('$Architecture$', $Runtime).Replace('$Publisher$', [Security.SecurityElement]::Escape($publisher)) |
     Set-Content (Join-Path $layout 'AppxManifest.xml') -Encoding utf8
 
 # The logos come from the PNG entries of the app icon, by pixel size (0 in the directory means 256).
 Add-Type -AssemblyName System.Drawing
-$ico = [IO.File]::ReadAllBytes((Join-Path $root 'src/Dockyard.App/Assets/Dockyard.ico'))
+$ico = [IO.File]::ReadAllBytes((Join-Path $root 'src/Dockyard.Presentation/Assets/Dockyard.ico'))
 $entries = @{}
 foreach ($i in 0..([BitConverter]::ToUInt16($ico, 4) - 1)) {
     $at = 6 + 16 * $i

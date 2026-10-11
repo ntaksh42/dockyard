@@ -1,13 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Win32 window operations, window events and logging. -->
+  <!-- Windows implementation of the application's ports: Win32 window operations, hooks, files, logging. -->
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- The startup task (WinRT) needs the Windows 10 SDK projection. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Dockyard.Application\Dockyard.Application.csproj" />
     <ProjectReference Include="..\Dockyard.Domain\Dockyard.Domain.csproj" />
   </ItemGroup>
 

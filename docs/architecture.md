@@ -16,36 +16,53 @@ reparent（SetParent）を採らないのは、UWP・一部の Electron アプ�
 
 ## 2. プロジェクト構成
 
-画面と操作の制御は `Dockyard.App` にまとめ、制御処理を `Controllers` フォルダ・`Dockyard.App.Controllers` 名前空間に置く。レイアウトの構造と計算は `Dockyard.Domain`、Win32 操作は `Dockyard.Infrastructure` に分ける。
+層ごとにプロジェクトを分け、依存を Domain に向ける。各アセンブリが外に見せる型はルート名前空間（`Dockyard.<層>`）に置き、実装は `Internal/` フォルダ（`Dockyard.<層>.Internal` 名前空間）に入れて `internal` にする。
 
-| プロジェクト・フォルダ | 役割 | 依存先 | Windows 依存 |
-|---|---|---|---|
-| `Dockyard.App` | 枠とダイアログの描画、操作の受付、トレイ常駐、組み立て | Domain、Infrastructure | あり（WPF） |
-| `Dockyard.App/Controllers` | グループ制御。「いつ・どのウィンドウを・どこへ・どの順に」を決める | ドメインの計算、ウィンドウ操作のインターフェース | 処理自体は WPF・Windows API を呼ばない |
-| `Dockyard.Domain` | レイアウトの構造と計算、判断ルール | なし | なし |
-| `Dockyard.Infrastructure` | ウィンドウ操作のインターフェースと Win32 実装、イベント監視、候補列挙、ログ | Domain | あり（Win32） |
+| プロジェクト | 役割 | 依存先 | 窓口 | Windows 依存 |
+|---|---|---|---|---|
+| `Dockyard.Domain` | レイアウトの構造と計算、判断ルール | なし | レイアウトの語彙そのもの（`Pane`・`LayoutEngine` など） | なし |
+| `Dockyard.Application` | グループ制御と、全グループを束ねる処理。機械側と画面側のポートを定義する | Domain | `Workspace`（とポート・ポートを越える値） | なし |
+| `Dockyard.Infrastructure` | ポートの Win32・ファイル実装（ウィンドウ操作、イベント監視、候補列挙、保存、自動起動、ログ） | Application、Domain | `PlatformServices` | あり（Win32） |
+| `Dockyard.Presentation` | 枠・ダイアログ・タブ・トレイの描画、操作の受付 | Application、Domain | `WpfShell` | あり（WPF） |
+| `Dockyard.Exe` | 入口。多重起動の判定、例外フック、3 層の組み立て | Application、Infrastructure、Presentation | なし | あり |
 
-制御処理は偽のウィンドウ操作・枠・スケジューラで単体テストする。App を参照する制御テストは Windows 向けになり、Domain のテストは引き続き Windows に依存しない。
+制御処理は偽のウィンドウ操作・枠・スケジューラで単体テストする。Application は Domain と同じく Windows に依存しないので、そのテストも `net10.0` で動く。
 
-### インターフェース
+### ポート
 
-| 定義場所 | インターフェース | 実装 |
+`Workspace` は `IPlatform`（機械側）と `IShell`（画面側）の 2 つだけを受け取る。
+
+| 方向 | ポート | 実装 |
 |---|---|---|
-| Infrastructure | ウィンドウ操作と物理ピクセル座標型 | Win32 |
-| App/Controllers | 枠の描画、座標変換、移動・リサイズ | WPF の枠ウィンドウ |
-| App/Controllers | 処理の後回し、タイマー | WPF のディスパッチャ |
+| 機械側 | `IWindowSystem`: 他アプリのウィンドウの移動・重なり順・前面化、物理ピクセル座標 | Infrastructure の Win32 |
+| 機械側 | `IWindowCatalog`: 追加候補の列挙と、操作できるかの確認 | Infrastructure |
+| 機械側 | `IWindowEventSource`・`IKeyboardSource`・`IInputState`: ウィンドウのイベント、ショートカットのキー、マウスとキーの状態 | Infrastructure のフック |
+| 機械側 | `ILayoutStore`・`ISessionStore`・`ISettingsStore`: 保存済みレイアウト、セッション、設定 | Infrastructure の JSON ファイル |
+| 機械側 | `IAppLauncher`・`IAutostart`・`ILog` | Infrastructure |
+| 画面側 | `IShell`: 枠の生成、設定・レイアウト管理画面、通知、終了 | Presentation の `WpfShell` |
+| 画面側 | `IGroupFrame`（`IGroupView` を含む）: 枠の描画、座標変換、移動・リサイズ | Presentation の枠ウィンドウ |
+| 画面側 | `IDockGuide`: ドロップ先の表示 | Presentation |
+| 画面側 | `IScheduler`: 処理の後回し、タイマー | Presentation の WPF ディスパッチャ |
 
 ### プロジェクトの依存
 
 ```mermaid
 flowchart LR
-    App["Dockyard.App"] --> Infra["Dockyard.Infrastructure"]
-    App --> Domain["Dockyard.Domain"]
-    Infra --> Domain
-    DT["tests/Dockyard.Domain.Tests"] --> Domain
-    CT["tests/Dockyard.Controllers.Tests"] --> App
-    UT["tests/Dockyard.UiTests"] -. exe を起動して操作 .-> App
+    E["Dockyard.Exe"] --> P["Dockyard.Presentation"]
+    E --> Infra["Dockyard.Infrastructure"]
+    E --> A["Dockyard.Application"]
+    P --> A
+    Infra --> A
+    A --> D["Dockyard.Domain"]
+    P --> D
+    Infra --> D
+    DT["tests/Dockyard.Domain.Tests"] --> D
+    AT["tests/Dockyard.Application.Tests"] --> A
+    AR["tests/Dockyard.Architecture.Tests"] -. 公開一覧と参照関係を検査 .-> E
+    UT["tests/Dockyard.UiTests"] -. exe を起動して操作 .-> E
 ```
+
+公開型がルート名前空間にだけあること、公開一覧、参照関係は `tests/Dockyard.Architecture.Tests`（`PublicApi.cs`・`ArchitectureTests.cs`）が検査する。
 
 ## 3. ドメイン層
 
@@ -53,9 +70,21 @@ flowchart LR
 - **配置計算**: 枠の大きさから各ペインの矩形を求める。アプリごとの最小サイズを積み上げて、仕切りがそれ以上寄らないよう制約する（仕様 Q9）。
 - **判断ルール**: ドラッグが移動か、どの辺のリサイズかを決める。配置したウィンドウが指定どおり収まったか、再送するか、最小サイズとして覚えるかを決める。
 
-## 4. グループ制御（App/Controllers）
+## 4. グループ制御と全体の取りまとめ（Application）
 
-グループ 1 つにつき 1 つのグループ制御を持ち、次を決める。
+### 全体の取りまとめ（`Workspace`）
+
+開いているグループをすべて持ち、グループにまたがることを受け持つ。画面と機械は `IShell`・`IPlatform` を通して触る。
+
+- **イベントの振り分け**: ウィンドウの前面化・移動・タイトル変更・終了を、そのウィンドウを持つグループへ渡す。新しく開いたウィンドウは、復元したタブが待っていれば入れる。
+- **ショートカット**: 前面のウィンドウを持つグループを探し、枠への操作は枠へ、タブへの操作はグループ制御へ渡す。
+- **ドッキング**: タブのドラッグと、Shift を押しながらの外部ウィンドウのドラッグを 1 つのセッション（`DockDragSession`）で扱い、離した位置で別のグループへ入れるか、グループから外す。
+- **レイアウトとセッション**: 名前付きレイアウトの保存・展開、`session.json` の更新（変更が止まり、マウスを離してから書く）、クラッシュ後の復元、前回のグループの再オープン。
+- **設定の反映**: タブバー配置・ショートカット・タイトルバーを使うアプリの変更を、開いているグループへ即座に適用する。
+
+### グループ制御
+
+グループ 1 つにつき 1 つのグループ制御（`GroupController`）を持ち、次を決める。
 
 - **配置**: ペインの内容領域に、外部ウィンドウの見える範囲を合わせる。配置後しばらくして収まり具合を検証する。
 - **重なり順**: アクティブなタブは枠の直上、非アクティブなタブは枠の直下に置く。非アクティブなタブは枠に隠れるが、表示状態のままなので Alt+Tab や Waypoint の一覧に出る（仕様 Q11）。
@@ -158,5 +187,5 @@ stateDiagram-v2
 | 種類 | 対象 | 内容 | 実行 |
 |---|---|---|---|
 | 単体テスト | ドメイン層 | レイアウト操作、配置計算、最小サイズ、判断ルール | `dotnet test` |
-| 単体テスト | App/Controllers | 偽のウィンドウ操作・枠・スケジューラを差し込み、追加・タブ切替・分割・重なり順・ダイアログ表示中・ドラッグ・最小サイズ学習・最小化と最大化を検証 | `dotnet test` |
+| 単体テスト | アプリケーション層（Application） | 偽のウィンドウ操作・枠・スケジューラを差し込み、追加・タブ切替・分割・重なり順・ダイアログ表示中・ドラッグ・最小サイズ学習・最小化と最大化を検証 | `dotnet test` |
 | 実機 E2E | アプリ全体 | 本物の exe とテスト用ウィンドウを UI Automation と実マウスで操作し、表示・枠内・重なり順・空白ペイン・エラーログ・元位置への復帰を検査 | `dotnet run --project tests/Dockyard.UiTests`（デスクトップを 1 分ほど操作するので手動）。`-- --features` でメニュー・レイアウト・設定・復元を、`-- --stress` で連打・強制終了の繰り返し・ウィンドウの一斉出現などの負荷を確かめる（どちらも settings.json と layouts.json を差し替えて終了時に戻す） |
