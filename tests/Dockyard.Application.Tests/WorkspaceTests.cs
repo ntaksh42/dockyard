@@ -244,6 +244,30 @@ public class WorkspaceTests
     }
 
     [Fact]
+    public void AWaitingTabIsFilledWhileItsGroupIsMinimized_AndTheWindowJoinsTheHiddenOnes()
+    {
+        Workspace.Start();
+        Workspace.OpenLayout(Saved("Dev", new SavedTab("code", "proj")));
+        var frame = _shell.Frames[1];
+        frame.Minimize();
+        frame.Controller!.OnFrameMinimized();
+
+        _platform.Desktop.Add(7, Initial, "proj");
+        _platform.Desktop.Windows[7].ProcessName = "code";
+        _platform.CatalogFake.Windows.Add(new WindowInfo(7, "proj", "code", true));
+        _platform.Events.Raise(WindowEvent.Created, 7);
+        _platform.Events.Raise(WindowEvent.Shown, 7);
+
+        Assert.Contains(7, frame.Controller.Members);
+        Assert.False(_platform.Desktop.IsVisible(7));
+
+        frame.Restore();
+        frame.Controller.OnFrameRestored();
+        Assert.True(_platform.Desktop.IsVisible(7));
+        Assert.Equal(frame.Controller.Layout!.Panes[0].Content.Width, _platform.Desktop.GetVisibleBounds(7).Width);
+    }
+
+    [Fact]
     public void AWindowThatWasAlreadyOpenDoesNotFillAWaitingTab()
     {
         Workspace.Start();

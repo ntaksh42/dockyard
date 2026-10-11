@@ -180,6 +180,8 @@ internal sealed class GroupController : IGroupControl
         if (side is { } s) _tree.Split(pane, s, window);
         else _tree.AddTab(pane, window);
         _lastActive = window;
+        // The group's other windows are hidden while it is minimized: this one is shown again, placed, with them.
+        if (_view.IsMinimized) _windows.Hide(window);
         Refresh(raise: true, top: window);
         return true;
     }

@@ -503,6 +503,8 @@ public sealed class Workspace : IFrameContext
         if (!_fresh.Contains(window) || _platform.Catalog.Describe(window) is not { Title.Length: > 0 } info) return;
         _fresh.Remove(window);
         if (!info.Controllable || IsGrouped(window)) return;
-        _ = _groups.Any(g => g.Frame.CanDock && g.Controller.FillWaiting(window, info.ProcessName, info.Title));
+        // Not only the groups windows can be dropped on: one that is minimized or has the window picker open would
+        // never be offered the window again, as it is no longer new. It is placed once the group is back.
+        _ = _groups.Any(g => g.Controller.FillWaiting(window, info.ProcessName, info.Title));
     }
 }
