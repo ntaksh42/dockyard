@@ -279,6 +279,43 @@ public class WorkspaceTests
     }
 
     [Fact]
+    public void SavedLayoutsAndLastGroupsKeepNoWindowHandlesOrOriginalBounds_ButTheSessionDoes()
+    {
+        Add(1);
+        Workspace.Start();
+        var frame = _shell.Frames[0];
+        frame.Controller!.Adopt(1, PaneOf(frame), null);
+
+        frame.UserSavesLayout();
+        _scheduler.FireTimers();
+
+        // Handles are reused and the original place is that of one run: only the crash session needs them.
+        var layoutTab = Assert.Single(Assert.Single(_platform.LayoutStore.Layouts).Layout.Tabs!);
+        Assert.Equal(0, layoutTab.Handle);
+        Assert.Null(layoutTab.OriginalBounds);
+        var lastTab = Assert.Single(Assert.Single(_platform.SessionStore.LastGroups!).Layout.Tabs!);
+        Assert.Equal(0, lastTab.Handle);
+        Assert.Null(lastTab.OriginalBounds);
+        var sessionTab = Assert.Single(Assert.Single(_platform.SessionStore.Session!).Layout.Tabs!);
+        Assert.Equal(1, sessionTab.Handle);
+        Assert.Equal(Initial, sessionTab.OriginalBounds);
+    }
+
+    [Fact]
+    public void OpenLayout_ReturnsWindowsToWhereTheyAreNow_NotToAnOlderSavedPlace()
+    {
+        Add(1, "code", "proj");
+        Workspace.Start();
+        // A layout file written before handles and places were left out of it.
+        var old = Saved("Dev", new SavedTab("code", "proj", Handle: 1, OriginalBounds: new PixelRect(900, 900, 1300, 1200)));
+
+        Workspace.OpenLayout(old);
+        _shell.Frames[1].Controller!.Remove(1);
+
+        Assert.Equal(Initial, _platform.Desktop.GetBounds(1));
+    }
+
+    [Fact]
     public void Stop_PutsMembersBackAndRemovesTheSession()
     {
         Add(1);

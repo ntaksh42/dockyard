@@ -29,7 +29,11 @@ public interface IGroupControl
     /// <summary>The tab the user last worked in, which keyboard shortcuts act on when the frame has the focus.</summary>
     nint? LastActive { get; }
 
-    SavedNode SaveLayout();
+    /// <param name="includeWindows">
+    /// Whether tabs keep their window handle and pre-join bounds, which only mean something to the run that wrote
+    /// them (the crash session). Left out of saved layouts: handles are reused and the place is stale by then.
+    /// </param>
+    SavedNode SaveLayout(bool includeWindows = true);
     int RestoreLayout(SavedNode layout, Func<SavedTab, nint> resolve);
 
     bool Adopt(nint window, Pane pane, DockSide? side, PixelRect? originalBounds = null);

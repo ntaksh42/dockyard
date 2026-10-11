@@ -209,8 +209,16 @@ public sealed class Workspace : IFrameContext
         return g;
     }
 
-    private static SavedGroup Save(OpenGroup g) =>
-        new(g.Frame.GroupName, g.Frame.FrameBounds, g.Controller.SaveLayout(), g.Controller.Metrics.TabBarPlacement);
+    private static SavedGroup Save(OpenGroup g, bool includeWindows) =>
+        new(g.Frame.GroupName, g.Frame.FrameBounds, g.Controller.SaveLayout(includeWindows), g.Controller.Metrics.TabBarPlacement);
+
+    /// <summary>The layout without the windows of the run that saved it: see <see cref="IGroupControl.SaveLayout"/>.</summary>
+    private static SavedNode WithoutWindows(SavedNode node) => node with
+    {
+        First = node.First is null ? null : WithoutWindows(node.First),
+        Second = node.Second is null ? null : WithoutWindows(node.Second),
+        Tabs = node.Tabs?.Select(tab => tab with { Handle = 0, OriginalBounds = null }).ToList(),
+    };
 
     /// <summary>Takes a saved group's name, tab bar placement and layout (see <see cref="GroupController.RestoreLayout"/>).</summary>
     private static int Restore(OpenGroup g, SavedGroup saved, Func<SavedTab, nint> resolve)
@@ -224,7 +232,7 @@ public sealed class Workspace : IFrameContext
     private void SaveLayout(OpenGroup g)
     {
         var layouts = _platform.Layouts.Load();
-        var replaced = LayoutLibrary.Put(layouts, Save(g));
+        var replaced = LayoutLibrary.Put(layouts, Save(g, includeWindows: false));
         _platform.Layouts.Save(layouts);
         _shell.Notify(replaced ? $"Replaced the saved layout \"{g.Frame.GroupName}\"." : $"Saved layout \"{g.Frame.GroupName}\".");
     }
@@ -235,6 +243,8 @@ public sealed class Workspace : IFrameContext
     /// </summary>
     private void OpenLayout(SavedGroup saved, OpenGroup? into)
     {
+        // Files written before the windows were left out still have them: their handles may belong to others now.
+        saved = saved with { Layout = WithoutWindows(saved.Layout) };
         var claimed = _groups.SelectMany(g => g.Controller.Members).ToHashSet();
         var candidates = _platform.Catalog.GetCandidates().Where(w => w.Controllable)
             .Select(w => new WindowCandidate(w.Handle, w.ProcessName, w.Title)).ToList();
@@ -255,12 +265,12 @@ public sealed class Workspace : IFrameContext
     private void SaveSession()
     {
         if (_quitting) return;
-        var groups = _groups.Where(g => g.Controller.Members.Any()).Select(Save).ToList();
+        var groups = _groups.Where(g => g.Controller.Members.Any()).Select(g => Save(g, includeWindows: true)).ToList();
         if (groups.Count == 0) _platform.Sessions.ClearSession();
         else _platform.Sessions.SaveSession(groups);
         // Groups still waiting for all their apps (e.g. just opened at login) count as open too.
         _platform.Sessions.SaveLastGroups(_groups.Where(g => g.Controller.Members.Any() || g.Controller.WaitingTabs.Count > 0)
-            .Select(Save).ToList());
+            .Select(g => Save(g, includeWindows: false)).ToList());
     }
 
     /// <summary>

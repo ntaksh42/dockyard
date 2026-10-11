@@ -73,7 +73,7 @@ internal sealed class GroupController : IGroupControl
 
     // ---- saving and restoring -----------------------------------------------------------------
 
-    public SavedNode SaveLayout() => Save(_tree.Root);
+    public SavedNode SaveLayout(bool includeWindows = true) => Save(_tree.Root, includeWindows);
 
     /// <summary>
     /// Replaces an empty group's layout with a saved one. <paramref name="resolve"/> picks the window for each
@@ -90,11 +90,13 @@ internal sealed class GroupController : IGroupControl
         return _members.Count;
     }
 
-    private SavedNode Save(LayoutNode node) => node switch
+    private SavedNode Save(LayoutNode node, bool includeWindows) => node switch
     {
-        SplitNode s => new SavedNode(s.Orientation, s.Ratio, Save(s.First), Save(s.Second)),
+        SplitNode s => new SavedNode(s.Orientation, s.Ratio, Save(s.First, includeWindows), Save(s.Second, includeWindows)),
         Pane p => new SavedNode(
-            Tabs: p.Windows.Select(h => new SavedTab(_members[h].ProcessName, _members[h].Title, h, _members[h].OriginalBounds, _members[h].ProcessPath))
+            Tabs: p.Windows.Select(h => includeWindows
+                    ? new SavedTab(_members[h].ProcessName, _members[h].Title, h, _members[h].OriginalBounds, _members[h].ProcessPath)
+                    : new SavedTab(_members[h].ProcessName, _members[h].Title, Path: _members[h].ProcessPath))
                 .Concat(Waiting(p)).ToList(),
             ActiveIndex: p.ActiveIndex),
         _ => throw new InvalidOperationException(),
