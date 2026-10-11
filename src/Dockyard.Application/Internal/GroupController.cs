@@ -459,8 +459,9 @@ internal sealed class GroupController : IGroupControl
             _scheduler.Post(() =>
             {
                 _dragUpdatePending = false;
-                // The drag may have ended, the window gone or the frame closed while this was queued.
-                if (_dragged != window || _closing || !_members.ContainsKey(window)) return;
+                // The drag may have ended, the window gone or the frame closed while this was queued; or the window
+                // was taken out and added again, which makes it another member that this update is not about.
+                if (_dragged != window || _closing || !_members.TryGetValue(window, out var current) || current != m) return;
                 ApplyMemberDrag(m);
                 Refresh(raise: false);
             });
@@ -503,6 +504,9 @@ internal sealed class GroupController : IGroupControl
     {
         var m = _members[window];
         _members.Remove(window);
+        // A drag in progress ends with it: the notification that would end it may come after the window is
+        // added again, and the window would be left out of placement as one the user still holds.
+        if (_dragged == window) _dragged = 0;
         Detach(window);
         if (!_windows.Exists(window)) return;
         _windows.SetBounds(window, m.OriginalBounds);

@@ -741,6 +741,25 @@ public class GroupControllerTests
         Assert.NotEqual(before, _ws.GetVisibleBounds(C)); // the neighbour followed the drag
     }
 
+    [Fact]
+    public void ReleasingAndReAddingAWindowMidDrag_PlacesItAndDropsTheOldDragUpdate()
+    {
+        SplitAC();
+        _c.OnMoveSizeStart(A);
+        _ws.Windows[A].Bounds = FakeWindowSystem.BoundsFor(_ws.GetVisibleBounds(A) with { Right = _ws.GetVisibleBounds(A).Right + 60 });
+        _c.OnLocationChanged(A); // a live update is queued
+        var origin = _view.Origin;
+
+        // The move/size end has not arrived yet.
+        _c.Remove(A);
+        Assert.True(_c.Adopt(A, RootPane, null));
+
+        AssertPlaced(A);
+        _scheduler.RunPosted();
+        AssertPlaced(A);
+        Assert.Equal(origin, _view.Origin);
+    }
+
     // ---- settling and minimum sizes -------------------------------------------------------------
 
     [Fact]
