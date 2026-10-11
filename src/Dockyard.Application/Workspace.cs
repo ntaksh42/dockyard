@@ -575,6 +575,7 @@ public sealed class Workspace : IFrameContext
             case WindowEvent.MoveSizeEnd: controller.OnMoveSizeEnd(window); break;
             case WindowEvent.LocationChanged: controller.OnLocationChanged(window); break;
             case WindowEvent.TitleChanged: controller.OnTitleChanged(window); break;
+            case WindowEvent.Hidden: controller.OnHidden(window); break;
             case WindowEvent.Destroyed: controller.OnDestroyed(window); break;
         }
     }

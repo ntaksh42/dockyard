@@ -33,6 +33,7 @@ internal sealed class GroupController : IGroupControl
     private readonly IWindowSystem _windows;
     private readonly IScheduler _scheduler;
     private readonly IRestartableTimer _settleTimer;
+    private readonly IRestartableTimer _hiddenTimer;
     private readonly LayoutTree _tree = new();
     private readonly Dictionary<WindowHandle, Member> _members = [];
     /// <summary>Saved tabs whose windows were not open when the layout was restored, by the pane they belong in.</summary>
@@ -57,6 +58,7 @@ internal sealed class GroupController : IGroupControl
         _windows = windows;
         _scheduler = scheduler;
         _settleTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(300), CheckSettled);
+        _hiddenTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(500), DropHidden);
     }
 
     public LayoutResult? Layout => _layout;
@@ -415,6 +417,7 @@ internal sealed class GroupController : IGroupControl
     {
         _closing = true;
         _settleTimer.Stop();
+        _hiddenTimer.Stop();
         ReleaseAll();
     }
 
@@ -424,6 +427,9 @@ internal sealed class GroupController : IGroupControl
     {
         if (!Accepts(window, out _)) return;
         Diagnostics.Trace?.Invoke($"foreground {window:X}");
+        // Minimizing a member makes Windows activate the next window, often another member, and that report comes
+        // after the one that minimized the group and hid its members. Restoring for it would undo the minimize.
+        if (!_windows.IsVisible(window)) return;
         if (_view.IsMinimized) _view.Restore();
         if (_tree.FindPane(window)!.ActiveWindow != window) _tree.Activate(window);
         _lastActive = window;
@@ -492,6 +498,37 @@ internal sealed class GroupController : IGroupControl
         if (_dragged == window) _dragged = WindowHandle.None;
         _members.Remove(window);
         Detach(window);
+        Refresh(raise: false);
+        RestackAtFrame();
+    }
+
+    /// <summary>
+    /// A member was hidden. The group hides its members itself while it is minimized; otherwise the app hid the
+    /// window, as apps that keep running in the background do when their window is closed. Some apps hide a
+    /// window only for a moment, so it is checked again shortly (see <see cref="DropHidden"/>).
+    /// </summary>
+    public void OnHidden(WindowHandle window)
+    {
+        if (!Accepts(window, out _) || _view.IsMinimized) return;
+        _hiddenTimer.Restart();
+    }
+
+    /// <summary>
+    /// Members the app still keeps hidden leave the group as if closed: the group would otherwise show them again
+    /// when it is restored, or leave their panes blank.
+    /// </summary>
+    private void DropHidden()
+    {
+        if (_closing || _view.IsMinimized) return;
+        var hidden = _members.Keys.Where(h => _windows.Exists(h) && !_windows.IsVisible(h)).ToList();
+        if (hidden.Count == 0) return;
+        foreach (var h in hidden)
+        {
+            Diagnostics.Trace?.Invoke($"hidden by its app {h:X}");
+            if (_dragged == h) _dragged = WindowHandle.None;
+            _members.Remove(h);
+            Detach(h);
+        }
         Refresh(raise: false);
         RestackAtFrame();
     }

@@ -20,6 +20,7 @@ internal sealed class WinEventHook : IWindowEventSource, IDisposable
         [EVENT_OBJECT_DESTROY] = WindowEvent.Destroyed,
         [EVENT_OBJECT_CREATE] = WindowEvent.Created,
         [EVENT_OBJECT_SHOW] = WindowEvent.Shown,
+        [EVENT_OBJECT_HIDE] = WindowEvent.Hidden,
         [EVENT_OBJECT_LOCATIONCHANGE] = WindowEvent.LocationChanged,
         [EVENT_OBJECT_NAMECHANGE] = WindowEvent.TitleChanged,
     };

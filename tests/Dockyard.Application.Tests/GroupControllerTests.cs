@@ -844,6 +844,65 @@ public class GroupControllerTests
     }
 
     [Fact]
+    public void MemberMinimizedByUser_StaysMinimizedWhenTheNextMemberReportsTheForegroundLate()
+    {
+        SplitAC();
+        _ws.Windows[A].Minimized = true;
+        _c.OnLocationChanged(A);
+        _c.OnFrameMinimized();
+
+        // Windows activated C when A was minimized; the report arrives after C was hidden with the group.
+        _c.OnForeground(C);
+
+        Assert.True(_view.Minimized);
+        Assert.False(_ws.IsVisible(C));
+    }
+
+    [Fact]
+    public void MemberHiddenByItsApp_LeavesTheGroup()
+    {
+        SplitAC();
+        _ws.Hide(A);
+
+        _c.OnHidden(A);
+        _scheduler.FireTimers();
+
+        Assert.False(_c.Owns(A));
+        Assert.True(_c.Owns(C));
+        Assert.False(_ws.IsVisible(A));
+    }
+
+    [Fact]
+    public void MemberHiddenOnlyForAMoment_StaysInTheGroup()
+    {
+        SplitAC();
+        _ws.Hide(A);
+        _c.OnHidden(A);
+        _ws.Show(A);
+
+        _scheduler.FireTimers();
+
+        Assert.True(_c.Owns(A));
+    }
+
+    [Fact]
+    public void MembersHiddenByMinimizingTheGroup_StayInTheGroup()
+    {
+        SplitAC();
+        _view.Minimized = true;
+        _c.OnFrameMinimized();
+
+        _c.OnHidden(A);
+        _c.OnHidden(C);
+        _scheduler.FireTimers();
+        _view.Minimized = false;
+        _c.OnFrameRestored();
+
+        Assert.True(_c.Owns(A) && _c.Owns(C));
+        Assert.True(_ws.IsVisible(A) && _ws.IsVisible(C));
+    }
+
+    [Fact]
     public void TitleChange_UpdatesTabsAndFrameTitle()
     {
         _c.Adopt(Window(A), RootPane, null);
