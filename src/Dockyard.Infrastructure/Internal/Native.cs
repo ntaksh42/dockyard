@@ -117,6 +117,7 @@ internal static class Native
     [DllImport("user32.dll")] public static extern nint WindowFromPoint(POINT point);
     [DllImport("user32.dll")] public static extern nint GetAncestor(nint hwnd, uint flags);
     [DllImport("user32.dll")] private static extern nint MonitorFromWindow(nint hwnd, uint flags);
+    [DllImport("user32.dll")] private static extern nint MonitorFromRect(ref RECT rect, uint flags);
 
     [StructLayout(LayoutKind.Sequential)]
     public struct DWM_THUMBNAIL_PROPERTIES
@@ -232,6 +233,14 @@ internal static class Native
     {
         var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
         GetMonitorInfo(MonitorFromWindow(hwnd, 2 /* MONITOR_DEFAULTTONEAREST */), ref info);
+        return info.rcWork;
+    }
+
+    /// <summary>Work area of the monitor the rectangle is mostly on, or the nearest one when it is on none (a monitor that went away).</summary>
+    public static RECT GetWorkArea(RECT rect)
+    {
+        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        GetMonitorInfo(MonitorFromRect(ref rect, 2 /* MONITOR_DEFAULTTONEAREST */), ref info);
         return info.rcWork;
     }
 

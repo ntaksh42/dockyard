@@ -1,4 +1,5 @@
 using Dockyard.Application;
+using Dockyard.Domain;
 using static Dockyard.Infrastructure.Internal.Native;
 
 namespace Dockyard.Infrastructure.Internal;
@@ -65,10 +66,15 @@ internal sealed class Win32WindowSystem : IWindowSystem
     /// <summary>
     /// Shows a released window where it was and on top. Asynchronous: this runs while Dockyard exits, and a hung
     /// app must not keep it from putting the other windows back. The requests reach the window's thread in order.
+    /// A position on a monitor that is gone is brought onto the nearest one, or the window could not be found.
     /// </summary>
     public void SetBounds(nint window, PixelRect bounds)
     {
         const uint async = SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS;
+        var area = Native.GetWorkArea(new RECT { Left = bounds.Left, Top = bounds.Top, Right = bounds.Right, Bottom = bounds.Bottom });
+        var fit = Placement.FitToWorkArea(
+            bounds.ToRect(), new Rect(area.Left, area.Top, area.Width, area.Height));
+        bounds = new PixelRect((int)fit.X, (int)fit.Y, (int)(fit.X + fit.Width), (int)(fit.Y + fit.Height));
         SetWindowPos(window, 0, bounds.Left, bounds.Top, bounds.Width, bounds.Height, SWP_NOZORDER | SWP_SHOWWINDOW | async);
         SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | async);
         SetWindowPos(window, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | async);

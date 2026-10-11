@@ -28,6 +28,7 @@ internal static class PublicApi
         "Dockyard.Domain.Orientation",
         "Dockyard.Domain.Pane",
         "Dockyard.Domain.PaneLayout",
+        "Dockyard.Domain.Placement",
         "Dockyard.Domain.Rect",
         "Dockyard.Domain.SettleAction",
         "Dockyard.Domain.SettleTracker",
