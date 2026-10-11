@@ -1,0 +1,8 @@
+<Project>
+
+  <!-- Applies to every project under this folder (src and tests). -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>

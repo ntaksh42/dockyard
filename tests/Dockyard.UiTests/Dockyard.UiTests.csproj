@@ -12,6 +12,9 @@
     <!-- For System.Drawing: the perf run reads the screen to see blank panes. -->
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The manifest sets per-monitor DPI so real mouse coordinates match window rectangles. This project never calls
+         ApplicationConfiguration.Initialize, so the ApplicationHighDpiMode property WFO0003 suggests would not apply. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
 
 </Project>
