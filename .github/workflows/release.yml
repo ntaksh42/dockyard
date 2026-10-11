@@ -1,0 +1,180 @@
+name: release
+
+# 毎朝 6:00 (JST) に、前回のリリースから「パッケージに影響する変更」があれば、署名付き MSIX を作って GitHub に公開する。
+# 手動実行（Actions タブの Run workflow）では、変更が無くても出す・ビルドまでで止める、を選べる。
+on:
+  schedule:
+    # cron は UTC。21:00 UTC = 06:00 JST。
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: '変更が無くてもリリースする'
+        type: boolean
+        default: false
+      dry_run:
+        description: 'ビルドまでで止める（タグもリリースも作らない）'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# 手動実行と定期実行が重なっても、同じバージョンを 2 回作らない。
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  # このパスに変更があったときだけリリースする（ドキュメントやテストだけの変更では出さない）。
+  PRODUCT_PATHS: src installer Dockyard.slnx
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 前回のリリースからの変更を調べる
+        id: plan
+        shell: pwsh
+        env:
+          FORCE: ${{ inputs.force }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # 最新のリリース（ドラフトとプレリリースを除く）。まだ無ければ 1.0.0 を出す。
+          $last = gh release view --json tagName --jq .tagName 2>$null
+          if ($LASTEXITCODE) { $last = $null }
+          $paths = $env:PRODUCT_PATHS -split ' '
+          if ($last) {
+              if ($last -notmatch '^v(\d+)\.(\d+)\.(\d+)$') { throw "想定外のタグ名: $last" }
+              $next = "$($Matches[1]).$($Matches[2]).$([int]$Matches[3] + 1)"
+              $changed = @(git diff --name-only $last HEAD -- @paths)
+              $has = $changed.Count -gt 0
+              Write-Host "前回: $last / 次: v$next / 変更したファイル: $($changed.Count)"
+              $changed | ForEach-Object { Write-Host "  $_" }
+          } else {
+              $next = '1.0.0'
+              $has = $true
+              Write-Host 'リリースがまだ無いので v1.0.0 を出す'
+          }
+          $release = $has -or ($env:FORCE -eq 'true')
+          if (-not $release) { Write-Host '変更が無いので、リリースしない' }
+          "release=$($release.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+          "version=$next" >> $env:GITHUB_OUTPUT
+          "last=$last" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/setup-dotnet@v4
+        if: steps.plan.outputs.release == 'true'
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: テスト
+        if: steps.plan.outputs.release == 'true'
+        run: dotnet test Dockyard.slnx -c Release --nologo
+
+      - name: 署名用の証明書を用意する
+        id: cert
+        if: steps.plan.outputs.release == 'true'
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.MSIX_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.MSIX_PFX_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:PFX_BASE64) {
+              $pfx = Join-Path $env:RUNNER_TEMP 'sign.pfx'
+              [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
+              $secure = ConvertTo-SecureString $env:PFX_PASSWORD -AsPlainText -Force
+              $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $secure
+              Remove-Item $pfx
+              "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
+              "fixed=true" >> $env:GITHUB_OUTPUT
+              Write-Host "Secrets の証明書で署名する: $($cert.Subject)"
+          } else {
+              "fixed=false" >> $env:GITHUB_OUTPUT
+              Write-Host '::warning::MSIX_PFX_BASE64 が未設定のため、実行ごとに自己署名証明書を作って署名する。リリースごとに Dockyard.cer を信頼させ直す必要がある。'
+          }
+
+      - name: MSIX をビルドする（arm64 と x64）
+        if: steps.plan.outputs.release == 'true'
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          THUMBPRINT: ${{ steps.cert.outputs.thumbprint }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $package = "$env:VERSION.0"
+          $stage = Join-Path $PWD 'artifacts/release'
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          $common = @('-Version', $package, '-TimestampUrl', 'http://timestamp.digicert.com')
+          if ($env:THUMBPRINT) { $common += @('-CertificateThumbprint', $env:THUMBPRINT) }
+          # build.ps1 は実行のたびに出力先を作り直すので、1 つずつ取り出す。証明書は 2 回目も同じものが使われる。
+          foreach ($runtime in 'arm64', 'x64') {
+              pwsh -NoProfile -File installer/build.ps1 @common -Runtime $runtime
+              if ($LASTEXITCODE) { throw "build.ps1 ($runtime) failed" }
+              Copy-Item artifacts/msix/Dockyard.msix (Join-Path $stage "Dockyard-$package-$runtime.msix")
+              Copy-Item artifacts/msix/Dockyard.cer (Join-Path $stage 'Dockyard.cer') -Force
+          }
+          Get-ChildItem $stage | Select-Object Name, Length | Format-Table -AutoSize
+
+      - uses: actions/upload-artifact@v4
+        if: steps.plan.outputs.release == 'true'
+        with:
+          name: dockyard-${{ steps.plan.outputs.version }}
+          path: artifacts/release/*
+          retention-days: 7
+
+      - name: リリースを公開する
+        if: steps.plan.outputs.release == 'true' && inputs.dry_run != true
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          LAST: ${{ steps.plan.outputs.last }}
+          FIXED_CERT: ${{ steps.cert.outputs.fixed }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $package = "$env:VERSION.0"
+          $paths = $env:PRODUCT_PATHS -split ' '
+          $range = $env:LAST ? "$env:LAST..HEAD" : 'HEAD'
+          $commits = @(git log --no-merges --pretty='- %s' $range -- @paths)
+          if ($commits.Count -eq 0) { $commits = @('- 前回から、パッケージに影響する変更は無い（手動で出したリリース）') }
+          $signing = if ($env:FIXED_CERT -eq 'true') {
+              '署名証明書は、これまでのリリースと同じものです（`Dockyard.cer`）。'
+          } else {
+              '署名は、このリリースのためにビルドごとに作った自己署名証明書です。**リリースごとに `Dockyard.cer` を信頼させ直してください。**'
+          }
+          $notes = @(
+              '## 変更',
+              '',
+              $commits,
+              '',
+              '## インストール',
+              '',
+              "お使いの PC に合うパッケージを選びます（ARM64 の PC には ``Dockyard-$package-arm64.msix``、x64 の PC には ``Dockyard-$package-x64.msix``）。",
+              '初回だけ、管理者の PowerShell で証明書を信頼させてからインストールします。',
+              '',
+              '```powershell',
+              'Import-Certificate -FilePath .\Dockyard.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople',
+              "Add-AppxPackage .\Dockyard-$package-x64.msix   # ARM64 の PC は -arm64.msix",
+              '```',
+              '',
+              '実行には、パッケージと同じアーキテクチャの .NET 10 Desktop Runtime が別途必要です。',
+              '',
+              $signing,
+              '',
+              '_このリリースは GitHub Actions が自動で作りました。_'
+          ) | ForEach-Object { $_ }
+          $notesFile = Join-Path $env:RUNNER_TEMP 'notes.md'
+          Set-Content $notesFile $notes -Encoding utf8
+          gh release create "v$env:VERSION" `
+              "artifacts/release/Dockyard-$package-arm64.msix" `
+              "artifacts/release/Dockyard-$package-x64.msix" `
+              "artifacts/release/Dockyard.cer" `
+              --target $env:GITHUB_SHA --title "Dockyard $env:VERSION" --notes-file $notesFile
+          if ($LASTEXITCODE) { throw 'gh release create failed' }

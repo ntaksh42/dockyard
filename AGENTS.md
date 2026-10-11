@@ -80,3 +80,13 @@ pwsh installer/build.ps1 -Dev                  # 署名せず layout フォル�
 - 開発者モードが有効なら、署名せずに layout フォルダをそのまま登録できる（`Add-AppxPackage -Register`）。
 - 登録したパッケージは layout フォルダのファイルをその場で使う。フォルダを消すと壊れるので、`-Dev` は作り直す前に `Remove-AppxPackage` で登録を外している。パッケージ版の Dockyard を起動したままだとファイルがロックされて失敗するので、先に終了する。
 - 開発登録と署名付き .msix は同じ Identity なので同時には入らない。切り替えるときは `Get-AppxPackage Dockyard | Remove-AppxPackage` で外してから入れる。
+
+## リリース（CI）
+
+`.github/workflows/release.yml` が、毎朝 6:00（JST。cron は UTC の `0 21 * * *`）に前回のリリースと比べ、署名付き MSIX（arm64・x64）を GitHub リリースに公開する。
+
+- **出す条件。** 最新リリースのタグから `src/`・`installer/`・`Dockyard.slnx` に変更があるとき。ドキュメントやテストだけの変更では出さない（`PRODUCT_PATHS`）。手動実行（Actions タブの Run workflow）では、`force`（変更が無くても出す）と `dry_run`（ビルドまでで止め、タグもリリースも作らない。MSIX は成果物としてだけ残る）を選べる。
+- **バージョン。** 最新のタグ `vX.Y.Z` の Z を 1 つ上げる（パッケージは `X.Y.(Z+1).0`）。minor・major を上げるときは、先に手で `vX.Y.0` のリリースを作る。リリースがまだ無ければ `v1.0.0`。
+- **公開前にテストを通す。** `dotnet test Dockyard.slnx`。落ちたら公開しない。
+- **署名。** リポジトリの Secrets `MSIX_PFX_BASE64`（PFX を Base64 にしたもの）と `MSIX_PFX_PASSWORD` があればその証明書で署名する。無ければ実行ごとに自己署名証明書を作るので、リリースごとに `Dockyard.cer` を信頼させ直す必要がある（リリースノートにも書く）。Publisher は証明書の Subject になるので、証明書を替えるときは Subject を `CN=Dockyard Dev` のままにするか、パッケージが別のアプリとして入ることを承知しておく。署名にはタイムスタンプ（DigiCert）を付け、証明書の期限後も署名が有効なままにする。
+- **スケジュールの実行はデフォルトブランチ（`main`）のワークフローが使われ、数分〜数十分遅れることがある。**

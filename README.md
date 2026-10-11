@@ -32,6 +32,8 @@ Add-AppxPackage artifacts\msix\Dockyard.msix
 
 `pwsh installer/test.ps1` は、ビルドしたパッケージを実際にインストールし、起動・上書き更新・アンインストールまで確かめる（証明書を信頼させてあり、Dockyard のパッケージが入っていないこと）。
 
+リリースは GitHub Actions が毎朝 6:00（JST）に、前回から `src/`・`installer/` に変更があれば自動で作る（`.github/workflows/release.yml`、詳細は [AGENTS.md](AGENTS.md)）。
+
 開発中は `pwsh installer/build.ps1 -Dev` で、署名せずに layout フォルダをそのまま登録できる（開発者モードが必要）。はまりポイントは [AGENTS.md](AGENTS.md)。
 
 ## 実装済み
