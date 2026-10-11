@@ -607,6 +607,16 @@ public class GroupControllerTests
     public void ShortcutKey_RejectsUnknownText(string text) => Assert.Null(ShortcutKey.Parse(text));
 
     [Fact]
+    public void Shortcuts_LoadTakesANullBindingAsUnbound()
+    {
+        // A hand-edited settings file can hold null where an empty text means "unbound".
+        var bindings = Shortcuts.Load(new Dictionary<string, string> { ["NextTab"] = null! });
+
+        Assert.False(bindings.ContainsKey(ShortcutAction.NextTab));
+        Assert.Equal(Shortcuts.Defaults[ShortcutAction.PreviousTab], bindings[ShortcutAction.PreviousTab]);
+    }
+
+    [Fact]
     public void Shortcuts_LoadOverridesDefaultsAndKeepsTheRest()
     {
         var bindings = Shortcuts.Load(new Dictionary<string, string>

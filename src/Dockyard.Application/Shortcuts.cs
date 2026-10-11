@@ -184,7 +184,7 @@ public static class Shortcuts
         foreach (var (name, text) in saved ?? new Dictionary<string, string>())
         {
             if (!Enum.TryParse<ShortcutAction>(name, out var action)) continue;
-            if (text.Length == 0) bindings.Remove(action);
+            if (string.IsNullOrEmpty(text)) bindings.Remove(action);
             else if (ShortcutKey.Parse(text) is { } binding) bindings[action] = binding;
             chosen.Add(action);
         }
