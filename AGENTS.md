@@ -13,7 +13,7 @@ pwsh installer/build.ps1                       # 署名付き MSIX（artifacts/m
 pwsh installer/build.ps1 -Dev                  # 署名せず layout フォルダを開発登録（開発者モード）
 ```
 
-- Dockyard は多重起動しない（2 つ目はすぐ終了する）。起動中の Dockyard.exe はビルド出力をロックするので、ビルド前に終了する。
+- Dockyard は多重起動しない（2 つ目はすぐ終了する。`--layout "名前"` 付きなら、終了する前に起動中の Dockyard へそのレイアウトを開かせる）。起動中の Dockyard.exe はビルド出力をロックするので、ビルド前に終了する。
 - 実機 E2E の `tests/Dockyard.UiTests` は `dotnet test` の対象ではない。デスクトップを実マウスで 1 分ほど操作するので、ユーザーに確認してから `dotnet run --project tests/Dockyard.UiTests` で実行する。`src/Dockyard.Exe/bin/Debug/.../Dockyard.exe` を起動するので先に Dockyard.Exe を Debug でビルドしておく。`-- --features`（メニュー・レイアウト・設定・復元）、`-- --stress`（負荷）、`-- --perf` がある。`%LOCALAPPDATA%\Dockyard\session.json` が残っていると開始しない。
 - ログは `%LOCALAPPDATA%\Dockyard\dockyard.log`（MSIX 版はパッケージ専用の場所へリダイレクトされる。下の「MSIX パッケージ」節参照）。詳細トレースは `dockyard.trace.log` に出る。Debug ビルドは常に出し、Release は `DOCKYARD_TRACE=1` のときだけ。
 
@@ -71,6 +71,7 @@ pwsh installer/build.ps1 -Dev                  # 署名せず layout フォル�
 - **タスクバーなどのアイコンは `Square44x44Logo.targetsize-N(_altform-unplated).png` と `resources.pri` で決まる。** 修飾子付きのファイル名は `makepri` で resources.pri に索引しないと使われない。targetsize 版は ico の同じサイズのエントリーをそのまま使う（16〜24px は縮小ではなくピクセル単位で描いてある）。
 - **ロゴは PNG が必須で、ico からは自前で切り出す。** `System.Drawing.Icon(path, 256, 256)` は ico 内の 256px（PNG 圧縮のエントリ）を返さず 128px になる。`build.ps1` は ico のディレクトリを読み、幅 0（= 256px）のエントリの PNG バイト列を直接取り出している。
 - **`makeappx` / `signtool` は PATH に無い。** Windows SDK の `C:\Program Files (x86)\Windows Kits\10\bin\<ver>\x64\` にある。`build.ps1` は最新バージョンを探して使う。
+- **レイアウトのデスクトップショートカットは実行エイリアス `dockyard.exe` を指す。** MSIX 内の exe（`WindowsApps`）はショートカットから直接起動できないので、マニフェストの `uap5:AppExecutionAlias` を `%LOCALAPPDATA%\Microsoft\WindowsApps\dockyard.exe` として使う（`Infrastructure/Internal/LayoutShortcuts.cs` の `PackageAlias` と一致させる。エイリアスの要素名は `uap5:ExecutionAlias` で、`desktop:` ではスキーマ検証に通らない）。
 - **自動起動は `windows.startupTask`（TaskId `DockyardStartup`）。** `src/Dockyard.Infrastructure/Autostart.cs` の TaskId と一致させる。既定は無効で、設定画面かタスク マネージャーのスタートアップ アプリでオンにする。WinRT の `StartupTask` を使うため Infrastructure と Exe の TFM は `net10.0-windows10.0.19041.0`。パッケージ外で起動したときは HKCU の Run キーを使う。
 - **バージョンは 4 つ組で、更新するときは上げる。** 同じ Identity で中身だけ違うパッケージは上書きインストールできない。`-Version 1.0.1.0` のように指定する。
 

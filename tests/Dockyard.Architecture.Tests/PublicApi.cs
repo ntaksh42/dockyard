@@ -57,6 +57,7 @@ internal static class PublicApi
         "Dockyard.Application.ISessionStore",
         "Dockyard.Application.ISettingsStore",
         "Dockyard.Application.IAppLauncher",
+        "Dockyard.Application.ILayoutShortcuts",
         "Dockyard.Application.IAutostart",
         "Dockyard.Application.ILog",
 
@@ -81,6 +82,7 @@ internal static class PublicApi
         "Dockyard.Application.SavedNode",
         "Dockyard.Application.SavedTab",
         "Dockyard.Application.LayoutLibrary",
+        "Dockyard.Application.LaunchCommand",
         "Dockyard.Application.Settings",
         "Dockyard.Application.KeyModifiers",
         "Dockyard.Application.ShortcutAction",

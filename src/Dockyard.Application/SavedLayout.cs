@@ -16,17 +16,50 @@ public sealed record SavedNode(
 
 /// <param name="Bounds">The frame's window rectangle in screen pixels.</param>
 /// <param name="TabBarPlacement">The group's own tab bar placement; null (layouts saved before) for the default.</param>
-public sealed record SavedGroup(string Name, PixelRect Bounds, SavedNode Layout, TabBarPlacement? TabBarPlacement = null);
+/// <param name="Hotkey">
+/// A <see cref="ShortcutKey"/> as text that opens the layout from anywhere; null for none. Only saved layouts have
+/// one: the session and last-groups files leave it out.
+/// </param>
+public sealed record SavedGroup(string Name, PixelRect Bounds, SavedNode Layout, TabBarPlacement? TabBarPlacement = null, string? Hotkey = null);
 
 /// <summary>Saved layouts are known by their names, which stay unique.</summary>
 public static class LayoutLibrary
 {
-    /// <summary>Adds the layout, replacing one with the same name. Returns true if one was replaced.</summary>
+    /// <summary>
+    /// Adds the layout, replacing one with the same name, which hands its hotkey over: saving a group again must
+    /// not undo what the user set up for the layout. Returns true if one was replaced.
+    /// </summary>
     public static bool Put(List<SavedGroup> layouts, SavedGroup layout)
     {
-        var replaced = layouts.RemoveAll(l => l.Name == layout.Name) > 0;
-        layouts.Add(layout);
-        return replaced;
+        var previous = layouts.Find(l => l.Name == layout.Name);
+        layouts.RemoveAll(l => l.Name == layout.Name);
+        layouts.Add(previous is null ? layout : layout with { Hotkey = previous.Hotkey });
+        return previous is not null;
+    }
+
+    /// <summary>
+    /// Sets the layout's hotkey, or clears it with null. A key does one thing: another layout that had it loses it.
+    /// Returns false if there is no layout of that name.
+    /// </summary>
+    public static bool SetHotkey(List<SavedGroup> layouts, string name, ShortcutKey? hotkey)
+    {
+        var index = layouts.FindIndex(l => l.Name == name);
+        if (index < 0) return false;
+        var text = hotkey?.ToString();
+        for (var i = 0; i < layouts.Count; i++)
+            if (text is not null && layouts[i].Hotkey == text) layouts[i] = layouts[i] with { Hotkey = null };
+        layouts[index] = layouts[index] with { Hotkey = text };
+        return true;
+    }
+
+    /// <summary>The hotkeys of the layouts by key. A text that does not parse, or a key taken twice, is ignored.</summary>
+    public static Dictionary<ShortcutKey, string> Hotkeys(IEnumerable<SavedGroup> layouts)
+    {
+        var keys = new Dictionary<ShortcutKey, string>();
+        foreach (var layout in layouts)
+            if (layout.Hotkey is { } text && ShortcutKey.Parse(text) is { } key)
+                keys.TryAdd(key, layout.Name);
+        return keys;
     }
 
     /// <summary>Renames a layout. Fails for a blank name or one another layout has.</summary>

@@ -90,6 +90,13 @@ public interface IAppLauncher
     void Launch(string exePath);
 }
 
+/// <summary>Shortcut files (.lnk) that start Dockyard with a saved layout; see <see cref="LaunchCommand"/>.</summary>
+public interface ILayoutShortcuts
+{
+    /// <summary>Writes the shortcut on the desktop, replacing one for the same layout. Returns its path, or null if it could not be written.</summary>
+    string? CreateOnDesktop(string layoutName);
+}
+
 /// <summary>Starting Dockyard with Windows.</summary>
 public interface IAutostart
 {
@@ -119,6 +126,7 @@ public interface IPlatform
     ISessionStore Sessions { get; }
     ISettingsStore Settings { get; }
     IAppLauncher Launcher { get; }
+    ILayoutShortcuts LayoutShortcuts { get; }
     IAutostart Autostart { get; }
     ILog Log { get; }
 }

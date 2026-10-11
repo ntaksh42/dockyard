@@ -14,15 +14,20 @@ public partial class App : System.Windows.Application
     private PlatformServices? _platform;
     private WpfShell? _shell;
     private Workspace? _workspace;
+    private InstanceRelay? _relay;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        // A shortcut file starts Dockyard with the layout to open (see LaunchCommand).
+        var layout = LaunchCommand.ParseLayout(e.Args);
         // Two copies would both take the same windows and write the same session file.
         var instance = new Mutex(true, @"Local\Dockyard", out var first);
         if (!first)
         {
             instance.Dispose();
+            // The running Dockyard opens the layout; this copy has nothing more to do.
+            if (layout is not null) InstanceRelay.Send(layout);
             Shutdown();
             return;
         }
@@ -56,7 +61,9 @@ public partial class App : System.Windows.Application
         _shell.Attach(_workspace);
         // Before the apps close, or their closing would be written over the groups to reopen at the next start.
         SessionEnding += (_, _) => _workspace.SessionEnding();
-        _workspace.Start();
+        _workspace.Start(layout);
+        // Later shortcut files reach this copy: their layout is opened on the UI thread.
+        _relay = InstanceRelay.Listen(name => Dispatcher.BeginInvoke(() => _workspace.OpenLayoutByName(name)), log);
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -66,6 +73,7 @@ public partial class App : System.Windows.Application
             base.OnExit(e);
             return;
         }
+        _relay?.Dispose();
         _workspace?.Stop();
         _shell?.Dispose();
         _platform?.Dispose();

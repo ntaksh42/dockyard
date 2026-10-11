@@ -126,10 +126,15 @@ public interface IShell
     void CaptureShortcut(ShortcutKey key);
 
     void ShowSettings();
-    void ShowLayouts();
 
-    /// <summary>Tells the user something briefly, e.g. with a tray balloon.</summary>
-    void Notify(string message);
+    /// <summary>Shows the settings window on its Layouts tab, with the layout of that name chosen when given.</summary>
+    void ShowLayouts(string? select = null);
+
+    /// <summary>
+    /// Tells the user something briefly, e.g. with a tray balloon. <paramref name="onClick"/>, if given, runs when
+    /// the user clicks the message.
+    /// </summary>
+    void Notify(string message, Action? onClick = null);
 
     /// <summary>Ends the program once the workspace has put everything back.</summary>
     void Exit();

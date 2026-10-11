@@ -22,6 +22,8 @@ public sealed class Workspace : IFrameContext
     private readonly IRestartableTimer _externalDragPoll;
     private readonly IRestartableTimer _sessionSave;
     private Dictionary<ShortcutAction, ShortcutKey> _shortcuts;
+    /// <summary>The layouts' hotkeys by key, kept here because the keyboard hook asks on every key press.</summary>
+    private Dictionary<ShortcutKey, string> _layoutHotkeys = [];
     private bool _externalPolling;
     private nint _externalDrag;
     private nint _finishedExternalDrag;
@@ -85,8 +87,11 @@ public sealed class Workspace : IFrameContext
 
     public IReadOnlyDictionary<ShortcutAction, ShortcutKey> ShortcutBindings => _shortcuts;
 
-    /// <summary>Starts listening and opens the groups: those of a crashed run, the last ones, or an empty one.</summary>
-    public void Start()
+    /// <summary>
+    /// Starts listening and opens the groups: those of a crashed run, the last ones, the saved layout
+    /// <paramref name="openLayout"/> if one is asked for (the shortcut file that started Dockyard), or an empty one.
+    /// </summary>
+    public void Start(string? openLayout = null)
     {
         _platform.WindowEvents.ShiftMouseDown += (window, bounds) =>
         {
@@ -94,9 +99,12 @@ public sealed class Workspace : IFrameContext
             if (window != 0) StartExternalPoll();
         };
         _platform.WindowEvents.Received += Dispatch;
+        RefreshLayoutHotkeys();
         _platform.Keyboard.KeyPressed = HandleShortcut;
         _foregroundPoll.Restart();
-        if (!RestoreSession() && !(_settings.OpenLastGroups && OpenLastGroups())) NewGroup();
+        var restored = RestoreSession() || (_settings.OpenLastGroups && OpenLastGroups());
+        var opened = openLayout is not null && OpenLayoutByName(openLayout);
+        if (!restored && !opened) NewGroup();
     }
 
     /// <summary>Stops listening and puts every member window back where it was before it joined a group.</summary>
@@ -127,7 +135,54 @@ public sealed class Workspace : IFrameContext
     /// <summary>
     /// Opens a saved layout, filling its tabs with matching windows that are open now, as a new group.
     /// </summary>
-    public void OpenLayout(SavedGroup saved) => OpenLayout(saved, null);
+    public void OpenLayout(SavedGroup saved) => OpenLayout(saved, null, _settings.LaunchMissingApps);
+
+    /// <summary>
+    /// Opens the saved layout of that name, for a hotkey or a shortcut file. Asking for a layout this way is asking
+    /// for the whole workspace, so the apps it lacks are started whatever the setting says. If a group of that name
+    /// is open already it is brought forward instead: pressing the hotkey again must not start every app twice.
+    /// Returns false (and tells the user) if there is no such layout.
+    /// </summary>
+    public bool OpenLayoutByName(string name)
+    {
+        if (_platform.Layouts.Load().Find(l => l.Name == name) is not { } saved)
+        {
+            _shell.Notify($"There is no saved layout named \"{name}\".");
+            return false;
+        }
+        if (_groups.FirstOrDefault(g => g.Frame.GroupName == name) is { } open)
+        {
+            if (open.Frame.IsMinimized) open.Frame.Restore();
+            _windows.Focus(open.Frame.Handle);
+            return true;
+        }
+        OpenLayout(saved, null, launchMissing: true);
+        return true;
+    }
+
+    /// <summary>Gives the saved layout a hotkey that opens it from anywhere, or removes it with null.</summary>
+    public void SetLayoutHotkey(string name, ShortcutKey? hotkey)
+    {
+        var layouts = _platform.Layouts.Load();
+        if (!LayoutLibrary.SetHotkey(layouts, name, hotkey)) return;
+        _platform.Layouts.Save(layouts);
+        RefreshLayoutHotkeys();
+        // A key does one thing: an action bound to it is unbound, as when the key is taken in the settings.
+        if (hotkey is { } key && _shortcuts.ContainsValue(key))
+            SetShortcuts(_shortcuts.Where(b => b.Value != key).ToDictionary());
+    }
+
+    /// <summary>The saved layouts were changed outside the workspace (renamed, deleted): their hotkeys are read again.</summary>
+    public void LayoutsChanged() => RefreshLayoutHotkeys();
+
+    /// <summary>Puts a shortcut file for the saved layout on the desktop.</summary>
+    public void CreateLayoutShortcut(string name)
+    {
+        var path = _platform.LayoutShortcuts.CreateOnDesktop(name);
+        _shell.Notify(path is null
+            ? $"Could not create a shortcut for \"{name}\"."
+            : $"Created the shortcut \"{Path.GetFileNameWithoutExtension(path)}\" on the desktop.");
+    }
 
     /// <summary>
     /// Windows asks to log off or shut down, before any app has closed. What is open now is what the next start
@@ -183,6 +238,7 @@ public sealed class Workspace : IFrameContext
         _shortcuts = bindings.ToDictionary();
         _settings.Shortcuts = Shortcuts.Save(_shortcuts);
         SaveSettings();
+        DropLayoutHotkeysUsedByActions();
     }
 
     public void SetTitleBarApps(IReadOnlyList<string> apps)
@@ -216,7 +272,8 @@ public sealed class Workspace : IFrameContext
         controller.SetTitleBarApps(_settings.TitleBarApps ?? Settings.DefaultTitleBarApps);
         frame.FrameActivated += () => _lastGroup = g;
         frame.SaveLayoutRequested += _ => SaveLayout(g);
-        frame.OpenLayoutRequested += (target, saved) => OpenLayout(saved, _groups.FirstOrDefault(x => x.Frame == target));
+        frame.OpenLayoutRequested += (target, saved) =>
+            OpenLayout(saved, _groups.FirstOrDefault(x => x.Frame == target), _settings.LaunchMissingApps);
         controller.Changed += RequestSessionSave;
         frame.FrameMoved += RequestSessionSave;
         frame.Renamed += RequestSessionSave;
@@ -270,14 +327,17 @@ public sealed class Workspace : IFrameContext
         var layouts = _platform.Layouts.Load();
         var replaced = LayoutLibrary.Put(layouts, Save(g, includeWindows: false));
         _platform.Layouts.Save(layouts);
-        _shell.Notify(replaced ? $"Replaced the saved layout \"{g.Frame.GroupName}\"." : $"Saved layout \"{g.Frame.GroupName}\".");
+        var name = g.Frame.GroupName;
+        // A new layout is the moment to offer its hotkey; a replaced one has had its chance.
+        if (replaced) _shell.Notify($"Replaced the saved layout \"{name}\".");
+        else _shell.Notify($"Saved layout \"{name}\". Click to set a hotkey.", () => _shell.ShowLayouts(name));
     }
 
     /// <summary>
     /// Opens a saved layout, filling its tabs with matching windows that are open now: into
     /// <paramref name="into"/> if that group has no windows (keeping where it is), otherwise as a new group.
     /// </summary>
-    private void OpenLayout(SavedGroup saved, OpenGroup? into)
+    private void OpenLayout(SavedGroup saved, OpenGroup? into, bool launchMissing)
     {
         // Files written before the windows were left out still have them: their handles may belong to others now.
         saved = saved with { Layout = WithoutWindows(saved.Layout) };
@@ -288,9 +348,26 @@ public sealed class Workspace : IFrameContext
         var assigned = WindowMatcher.MatchAll([.. WindowMatcher.TabsOf(saved.Layout)], candidates, claimed, sameWindowOnly: false);
         Restore(g, saved, tab => assigned.GetValueOrDefault(tab));
         // Their windows then fill the waiting tabs as they appear.
-        if (_settings.LaunchMissingApps)
+        if (launchMissing)
             foreach (var tab in g.Controller.WaitingTabs)
                 if (tab.Path is { } path) _platform.Launcher.Launch(path);
+    }
+
+    private void RefreshLayoutHotkeys() => _layoutHotkeys = LayoutLibrary.Hotkeys(_platform.Layouts.Load());
+
+    /// <summary>A key does one thing: a layout loses its hotkey to an action that is bound to the same key now.</summary>
+    private void DropLayoutHotkeysUsedByActions()
+    {
+        var layouts = _platform.Layouts.Load();
+        var changed = false;
+        foreach (var (key, name) in LayoutLibrary.Hotkeys(layouts))
+        {
+            if (!_shortcuts.ContainsValue(key)) continue;
+            LayoutLibrary.SetHotkey(layouts, name, null);
+            changed = true;
+        }
+        if (changed) _platform.Layouts.Save(layouts);
+        RefreshLayoutHotkeys();
     }
 
     // ---- session --------------------------------------------------------------------------------
@@ -316,7 +393,7 @@ public sealed class Workspace : IFrameContext
     private bool OpenLastGroups()
     {
         if (_platform.Sessions.LoadLastGroups() is not { Count: > 0 } groups) return false;
-        foreach (var g in groups) OpenLayout(g, null);
+        foreach (var g in groups) OpenLayout(g, null, _settings.LaunchMissingApps);
         return true;
     }
 
@@ -357,6 +434,12 @@ public sealed class Workspace : IFrameContext
             // Modifier keys alone are not a shortcut; wait for the key that completes it.
             if (key is >= 0x10 and <= 0x12 or 0x5B or 0x5C or >= 0xA0 and <= 0xA5) return false;
             _shell.Scheduler.Post(() => _shell.CaptureShortcut(new ShortcutKey(modifiers, key)));
+            return true;
+        }
+        // A layout's hotkey works wherever the focus is: opening a workspace is not an action on the focused group.
+        if (_layoutHotkeys.TryGetValue(new ShortcutKey(modifiers, key), out var layoutName))
+        {
+            _shell.Scheduler.Post(() => OpenLayoutByName(layoutName));
             return true;
         }
         if (Shortcuts.Match(_shortcuts, key, modifiers) is not { } action) return false;

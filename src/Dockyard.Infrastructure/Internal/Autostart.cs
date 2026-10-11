@@ -56,7 +56,7 @@ internal sealed class Autostart : IAutostart
         return await IsEnabledAsync();
     }
 
-    private static bool IsPackaged
+    internal static bool IsPackaged
     {
         get
         {

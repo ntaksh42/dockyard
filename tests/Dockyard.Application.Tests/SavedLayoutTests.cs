@@ -192,6 +192,47 @@ public class SavedLayoutTests
         Assert.Equal(new PixelRect(1, 1, 2, 2), layouts[^1].Bounds);
     }
 
+    [Fact]
+    public void LayoutLibrary_PutKeepsTheHotkeyOfTheLayoutItReplaces()
+    {
+        var layouts = new List<SavedGroup> { Named("A") with { Hotkey = "Ctrl+Alt+1" } };
+
+        LayoutLibrary.Put(layouts, Named("A"));
+
+        Assert.Equal("Ctrl+Alt+1", Assert.Single(layouts).Hotkey);
+    }
+
+    [Fact]
+    public void LayoutLibrary_SetHotkeyTakesTheKeyFromTheLayoutThatHadIt()
+    {
+        var layouts = new List<SavedGroup> { Named("A") with { Hotkey = "Ctrl+Alt+1" }, Named("B") };
+        var key = new ShortcutKey(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x31);
+
+        Assert.True(LayoutLibrary.SetHotkey(layouts, "B", key));
+        Assert.Null(layouts[0].Hotkey);
+        Assert.Equal("Ctrl+Alt+1", layouts[1].Hotkey);
+
+        Assert.True(LayoutLibrary.SetHotkey(layouts, "B", null));
+        Assert.Null(layouts[1].Hotkey);
+        Assert.False(LayoutLibrary.SetHotkey(layouts, "X", key));
+    }
+
+    [Fact]
+    public void LayoutLibrary_HotkeysSkipsTextsThatDoNotParseAndKeysTakenTwice()
+    {
+        var layouts = new List<SavedGroup>
+        {
+            Named("A") with { Hotkey = "Ctrl+Alt+1" },
+            Named("B") with { Hotkey = "Ctrl+Alt+1" },
+            Named("C") with { Hotkey = "nonsense+" },
+            Named("D"),
+        };
+
+        var hotkeys = LayoutLibrary.Hotkeys(layouts);
+
+        Assert.Equal("A", Assert.Single(hotkeys).Value);
+    }
+
     [Theory]
     [InlineData("A", " New ", true, "New")]
     [InlineData("A", "B", false, "A")]

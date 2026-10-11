@@ -21,7 +21,8 @@ public sealed class WpfShell : IShell, IDisposable
     private Forms.NotifyIcon? _tray;
     private System.Drawing.Icon? _trayIcon;
     private SettingsWindow? _settingsWindow;
-    private LayoutsWindow? _layoutsWindow;
+    /// <summary>What a click on the tray balloon shown last does; cleared once it is gone.</summary>
+    private Action? _balloonClick;
 
     /// <param name="exit">Ends the program (the host's shutdown).</param>
     public WpfShell(IPlatform platform, Action exit)
@@ -57,36 +58,32 @@ public sealed class WpfShell : IShell, IDisposable
 
     void IShell.CaptureShortcut(ShortcutKey key) => _settingsWindow?.Capture(key);
 
-    void IShell.ShowSettings()
-    {
-        if (_settingsWindow is not null)
-        {
-            _settingsWindow.Activate();
-            return;
-        }
-        var workspace = _workspace!;
-        _settingsWindow = new SettingsWindow(_platform.Autostart, workspace);
-        _settingsWindow.Closing += (_, _) => workspace.ReturnFocusToGroup();
-        _settingsWindow.Closed += (_, _) => _settingsWindow = null;
-        _settingsWindow.Show();
-    }
+    void IShell.ShowSettings() => ShowSettingsWindow();
 
-    void IShell.ShowLayouts()
-    {
-        if (_layoutsWindow is null)
-        {
-            var workspace = _workspace!;
-            _layoutsWindow = new LayoutsWindow(_platform.Layouts, workspace.OpenLayout);
-            _layoutsWindow.Closing += (_, _) => workspace.ReturnFocusToGroup();
-            _layoutsWindow.Closed += (_, _) => _layoutsWindow = null;
-            _layoutsWindow.Show();
-        }
-        _layoutsWindow.Activate();
-    }
+    void IShell.ShowLayouts(string? select) => ShowSettingsWindow(layoutsTab: true, select);
 
-    void IShell.Notify(string message) => _tray?.ShowBalloonTip(2000, "Dockyard", message, Forms.ToolTipIcon.Info);
+    void IShell.Notify(string message, Action? onClick)
+    {
+        _balloonClick = onClick;
+        _tray?.ShowBalloonTip(2000, "Dockyard", message, Forms.ToolTipIcon.Info);
+    }
 
     void IShell.Exit() => _exit();
+
+    /// <summary>Opens the settings window, or brings the open one forward, on the Layouts tab if asked to.</summary>
+    private void ShowSettingsWindow(bool layoutsTab = false, string? select = null)
+    {
+        if (_settingsWindow is null)
+        {
+            var workspace = _workspace!;
+            _settingsWindow = new SettingsWindow(_platform.Autostart, workspace, _platform.Layouts);
+            _settingsWindow.Closing += (_, _) => workspace.ReturnFocusToGroup();
+            _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+            _settingsWindow.Show();
+        }
+        if (layoutsTab) _settingsWindow.ShowLayoutsTab(select);
+        _settingsWindow.Activate();
+    }
 
     // ---- tray -----------------------------------------------------------------------------------
 
@@ -107,7 +104,7 @@ public sealed class WpfShell : IShell, IDisposable
         // A placeholder: without any item the menu shows no submenu to open.
         open.DropDownItems.Add("");
         menu.Items.Add(open);
-        menu.Items.Add("Manage Layouts…", null, (_, _) => ((IShell)this).ShowLayouts());
+        menu.Items.Add("Layouts…", null, (_, _) => ((IShell)this).ShowLayouts());
         menu.Items.Add("Settings…", null, (_, _) => ((IShell)this).ShowSettings());
         menu.Items.Add("Exit", null, (_, _) => workspace.Quit());
         using var iconStream = System.Windows.Application.GetResourceStream(
@@ -123,5 +120,12 @@ public sealed class WpfShell : IShell, IDisposable
             Visible = true,
         };
         _tray.DoubleClick += (_, _) => workspace.NewGroup();
+        _tray.BalloonTipClicked += (_, _) =>
+        {
+            var click = _balloonClick;
+            _balloonClick = null;
+            click?.Invoke();
+        };
+        _tray.BalloonTipClosed += (_, _) => _balloonClick = null;
     }
 }

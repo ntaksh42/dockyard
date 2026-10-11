@@ -110,6 +110,9 @@ internal sealed class FakeShell(ManualScheduler scheduler) : IShell
     public List<ShortcutKey> Captured { get; } = [];
     public int SettingsShown { get; private set; }
     public int LayoutsShown { get; private set; }
+    public List<string?> LayoutsSelected { get; } = [];
+    /// <summary>What happens when the user clicks the last notification; null if it cannot be clicked.</summary>
+    public Action? LastNotificationClick { get; private set; }
     public bool Exited { get; private set; }
 
     public IScheduler Scheduler => scheduler;
@@ -127,8 +130,17 @@ internal sealed class FakeShell(ManualScheduler scheduler) : IShell
     public bool IsCapturingShortcut(nint foreground) => Capturing;
     public void CaptureShortcut(ShortcutKey key) => Captured.Add(key);
     public void ShowSettings() => SettingsShown++;
-    public void ShowLayouts() => LayoutsShown++;
-    public void Notify(string message) => Notifications.Add(message);
+    public void ShowLayouts(string? select = null)
+    {
+        LayoutsShown++;
+        LayoutsSelected.Add(select);
+    }
+
+    public void Notify(string message, Action? onClick = null)
+    {
+        Notifications.Add(message);
+        LastNotificationClick = onClick;
+    }
     public void Exit() => Exited = true;
 }
 
@@ -219,6 +231,17 @@ internal sealed class RecordingLauncher : IAppLauncher
     public void Launch(string exePath) => Launched.Add(exePath);
 }
 
+internal sealed class RecordingLayoutShortcuts : ILayoutShortcuts
+{
+    public List<string> Created { get; } = [];
+
+    public string? CreateOnDesktop(string layoutName)
+    {
+        Created.Add(layoutName);
+        return $@"C:\Users\me\Desktop\Dockyard - {layoutName}.lnk";
+    }
+}
+
 internal sealed class FakeAutostart : IAutostart
 {
     public Task<bool> IsEnabledAsync() => Task.FromResult(false);
@@ -242,6 +265,7 @@ internal sealed class FakePlatform : IPlatform
     public MemorySessionStore SessionStore { get; } = new();
     public MemorySettingsStore SettingsStore { get; } = new();
     public RecordingLauncher LauncherFake { get; } = new();
+    public RecordingLayoutShortcuts ShortcutsFake { get; } = new();
 
     public IWindowSystem Windows => Desktop;
     public IWindowCatalog Catalog => CatalogFake;
@@ -252,6 +276,7 @@ internal sealed class FakePlatform : IPlatform
     public ISessionStore Sessions => SessionStore;
     public ISettingsStore Settings => SettingsStore;
     public IAppLauncher Launcher => LauncherFake;
+    public ILayoutShortcuts LayoutShortcuts => ShortcutsFake;
     public IAutostart Autostart { get; } = new FakeAutostart();
     public ILog Log { get; } = new NullLog();
 }

@@ -22,6 +22,7 @@ public sealed class PlatformServices : IPlatform, IDisposable
     public ISessionStore Sessions { get; } = new JsonSessionStore();
     public ISettingsStore Settings { get; } = new JsonSettingsStore();
     public IAppLauncher Launcher { get; } = new ProcessLauncher();
+    public ILayoutShortcuts LayoutShortcuts { get; } = new LayoutShortcuts();
     public IAutostart Autostart { get; } = new Autostart();
     public ILog Log { get; } = new FileLog();
 

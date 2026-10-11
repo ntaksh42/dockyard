@@ -39,6 +39,12 @@
         <uap5:Extension Category="windows.startupTask">
           <uap5:StartupTask TaskId="DockyardStartup" Enabled="false" DisplayName="Dockyard" />
         </uap5:Extension>
+        <!-- The desktop shortcut files of saved layouts start this (LayoutShortcuts.cs): a shortcut cannot start the exe inside WindowsApps. -->
+        <uap5:Extension Category="windows.appExecutionAlias" Executable="Dockyard.exe" EntryPoint="Windows.FullTrustApplication">
+          <uap5:AppExecutionAlias>
+            <uap5:ExecutionAlias Alias="dockyard.exe" />
+          </uap5:AppExecutionAlias>
+        </uap5:Extension>
       </Extensions>
     </Application>
   </Applications>

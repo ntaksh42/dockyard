@@ -24,7 +24,7 @@ reparent（SetParent）を採らないのは、UWP・一部の Electron アプ�
 | `Dockyard.Application` | グループ制御と、全グループを束ねる処理。機械側と画面側のポートを定義する | Domain | `Workspace`（とポート・ポートを越える値） | なし |
 | `Dockyard.Infrastructure` | ポートの Win32・ファイル実装（ウィンドウ操作、イベント監視、候補列挙、保存、自動起動、ログ） | Application、Domain | `PlatformServices` | あり（Win32） |
 | `Dockyard.Presentation` | 枠・ダイアログ・タブ・トレイの描画、操作の受付 | Application、Domain | `WpfShell` | あり（WPF） |
-| `Dockyard.Exe` | 入口。多重起動の判定、例外フック、3 層の組み立て | Application、Infrastructure、Presentation | なし | あり |
+| `Dockyard.Exe` | 入口。多重起動の判定（`--layout` は先に起動中の Dockyard へ名前付きパイプで渡す）、例外フック、3 層の組み立て | Application、Infrastructure、Presentation | なし | あり |
 
 制御処理は偽のウィンドウ操作・枠・スケジューラで単体テストする。Application は Domain と同じく Windows に依存しないので、そのテストも `net10.0` で動く。
 
@@ -38,8 +38,8 @@ reparent（SetParent）を採らないのは、UWP・一部の Electron アプ�
 | 機械側 | `IWindowCatalog`: 追加候補の列挙と、操作できるかの確認 | Infrastructure |
 | 機械側 | `IWindowEventSource`・`IKeyboardSource`・`IInputState`: ウィンドウのイベント、ショートカットのキー、マウスとキーの状態 | Infrastructure のフック |
 | 機械側 | `ILayoutStore`・`ISessionStore`・`ISettingsStore`: 保存済みレイアウト、セッション、設定 | Infrastructure の JSON ファイル |
-| 機械側 | `IAppLauncher`・`IAutostart`・`ILog` | Infrastructure |
-| 画面側 | `IShell`: 枠の生成、設定・レイアウト管理画面、通知、終了 | Presentation の `WpfShell` |
+| 機械側 | `IAppLauncher`・`ILayoutShortcuts`・`IAutostart`・`ILog` | Infrastructure |
+| 画面側 | `IShell`: 枠の生成、設定画面（Layouts タブを含む）、通知（クリックで動作を付けられる）、終了 | Presentation の `WpfShell` |
 | 画面側 | `IGroupFrame`（`IGroupView` を含む）: 枠の描画、座標変換、移動・リサイズ | Presentation の枠ウィンドウ |
 | 画面側 | `IDockGuide`: ドロップ先の表示 | Presentation |
 | 画面側 | `IScheduler`: 処理の後回し、タイマー | Presentation の WPF ディスパッチャ |

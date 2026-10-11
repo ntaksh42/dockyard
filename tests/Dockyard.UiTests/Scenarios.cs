@@ -215,17 +215,21 @@ internal static partial class Program
         }, [a, b, c], [a, c], extra: () => Restored(x));
         CaptionMenu(_frame, "Save Layout");
 
-        Step("manage layouts: rename and delete", () =>
+        Step("layouts tab: rename and delete", () =>
         {
-            TrayMenu("Manage Layouts…");
-            var window = Wait(() => AppWindow("Saved Layouts"), "Saved Layouts window");
-            Select(Wait(() => Raw(window).FirstOrDefault(e => e.Current.ControlType == ControlType.ListItem && e.Current.Name.Contains("qa")), "qa in list"));
-            var box = Raw(window).First(e => e.Current.ControlType == ControlType.Edit);
+            // The tray item opens the settings window on its Layouts tab.
+            TrayMenu("Layouts…");
+            var window = Wait(() => AppWindow("Dockyard Settings"), "settings window");
+            Invoke(Wait(() => Raw(window).FirstOrDefault(e => e.Current.Name == "More actions for qa"), "qa row"));
+            Invoke(Wait(() => AppElements().SelectMany(Raw).FirstOrDefault(e => e.Current.Name == "Rename…" && e.Current.ControlType == ControlType.MenuItem), "Rename item"));
+            var box = Wait(() => Raw(window).FirstOrDefault(e => e.Current.Name == "Layout name" && e.Current.ControlType == ControlType.Edit), "name box");
             ((ValuePattern)box.GetCurrentPattern(ValuePattern.Pattern)).SetValue("qb");
-            Invoke(Raw(window).First(e => e.Current.Name == "Rename"));
+            box.SetFocus();
+            Press(0x0D /* Enter */);
             Thread.Sleep(500);
             if (Layouts().All(l => Name(l) != "qb")) throw new Exception("not renamed: " + ReadData("layouts.json"));
-            Invoke(Raw(window).First(e => e.Current.Name == "Delete"));
+            Invoke(Wait(() => Raw(window).FirstOrDefault(e => e.Current.Name == "More actions for qb"), "qb row"));
+            Invoke(Wait(() => AppElements().SelectMany(Raw).FirstOrDefault(e => e.Current.Name == "Delete…" && e.Current.ControlType == ControlType.MenuItem), "Delete item"));
             var ok = Wait(() => AppElements().SelectMany(Raw).FirstOrDefault(e => e.Current.Name == "OK" && e.Current.ControlType == ControlType.Button), "confirmation");
             Invoke(ok);
             Thread.Sleep(500);
@@ -271,7 +275,7 @@ internal static partial class Program
         {
             AddLayout("""{ "Name": "launch", "Bounds": { "Left": 300, "Top": 200, "Right": 1100, "Bottom": 800 },""" +
                 """ "Layout": { "Tabs": [ { "ProcessName": "charmap", "Title": "x", "Path": "C:\\Windows\\System32\\charmap.exe" } ] } }""");
-            SetOption("When opening a layout, start apps that are not open", true);
+            SetOption("Layouts", "When opening a layout, start apps that are not open", true);
             TrayMenu("Open Layout", "launch");
         }, [], [], extra: () =>
         {
@@ -287,19 +291,19 @@ internal static partial class Program
         if (launched != 0) PostMessage(launched, 0x0010, 0, 0);
         Thread.Sleep(800);
         foreach (var p in Process.GetProcessesByName("charmap")) p.Kill();
-        SetOption("When opening a layout, start apps that are not open", false);
+        SetOption("Layouts", "When opening a layout, start apps that are not open", false);
 
         Step("start with Windows writes and removes the Run entry", () =>
         {
-            SetOption("Start Dockyard when Windows starts", true);
+            SetOption("General", "Start Dockyard when Windows starts", true);
             if (Registry.CurrentUser.OpenSubKey(RunKey)?.GetValue("Dockyard") is not string command || !command.Contains("Dockyard.exe"))
                 throw new Exception("no Run entry");
-            SetOption("Start Dockyard when Windows starts", false);
+            SetOption("General", "Start Dockyard when Windows starts", false);
             if (Registry.CurrentUser.OpenSubKey(RunKey)?.GetValue("Dockyard") is not null) throw new Exception("Run entry left");
         }, [a, b, c], [a, c]);
 
         // After a restart of the PC the windows are new: the last groups are matched like a layout.
-        SetOption("When Dockyard starts, open the groups from last time", true);
+        SetOption("Layouts", "When Dockyard starts, open the groups from last time", true);
         Thread.Sleep(1500);
         Subject[] again = [];
         Step("open the last groups with new windows of the same apps", () =>
@@ -313,7 +317,7 @@ internal static partial class Program
             // A group from the session file opens first and closes again when its windows are gone.
             _frame = Wait(() => FindWindow(h => Pid(h) == _app.Id && IsWindowVisible(h) && Title(h).StartsWith("[qa] dyt")), "[qa] frame with windows");
         }, [], [], extra: () => again.Length == 3 ? ConsistentGroup(again, 2) : "not started");
-        SetOption("When Dockyard starts, open the groups from last time", false);
+        SetOption("Layouts", "When Dockyard starts, open the groups from last time", false);
 
         // A window let go by one group should not be taken by another group's waiting tab.
         Step("closing a minimized group does not feed another group's waiting tabs", () =>
@@ -632,11 +636,13 @@ internal static partial class Program
         CloseTrayFlyout();
     }
 
-    /// <summary>Sets a check box in the settings window (opened from the tray), then closes the window.</summary>
-    private static void SetOption(string label, bool on)
+    /// <summary>Sets a check box on a tab of the settings window (opened from the tray), then closes the window.</summary>
+    private static void SetOption(string tab, string label, bool on)
     {
         TrayMenu("Settings…");
         var window = Wait(() => AppWindow("Dockyard Settings"), "settings window");
+        // Only the chosen tab has its controls.
+        Select(Wait(() => Raw(window).FirstOrDefault(e => e.Current.Name == tab && e.Current.ControlType == ControlType.TabItem), $"{tab} tab"));
         var box = Wait(() => Raw(window).FirstOrDefault(e => e.Current.Name == label && e.Current.IsEnabled), $"check box {label}");
         var toggle = (TogglePattern)box.GetCurrentPattern(TogglePattern.Pattern);
         if ((toggle.Current.ToggleState == ToggleState.On) != on) toggle.Toggle();
