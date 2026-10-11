@@ -739,12 +739,15 @@ internal partial class GroupWindow : Window, IGroupFrame
         GroupNameText.Visibility = Visibility.Visible;
     }
 
-    /// <summary>The frame's window rectangle in screen pixels, for saving the group.</summary>
+    /// <summary>
+    /// The frame's window rectangle in screen pixels, for saving the group: where it is when neither minimized nor
+    /// maximized, so a group saved in either state comes back at its normal place and size.
+    /// </summary>
     public PixelRect FrameBounds
     {
         get
         {
-            GetWindowRect(_hwnd, out var r);
+            var r = GetNormalBounds(_hwnd);
             return new PixelRect(r.Left, r.Top, r.Right, r.Bottom);
         }
     }

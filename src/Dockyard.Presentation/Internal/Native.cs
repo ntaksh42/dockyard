@@ -22,6 +22,14 @@ internal static class Native
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    private struct WINDOWPLACEMENT
+    {
+        public int length, flags, showCmd;
+        public int minX, minY, maxX, maxY;
+        public RECT rcNormalPosition;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     private struct MONITORINFO
     {
         public int cbSize;
@@ -63,6 +71,28 @@ internal static class Native
     [DllImport("dwmapi.dll")] public static extern int DwmRegisterThumbnail(nint destination, nint source, out nint thumbnail);
     [DllImport("dwmapi.dll")] public static extern int DwmUnregisterThumbnail(nint thumbnail);
     [DllImport("dwmapi.dll")] public static extern int DwmUpdateThumbnailProperties(nint thumbnail, ref DWM_THUMBNAIL_PROPERTIES properties);
+
+    [DllImport("user32.dll")] private static extern bool GetWindowPlacement(nint hwnd, ref WINDOWPLACEMENT placement);
+
+    /// <summary>
+    /// The window's rectangle in screen pixels as it is, or will be again, when neither minimized nor maximized.
+    /// <c>GetWindowRect</c> gives the icon's (-32000, -32000, ...) and the maximized rectangle instead.
+    /// </summary>
+    public static RECT GetNormalBounds(nint hwnd)
+    {
+        var placement = new WINDOWPLACEMENT { length = Marshal.SizeOf<WINDOWPLACEMENT>() };
+        if (!GetWindowPlacement(hwnd, ref placement))
+        {
+            GetWindowRect(hwnd, out var current);
+            return current;
+        }
+        // The normal position is in workspace coordinates, which start at the work area's corner, not the screen's.
+        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        GetMonitorInfo(MonitorFromWindow(hwnd, 2 /* MONITOR_DEFAULTTONEAREST */), ref info);
+        int dx = info.rcWork.Left - info.rcMonitor.Left, dy = info.rcWork.Top - info.rcMonitor.Top;
+        var r = placement.rcNormalPosition;
+        return new RECT { Left = r.Left + dx, Top = r.Top + dy, Right = r.Right + dx, Bottom = r.Bottom + dy };
+    }
 
     /// <summary>Work area (screen minus taskbar) of the monitor the window is mostly on.</summary>
     public static RECT GetWorkArea(nint hwnd)
