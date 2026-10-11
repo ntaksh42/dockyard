@@ -6,7 +6,9 @@ namespace Dockyard.Infrastructure.Internal;
 /// <summary><see cref="IWindowSystem"/> on top of Win32.</summary>
 internal sealed class Win32WindowSystem : IWindowSystem
 {
-    private const uint ZOrderFlags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER;
+    // Without SWP_NOOWNERZORDER, a window's owned windows (dialogs) move with it and stay above it: with the flag
+    // the owner would come out above its own modal dialog and hide it.
+    private const uint ZOrderFlags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
 
     public bool Exists(nint window) => IsWindow(window);
     public bool IsVisible(nint window) => IsWindowVisible(window);
@@ -74,7 +76,7 @@ internal sealed class Win32WindowSystem : IWindowSystem
     /// </summary>
     public void SetBounds(nint window, PixelRect bounds)
     {
-        const uint async = SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_ASYNCWINDOWPOS;
+        const uint async = SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS;
         SetWindowPos(window, 0, bounds.Left, bounds.Top, bounds.Width, bounds.Height, SWP_NOZORDER | SWP_SHOWWINDOW | async);
         SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | async);
         SetWindowPos(window, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | async);
@@ -82,7 +84,7 @@ internal sealed class Win32WindowSystem : IWindowSystem
 
     /// <summary>Asynchronous like <see cref="SetBounds"/>, whose requests it follows in order.</summary>
     public void SetTopmost(nint window) =>
-        SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_ASYNCWINDOWPOS);
+        SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
 
     public void Stack(nint after, IReadOnlyList<nint> topDown)
     {
