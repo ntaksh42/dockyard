@@ -145,6 +145,25 @@ public class WorkspaceTests
     }
 
     [Fact]
+    public void OpenLayout_GivesEachTabItsExactTitleBeforeAnyTabTakesAnyWindowOfTheApp()
+    {
+        Add(1, "msedge", "Docs");
+        Add(2, "msedge", "News");
+        Workspace.Start();
+        var layout = new SavedGroup("Web", SavedBounds, new SavedNode(
+            Split: Orientation.Horizontal,
+            First: new SavedNode(Tabs: [new SavedTab("msedge", "Mail")]),
+            Second: new SavedNode(Tabs: [new SavedTab("msedge", "Docs")])));
+
+        Workspace.OpenLayout(layout);
+
+        var panes = _shell.Frames[1].Controller!.Layout!.Panes;
+        // "Docs" goes to the pane that asked for it; "Mail" takes what is left.
+        Assert.Equal([(nint)2], panes[0].Pane.Windows);
+        Assert.Equal([(nint)1], panes[1].Pane.Windows);
+    }
+
+    [Fact]
     public void OpenLayout_IntoAnEmptyGroupKeepsWhereThatGroupIs()
     {
         Add(1, "code", "proj");

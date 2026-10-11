@@ -239,7 +239,8 @@ public sealed class Workspace : IFrameContext
         var candidates = _platform.Catalog.GetCandidates().Where(w => w.Controllable)
             .Select(w => new WindowCandidate(w.Handle, w.ProcessName, w.Title)).ToList();
         var g = into is not null && !into.Controller.Members.Any() ? into : NewGroup(saved.Name, saved.Bounds);
-        Restore(g, saved, tab => WindowMatcher.Match(tab, candidates, claimed, sameWindowOnly: false));
+        var assigned = WindowMatcher.MatchAll([.. WindowMatcher.TabsOf(saved.Layout)], candidates, claimed, sameWindowOnly: false);
+        Restore(g, saved, tab => assigned.GetValueOrDefault(tab));
         // Their windows then fill the waiting tabs as they appear.
         if (_settings.LaunchMissingApps)
             foreach (var tab in g.Controller.WaitingTabs)
