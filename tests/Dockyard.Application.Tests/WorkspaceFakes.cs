@@ -67,6 +67,7 @@ internal sealed class FakeFrame(FakeView view, ManualScheduler scheduler) : IGro
 
     public event Action? FrameActivated;
     public event Action? FrameMoved;
+    public event Action? Renamed;
     public event Action? FrameClosed;
     public event Action<IGroupFrame, nint>? TabDragStarted;
     public event Action<bool>? TabDragEnded;
@@ -76,6 +77,12 @@ internal sealed class FakeFrame(FakeView view, ManualScheduler scheduler) : IGro
 
     public void UserActivates() => FrameActivated?.Invoke();
     public void UserMovesFrame() => FrameMoved?.Invoke();
+
+    public void UserRenames(string name)
+    {
+        GroupName = name;
+        Renamed?.Invoke();
+    }
     public void UserStartsTabDrag(nint window) => TabDragStarted?.Invoke(this, window);
     public void UserEndsTabDrag(bool cancel) => TabDragEnded?.Invoke(cancel);
     public void UserAsksForSettings() => SettingsRequested?.Invoke();

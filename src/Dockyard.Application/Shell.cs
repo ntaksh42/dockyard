@@ -88,6 +88,9 @@ public interface IGroupFrame : IGroupView
 
     event Action? FrameActivated;
     event Action? FrameMoved;
+
+    /// <summary>The user gave the group another name.</summary>
+    event Action? Renamed;
     event Action? FrameClosed;
     event Action<IGroupFrame, nint>? TabDragStarted;
     event Action<bool>? TabDragEnded;

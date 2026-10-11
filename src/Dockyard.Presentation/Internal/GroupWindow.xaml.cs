@@ -49,6 +49,7 @@ internal partial class GroupWindow : Window, IGroupFrame
     private bool _tabDragging;
     public event Action? FrameActivated;
     public event Action? FrameMoved;
+    public event Action? Renamed;
     public event Action? FrameClosed;
     public event Action<IGroupFrame, nint>? TabDragStarted;
     public event Action<bool>? TabDragEnded;
@@ -734,9 +735,11 @@ internal partial class GroupWindow : Window, IGroupFrame
     {
         if (!GroupNameEdit.IsVisible) return;
         var name = GroupNameEdit.Text.Trim();
-        if (commit && name.Length > 0) GroupName = name;
+        var renamed = commit && name.Length > 0 && name != GroupName;
+        if (renamed) GroupName = name;
         GroupNameEdit.Visibility = Visibility.Collapsed;
         GroupNameText.Visibility = Visibility.Visible;
+        if (renamed) Renamed?.Invoke();
     }
 
     /// <summary>

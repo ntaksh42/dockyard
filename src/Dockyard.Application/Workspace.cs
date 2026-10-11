@@ -219,6 +219,7 @@ public sealed class Workspace : IFrameContext
         frame.OpenLayoutRequested += (target, saved) => OpenLayout(saved, _groups.FirstOrDefault(x => x.Frame == target));
         controller.Changed += RequestSessionSave;
         frame.FrameMoved += RequestSessionSave;
+        frame.Renamed += RequestSessionSave;
         frame.TabDragStarted += (source, window) => _dockDrag.Begin(window, _groups.FirstOrDefault(x => x.Frame == source));
         frame.TabDragEnded += cancel => _dockDrag.Finish(cancel);
         frame.SettingsRequested += _shell.ShowSettings;

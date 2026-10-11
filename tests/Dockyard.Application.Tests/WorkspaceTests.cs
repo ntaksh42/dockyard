@@ -366,6 +366,23 @@ public class WorkspaceTests
     }
 
     [Fact]
+    public void RenamingAGroupIsWrittenToTheSessionAndTheLastGroups()
+    {
+        Add(1);
+        Workspace.Start();
+        var frame = _shell.Frames[0];
+        frame.Controller!.Adopt(1, PaneOf(frame), null);
+        _scheduler.FireTimers();
+        Assert.Equal("Group 1", Assert.Single(_platform.SessionStore.Session!).Name);
+
+        frame.UserRenames("Work");
+        _scheduler.FireTimers();
+
+        Assert.Equal("Work", Assert.Single(_platform.SessionStore.Session!).Name);
+        Assert.Equal("Work", Assert.Single(_platform.SessionStore.LastGroups!).Name);
+    }
+
+    [Fact]
     public void WhenWindowsEndsTheSession_TheAppsClosingDoNotOverwriteTheGroupsToReopen()
     {
         Add(1);
