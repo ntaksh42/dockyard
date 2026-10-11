@@ -16,7 +16,7 @@ internal sealed class FakeWindowSystem : IWindowSystem
         public PixelRect Bounds;
         public string Title = "", ProcessName = "app";
         public string? ProcessPath;
-        public bool Visible = true, Minimized, Maximized;
+        public bool Visible = true, Minimized, Maximized, Topmost;
         public int MinWidth, MinHeight;
     }
 
@@ -48,6 +48,7 @@ internal sealed class FakeWindowSystem : IWindowSystem
     public bool IsVisible(nint window) => Windows[window].Visible;
     public bool IsMinimized(nint window) => Windows[window].Minimized;
     public bool IsMaximized(nint window) => Windows[window].Maximized;
+    public bool IsTopmost(nint window) => Windows[window].Topmost;
     public string GetTitle(nint window) => Windows[window].Title;
     public nint GetForeground() => Focused;
     public bool IsTopLevel(nint window) => Windows.ContainsKey(window);
@@ -87,14 +88,19 @@ internal sealed class FakeWindowSystem : IWindowSystem
     {
         Windows[window].Visible = true;
         Windows[window].Bounds = bounds;
+        // Like the real one, which passes through the topmost band and ends in the normal one.
+        Windows[window].Topmost = false;
         ZOrder.Remove(window);
         ZOrder.Insert(0, window);
     }
+
+    public void SetTopmost(nint window) => Windows[window].Topmost = true;
 
     public void Stack(nint after, IReadOnlyList<nint> topDown)
     {
         foreach (var w in topDown)
         {
+            if (Windows.TryGetValue(w, out var window)) window.Topmost = false;
             ZOrder.Remove(w);
             ZOrder.Insert(after == 0 ? 0 : ZOrder.IndexOf(after) + 1, w);
             after = w;

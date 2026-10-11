@@ -187,6 +187,30 @@ public class GroupControllerTests
     }
 
     [Fact]
+    public void Remove_KeepsAnAlwaysOnTopWindowAlwaysOnTop()
+    {
+        Window(A);
+        _ws.Windows[A].Topmost = true;
+        _c.Adopt(A, RootPane, null);
+        // Stacking it among the group's windows puts it in the normal band.
+        Assert.False(_ws.IsTopmost(A));
+
+        _c.Remove(A);
+
+        Assert.True(_ws.IsTopmost(A));
+    }
+
+    [Fact]
+    public void Remove_LeavesAnOrdinaryWindowOutOfTheTopmostBand()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+
+        _c.Remove(A);
+
+        Assert.False(_ws.IsTopmost(A));
+    }
+
+    [Fact]
     public void Closing_PutsEveryWindowBack()
     {
         SplitAC();
@@ -1033,6 +1057,7 @@ public class GroupControllerTests
         public bool IsVisible(nint w) => inner.IsVisible(w);
         public bool IsMinimized(nint w) => inner.IsMinimized(w);
         public bool IsMaximized(nint w) => inner.IsMaximized(w);
+        public bool IsTopmost(nint w) => inner.IsTopmost(w);
         public string GetTitle(nint w) => inner.GetTitle(w);
         public nint GetForeground() => inner.GetForeground();
         public bool IsTopLevel(nint w) => inner.IsTopLevel(w);
@@ -1048,6 +1073,7 @@ public class GroupControllerTests
         public void Focus(nint w) => inner.Focus(w);
         public void PlaceVisible(nint w, PixelRect t) => inner.PlaceVisible(w, t);
         public void SetBounds(nint w, PixelRect b) => inner.SetBounds(w, b);
+        public void SetTopmost(nint w) => inner.SetTopmost(w);
 
         public void Stack(nint after, IReadOnlyList<nint> topDown)
         {

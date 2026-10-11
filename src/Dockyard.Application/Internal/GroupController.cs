@@ -18,6 +18,8 @@ internal sealed class GroupController : IGroupControl
         public string Title { get; set; } = "";
         public string ProcessName { get; init; } = "";
         public string? ProcessPath { get; init; }
+        /// <summary>Whether the window was always on top before it joined; stacking it in the group ends that, so it is given back on release.</summary>
+        public bool Topmost { get; init; }
         /// <summary>Smallest content size the app accepted, in layout units. Learned by observation.</summary>
         public Size MinSize { get; set; }
         /// <summary>Visible bounds last requested.</summary>
@@ -123,6 +125,7 @@ internal sealed class GroupController : IGroupControl
                 Title = _windows.GetTitle(h),
                 ProcessName = _windows.GetProcessName(h),
                 ProcessPath = _windows.GetProcessPath(h),
+                Topmost = _windows.IsTopmost(h),
             };
             if (i == node.ActiveIndex) pane.ActiveIndex = pane.Windows.Count;
             pane.Windows.Add(h);
@@ -170,6 +173,7 @@ internal sealed class GroupController : IGroupControl
             Title = _windows.GetTitle(window),
             ProcessName = _windows.GetProcessName(window),
             ProcessPath = _windows.GetProcessPath(window),
+            Topmost = _windows.IsTopmost(window),
         };
         if (side is { } s) _tree.Split(pane, s, window);
         else _tree.AddTab(pane, window);
@@ -498,6 +502,7 @@ internal sealed class GroupController : IGroupControl
         Detach(window);
         if (!_windows.Exists(window)) return;
         _windows.SetBounds(window, m.OriginalBounds);
+        if (m.Topmost) _windows.SetTopmost(window);
     }
 
     private void Refresh(bool raise, nint? top = null)

@@ -12,6 +12,7 @@ internal sealed class Win32WindowSystem : IWindowSystem
     public bool IsVisible(nint window) => IsWindowVisible(window);
     public bool IsMinimized(nint window) => IsIconic(window);
     public bool IsMaximized(nint window) => IsZoomed(window);
+    public bool IsTopmost(nint window) => ((long)GetWindowLongPtr(window, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0;
     public string GetTitle(nint window) => GetWindowText(window);
     public nint GetForeground() => GetForegroundWindow();
     public bool IsTopLevel(nint window) => GetAncestor(window, 2 /* GA_ROOT */) == window;
@@ -78,6 +79,10 @@ internal sealed class Win32WindowSystem : IWindowSystem
         SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | async);
         SetWindowPos(window, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | async);
     }
+
+    /// <summary>Asynchronous like <see cref="SetBounds"/>, whose requests it follows in order.</summary>
+    public void SetTopmost(nint window) =>
+        SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_ASYNCWINDOWPOS);
 
     public void Stack(nint after, IReadOnlyList<nint> topDown)
     {

@@ -18,6 +18,10 @@ public interface IWindowSystem
     bool IsVisible(nint window);
     bool IsMinimized(nint window);
     bool IsMaximized(nint window);
+
+    /// <summary>Whether the window is always on top.</summary>
+    bool IsTopmost(nint window);
+
     string GetTitle(nint window);
 
     /// <summary>The window that has the keyboard focus, or 0.</summary>
@@ -56,6 +60,9 @@ public interface IWindowSystem
 
     /// <summary>Shows the window, sets its full rectangle and brings it to the top without activating it.</summary>
     void SetBounds(nint window, PixelRect bounds);
+
+    /// <summary>Makes the window always on top again: <see cref="Stack"/> and <see cref="SetBounds"/> end in the normal band.</summary>
+    void SetTopmost(nint window);
 
     /// <summary>
     /// Orders windows top to bottom: the first goes just below <paramref name="after"/> (0 for the very top of
