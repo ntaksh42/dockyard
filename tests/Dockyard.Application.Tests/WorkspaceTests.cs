@@ -63,6 +63,32 @@ public class WorkspaceTests
     }
 
     [Fact]
+    public void NewGroup_DoesNotTakeTheNameOfARestoredOrRenamedGroup()
+    {
+        Add(1, "notepad", "a");
+        _platform.SessionStore.Session = [new SavedGroup("Group 1", SavedBounds,
+            new SavedNode(Tabs: [new SavedTab("notepad", "a", Handle: 1, OriginalBounds: Initial)]))];
+        Workspace.Start();
+
+        Workspace.NewGroup();
+        Workspace.NewGroup();
+
+        Assert.Equal(["Group 1", "Group 2", "Group 3"], _shell.Frames.Select(f => f.GroupName));
+    }
+
+    [Fact]
+    public void NewGroup_ReusesTheNumberOfAGroupThatWasClosed()
+    {
+        Workspace.Start();
+        Workspace.NewGroup();
+        _shell.Frames[0].Close();
+
+        Workspace.NewGroup();
+
+        Assert.Equal("Group 1", _shell.Frames[2].GroupName);
+    }
+
+    [Fact]
     public void Start_AfterACrash_ClosesGroupsWhoseWindowsAreGoneAndOpensAnEmptyOne()
     {
         _platform.SessionStore.Session = [new SavedGroup("Gone", SavedBounds,

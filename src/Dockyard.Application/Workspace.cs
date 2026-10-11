@@ -22,7 +22,6 @@ public sealed class Workspace : IFrameContext
     private readonly IRestartableTimer _externalDragPoll;
     private readonly IRestartableTimer _sessionSave;
     private Dictionary<ShortcutAction, ShortcutKey> _shortcuts;
-    private int _groupCount;
     private bool _externalPolling;
     private nint _externalDrag;
     private nint _finishedExternalDrag;
@@ -186,7 +185,7 @@ public sealed class Workspace : IFrameContext
 
     private OpenGroup NewGroup(string? name, PixelRect? bounds)
     {
-        var frame = _shell.CreateFrame(name ?? $"Group {++_groupCount}", _settings.TabBarPlacement, this);
+        var frame = _shell.CreateFrame(name ?? NextGroupName(), _settings.TabBarPlacement, this);
         var controller = new GroupController(frame, _windows, _shell.Scheduler);
         var g = new OpenGroup(frame, controller);
         frame.Bind(controller);
@@ -207,6 +206,18 @@ public sealed class Workspace : IFrameContext
         _groups.Add(g);
         frame.ShowAt(bounds);
         return g;
+    }
+
+    /// <summary>
+    /// "Group N" with the smallest N no open group has. Layouts are saved under the group's name, so a second
+    /// group of the same name would replace the first one's layout.
+    /// </summary>
+    private string NextGroupName()
+    {
+        var used = _groups.Select(g => g.Frame.GroupName).ToHashSet();
+        var number = 1;
+        while (used.Contains($"Group {number}")) number++;
+        return $"Group {number}";
     }
 
     private static SavedGroup Save(OpenGroup g, bool includeWindows) =>
