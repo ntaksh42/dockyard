@@ -9,9 +9,9 @@ public class NavigationTests
     {
         var tree = new LayoutTree();
         var a = (Pane)tree.Root;
-        tree.AddTab(a, 1);
-        var b = tree.Split(a, DockSide.Right, 2);
-        var c = tree.Split(b, DockSide.Bottom, 3);
+        tree.AddTab(a, new WindowHandle(1));
+        var b = tree.Split(a, DockSide.Right, new WindowHandle(2));
+        var c = tree.Split(b, DockSide.Bottom, new WindowHandle(3));
         return (LayoutEngine.Arrange(tree.Root, new Rect(0, 0, 404, 404), M), a, b, c);
     }
 

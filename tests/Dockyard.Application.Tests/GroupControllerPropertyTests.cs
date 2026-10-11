@@ -9,7 +9,7 @@ namespace Dockyard.Application.Tests;
 /// </summary>
 public class GroupControllerPropertyTests
 {
-    private const nint Frame = 1000, Other = 900;
+    private static readonly WindowHandle Frame = new(1000), Other = new(900);
 
     public static IEnumerable<object[]> Seeds => Enumerable.Range(1, 40).Select(i => new object[] { i });
 
@@ -22,7 +22,7 @@ public class GroupControllerPropertyTests
         public readonly Random Rng;
         public nint Next = 1;
         /// <summary>Bounds each window had when it was created, which is what releasing it must restore.</summary>
-        public readonly Dictionary<nint, PixelRect> Created = [];
+        public readonly Dictionary<WindowHandle, PixelRect> Created = [];
 
         public World(int seed)
         {
@@ -34,14 +34,14 @@ public class GroupControllerPropertyTests
             C.OnSurfaceResized();
         }
 
-        public List<nint> Members => C.Members.ToList();
+        public List<WindowHandle> Members => C.Members.ToList();
         public List<Pane> Panes => C.Layout!.Panes.Select(p => p.Pane).ToList();
-        public List<nint> Actives => Panes.Select(p => p.ActiveWindow).OfType<nint>().ToList();
+        public List<WindowHandle> Actives => Panes.Select(p => p.ActiveWindow).OfType<WindowHandle>().ToList();
         public T Pick<T>(IReadOnlyList<T> items) => items[Rng.Next(items.Count)];
 
-        public nint NewWindow()
+        public WindowHandle NewWindow()
         {
-            var h = Next++;
+            var h = new WindowHandle(Next++);
             var bounds = new PixelRect(Rng.Next(0, 300), Rng.Next(0, 300), Rng.Next(400, 900), Rng.Next(400, 700));
             Ws.Add(h, bounds, $"w{h}");
             Created[h] = bounds;
@@ -53,7 +53,7 @@ public class GroupControllerPropertyTests
         }
 
         /// <summary>The user drags a member: activates it, then moves it or pulls one or two of its edges.</summary>
-        public string UserDrag(nint w)
+        public string UserDrag(WindowHandle w)
         {
             Ws.BringToTop(w);
             C.OnForeground(w);
@@ -189,8 +189,8 @@ public class GroupControllerPropertyTests
         {
             var layout = C.Layout!;
             var members = Members;
-            Assert.True(new HashSet<nint>(members).SetEquals(layout.Panes.SelectMany(p => p.Pane.Windows)), $"{at}: members differ from layout");
-            Assert.True(new HashSet<nint>(members).SetEquals(View.LastRender!.Titles.Keys), $"{at}: rendered tabs differ");
+            Assert.True(new HashSet<WindowHandle>(members).SetEquals(layout.Panes.SelectMany(p => p.Pane.Windows)), $"{at}: members differ from layout");
+            Assert.True(new HashSet<WindowHandle>(members).SetEquals(View.LastRender!.Titles.Keys), $"{at}: rendered tabs differ");
 
             var frameZ = Ws.Z(Frame);
             var actives = Actives;

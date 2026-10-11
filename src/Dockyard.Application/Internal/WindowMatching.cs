@@ -1,15 +1,17 @@
+using Dockyard.Domain;
+
 namespace Dockyard.Application.Internal;
 
 /// <summary>A window that could fill a saved tab.</summary>
-internal sealed record WindowCandidate(nint Handle, string ProcessName, string Title);
+internal sealed record WindowCandidate(WindowHandle Handle, ProcessName ProcessName, string Title);
 
 internal static class WindowMatcher
 {
     /// <summary>
     /// Picks the window for a saved tab among <paramref name="candidates"/> and adds it to
-    /// <paramref name="claimed"/>, or returns 0. See <see cref="MatchAll"/> for the rules.
+    /// <paramref name="claimed"/>, or returns <see cref="WindowHandle.None"/>. See <see cref="MatchAll"/> for the rules.
     /// </summary>
-    public static nint Match(SavedTab tab, IEnumerable<WindowCandidate> candidates, ISet<nint> claimed, bool sameWindowOnly) =>
+    public static WindowHandle Match(SavedTab tab, IEnumerable<WindowCandidate> candidates, ISet<WindowHandle> claimed, bool sameWindowOnly) =>
         MatchAll([tab], candidates, claimed, sameWindowOnly).GetValueOrDefault(tab);
 
     /// <summary>
@@ -20,11 +22,11 @@ internal static class WindowMatcher
     /// take the one another tab matches by title. Tabs without a window are left out of the result, which is
     /// keyed by the tab instances.
     /// </summary>
-    public static Dictionary<SavedTab, nint> MatchAll(
-        IReadOnlyList<SavedTab> tabs, IEnumerable<WindowCandidate> candidates, ISet<nint> claimed, bool sameWindowOnly)
+    public static Dictionary<SavedTab, WindowHandle> MatchAll(
+        IReadOnlyList<SavedTab> tabs, IEnumerable<WindowCandidate> candidates, ISet<WindowHandle> claimed, bool sameWindowOnly)
     {
         var free = candidates.Where(c => !claimed.Contains(c.Handle)).ToList();
-        var matched = new Dictionary<SavedTab, nint>(ReferenceEqualityComparer.Instance);
+        var matched = new Dictionary<SavedTab, WindowHandle>(ReferenceEqualityComparer.Instance);
         Func<SavedTab, WindowCandidate, bool>[] rules = sameWindowOnly
             ? [(t, c) => c.Handle == t.Handle]
             : [(t, c) => c.Handle == t.Handle, (t, c) => c.Title == t.Title, (_, _) => true];
@@ -33,7 +35,7 @@ internal static class WindowMatcher
             foreach (var tab in tabs)
             {
                 if (matched.ContainsKey(tab)) continue;
-                var hit = free.FirstOrDefault(c => c.ProcessName.Equals(tab.ProcessName, StringComparison.OrdinalIgnoreCase) && rule(tab, c));
+                var hit = free.FirstOrDefault(c => c.ProcessName == tab.ProcessName && rule(tab, c));
                 if (hit is null) continue;
                 free.Remove(hit);
                 claimed.Add(hit.Handle);

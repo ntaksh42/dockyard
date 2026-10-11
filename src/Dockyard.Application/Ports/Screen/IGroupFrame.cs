@@ -5,7 +5,7 @@ namespace Dockyard.Application;
 /// <summary>A group's frame window: <see cref="IGroupView"/> plus what the workspace does with it.</summary>
 public interface IGroupFrame : IGroupView
 {
-    string GroupName { get; set; }
+    LayoutName GroupName { get; set; }
 
     /// <summary>True while the frame is on screen and no dialog of its own is open: windows may be dropped on it.</summary>
     bool CanDock { get; }
@@ -35,7 +35,7 @@ public interface IGroupFrame : IGroupView
     /// <summary>The user gave the group another name.</summary>
     event Action? Renamed;
     event Action? FrameClosed;
-    event Action<IGroupFrame, nint>? TabDragStarted;
+    event Action<IGroupFrame, WindowHandle>? TabDragStarted;
     event Action<bool>? TabDragEnded;
     event Action? SettingsRequested;
     event Action<IGroupFrame>? SaveLayoutRequested;

@@ -14,7 +14,6 @@ internal sealed class InstanceRelay : IDisposable
 {
     /// <summary>The first copy may still be starting when a second one is launched right behind it.</summary>
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(5);
-
     private readonly CancellationTokenSource _stop = new();
 
     private static string PipeName
@@ -27,13 +26,13 @@ internal sealed class InstanceRelay : IDisposable
     }
 
     /// <summary>Asks the running Dockyard to open the layout. Returns false if it cannot be reached.</summary>
-    public static bool Send(string layoutName)
+    public static bool Send(LayoutName layoutName)
     {
         try
         {
             using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out, PipeOptions.CurrentUserOnly);
             client.Connect(ConnectTimeout);
-            client.Write(Encoding.UTF8.GetBytes(layoutName));
+            client.Write(Encoding.UTF8.GetBytes(layoutName.Value));
             return true;
         }
         catch (Exception ex) when (ex is TimeoutException or IOException)
@@ -43,7 +42,7 @@ internal sealed class InstanceRelay : IDisposable
     }
 
     /// <summary>Starts listening; <paramref name="received"/> gets each layout name, on a background thread.</summary>
-    public static InstanceRelay Listen(Action<string> received, ILog log)
+    public static InstanceRelay Listen(Action<LayoutName> received, ILog log)
     {
         var relay = new InstanceRelay();
         _ = relay.ListenAsync(received, log);
@@ -52,7 +51,7 @@ internal sealed class InstanceRelay : IDisposable
 
     public void Dispose() => _stop.Cancel();
 
-    private async Task ListenAsync(Action<string> received, ILog log)
+    private async Task ListenAsync(Action<LayoutName> received, ILog log)
     {
         while (!_stop.IsCancellationRequested)
         {
@@ -63,7 +62,7 @@ internal sealed class InstanceRelay : IDisposable
                 await server.WaitForConnectionAsync(_stop.Token);
                 using var reader = new StreamReader(server, Encoding.UTF8);
                 var name = await reader.ReadToEndAsync(_stop.Token);
-                if (name.Length > 0) received(name);
+                if (name.Length > 0) received(new LayoutName(name));
             }
             catch (OperationCanceledException)
             {

@@ -14,7 +14,7 @@ internal partial class SettingsWindow : Window
     /// <summary>What waits for the keys the keyboard hook delivers (see <see cref="Capture"/>).</summary>
     private abstract record CaptureTarget;
     private sealed record ActionCapture(ShortcutAction Action) : CaptureTarget;
-    private sealed record LayoutCapture(string Layout) : CaptureTarget;
+    private sealed record LayoutCapture(LayoutName Layout) : CaptureTarget;
 
     private const double HotkeyButtonWidth = 190;
     private static readonly Thickness RowButtonPadding = new(8, 3, 8, 3);
@@ -28,9 +28,9 @@ internal partial class SettingsWindow : Window
     /// <summary>The action or the layout waiting for its new keys; only one at a time.</summary>
     private CaptureTarget? _capturing;
     /// <summary>The layout whose name is being edited in its row.</summary>
-    private string? _renaming;
+    private LayoutName? _renaming;
     /// <summary>The layout the user last worked on, drawn lighter; the one a clicked notification names.</summary>
-    private string? _selectedLayout;
+    private LayoutName? _selectedLayout;
 
     private string _titleBarAppsText;
     /// <summary>False while the initial state is set, so opening the window does not report a change.</summary>
@@ -83,7 +83,7 @@ internal partial class SettingsWindow : Window
         };
     }
 
-    public nint Handle => new WindowInteropHelper(this).Handle;
+    public WindowHandle Handle => new(new WindowInteropHelper(this).Handle);
 
     /// <summary>
     /// True while a shortcut or a layout hotkey waits for its keys. The keyboard hook then sends key presses here
@@ -92,7 +92,7 @@ internal partial class SettingsWindow : Window
     public bool IsCapturing => _capturing is not null;
 
     /// <summary>Brings the Layouts tab forward, with the layout of that name chosen when given.</summary>
-    public void ShowLayoutsTab(string? layoutName)
+    public void ShowLayoutsTab(LayoutName? layoutName)
     {
         SettingsTabs.SelectedItem = LayoutsTab;
         if (layoutName is not null) _selectedLayout = layoutName;
@@ -131,7 +131,7 @@ internal partial class SettingsWindow : Window
 
     private void BuildLayoutRows()
     {
-        var layouts = _layoutStore.Load().OrderBy(l => l.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        var layouts = _layoutStore.Load().OrderBy(l => l.Name.Value, StringComparer.CurrentCultureIgnoreCase).ToList();
         LayoutGrid.Children.Clear();
         LayoutGrid.RowDefinitions.Clear();
         NoLayoutsText.Visibility = layouts.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -158,7 +158,7 @@ internal partial class SettingsWindow : Window
     }
 
     /// <summary>The row's background, drawn lighter for the layout the user last worked on.</summary>
-    private Border RowBackground(string name)
+    private Border RowBackground(LayoutName name)
     {
         var background = new Border { CornerRadius = new CornerRadius(4), Margin = new Thickness(0, 1, 0, 1) };
         if (name == _selectedLayout && TryFindResource("ControlFillColorSecondaryBrush") is Brush selected)
@@ -166,11 +166,11 @@ internal partial class SettingsWindow : Window
         return background;
     }
 
-    private FrameworkElement NameCell(string name)
+    private FrameworkElement NameCell(LayoutName name)
     {
         FrameworkElement cell = _renaming == name
             ? RenameBox(name)
-            : new TextBlock { Text = name, TextTrimming = TextTrimming.CharacterEllipsis };
+            : new TextBlock { Text = name.Value, TextTrimming = TextTrimming.CharacterEllipsis };
         cell.Margin = new Thickness(8, 4, 12, 4);
         cell.VerticalAlignment = VerticalAlignment.Center;
         return cell;
@@ -216,7 +216,7 @@ internal partial class SettingsWindow : Window
         return cell;
     }
 
-    private StackPanel ActionsCell(string name)
+    private StackPanel ActionsCell(LayoutName name)
     {
         var cell = HorizontalCell();
         cell.Children.Add(ActionButton("Open", $"Open {name}", () =>
@@ -247,7 +247,7 @@ internal partial class SettingsWindow : Window
         return button;
     }
 
-    private Button MoreButton(string name)
+    private Button MoreButton(LayoutName name)
     {
         var menu = new ContextMenu();
         var rename = new MenuItem { Header = "Rename…" };
@@ -272,9 +272,9 @@ internal partial class SettingsWindow : Window
     }
 
     /// <summary>The name of a layout as a box in its row: Enter renames it, Esc or leaving the box cancels.</summary>
-    private TextBox RenameBox(string name)
+    private TextBox RenameBox(LayoutName name)
     {
-        var box = new TextBox { Text = name };
+        var box = new TextBox { Text = name.Value };
         System.Windows.Automation.AutomationProperties.SetName(box, "Layout name");
         box.Loaded += (_, _) =>
         {
@@ -308,7 +308,7 @@ internal partial class SettingsWindow : Window
         BuildLayoutRows();
     }
 
-    private void CommitRename(string from, string to)
+    private void CommitRename(LayoutName from, string to)
     {
         var layouts = _layoutStore.Load();
         if (!LayoutLibrary.Rename(layouts, from, to))
@@ -319,11 +319,11 @@ internal partial class SettingsWindow : Window
         }
         _layoutStore.Save(layouts);
         _workspace.LayoutsChanged();
-        _selectedLayout = to.Trim();
+        _selectedLayout = new LayoutName(to.Trim());
         EndRename();
     }
 
-    private void DeleteLayout(string name)
+    private void DeleteLayout(LayoutName name)
     {
         var answer = MessageBox.Show(
             this, $"Delete the layout \"{name}\"?", "Dockyard", MessageBoxButton.OKCancel, MessageBoxImage.Question);
@@ -403,7 +403,7 @@ internal partial class SettingsWindow : Window
         if (TitleBarAppsBox.Text == _titleBarAppsText) return;
         _titleBarAppsText = TitleBarAppsBox.Text;
         _workspace.SetTitleBarApps(TitleBarAppsBox.Text.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Select(name => name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name).ToList());
+            .Select(name => new ProcessName(name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name)).ToList());
     }
 
     private async void Autostart_Changed(object sender, RoutedEventArgs e)

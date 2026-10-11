@@ -15,7 +15,13 @@ internal static class JsonFile
         // Local files meant to be readable by hand: keep "+" in "Ctrl+Alt+Left" as it is.
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        Converters = { new JsonStringEnumConverter() },
+        Converters =
+        {
+            new JsonStringEnumConverter(),
+            new WindowHandleJsonConverter(),
+            new LayoutNameJsonConverter(),
+            new ProcessNameJsonConverter(),
+        },
     };
 
     public static string PathOf(string name) => Path.Combine(Path.GetDirectoryName(Log.FilePath)!, name);

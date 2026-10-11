@@ -13,19 +13,19 @@ internal sealed class FakeFrame(FakeView view, ManualScheduler scheduler) : IGro
     public TabBarPlacement Placement { get; private set; }
     public List<ShortcutAction> ShortcutsRun { get; } = [];
 
-    public string GroupName { get; set; } = "";
+    public LayoutName GroupName { get; set; } = new("");
     public bool CanDock { get; set; } = true;
     public bool IsEditingText { get; set; }
     public PixelRect FrameBounds { get; set; } = new(100, 100, 1100, 800);
 
     // ---- IGroupView, as the inner view -------------------------------------------------------------
-    public nint Handle => view.Handle;
+    public WindowHandle Handle => view.Handle;
     public bool IsOnScreen => view.IsOnScreen;
     public bool IsMinimized => view.IsMinimized;
     public Size SurfaceSize => view.SurfaceSize;
     public double Scale => view.Scale;
-    public nint ZAnchor => view.ZAnchor;
-    public nint TabOverlay => view.TabOverlay;
+    public WindowHandle ZAnchor => view.ZAnchor;
+    public WindowHandle TabOverlay => view.TabOverlay;
     public PixelRect ToScreen(Rect surfaceRect) => view.ToScreen(surfaceRect);
     public Rect FromScreen(PixelRect screenRect) => view.FromScreen(screenRect);
     public void Render(GroupSnapshot snapshot) => view.Render(snapshot);
@@ -69,7 +69,7 @@ internal sealed class FakeFrame(FakeView view, ManualScheduler scheduler) : IGro
     public event Action? FrameMoved;
     public event Action? Renamed;
     public event Action? FrameClosed;
-    public event Action<IGroupFrame, nint>? TabDragStarted;
+    public event Action<IGroupFrame, WindowHandle>? TabDragStarted;
     public event Action<bool>? TabDragEnded;
     public event Action? SettingsRequested;
     public event Action<IGroupFrame>? SaveLayoutRequested;
@@ -80,10 +80,10 @@ internal sealed class FakeFrame(FakeView view, ManualScheduler scheduler) : IGro
 
     public void UserRenames(string name)
     {
-        GroupName = name;
+        GroupName = new LayoutName(name);
         Renamed?.Invoke();
     }
-    public void UserStartsTabDrag(nint window) => TabDragStarted?.Invoke(this, window);
+    public void UserStartsTabDrag(WindowHandle window) => TabDragStarted?.Invoke(this, window);
     public void UserEndsTabDrag(bool cancel) => TabDragEnded?.Invoke(cancel);
     public void UserAsksForSettings() => SettingsRequested?.Invoke();
     public void UserSavesLayout() => SaveLayoutRequested?.Invoke(this);
@@ -118,22 +118,22 @@ internal sealed class FakeShell(ManualScheduler scheduler) : IShell
     public IScheduler Scheduler => scheduler;
     public IDockGuide DockGuide => Guide;
 
-    public IGroupFrame CreateFrame(string name, TabBarPlacement placement, IFrameContext context)
+    public IGroupFrame CreateFrame(LayoutName name, TabBarPlacement placement, IFrameContext context)
     {
-        var handle = _next++;
+        var handle = new WindowHandle(_next++);
         Windows?.AddToZOrder(handle);
         var frame = new FakeFrame(new FakeView(handle), scheduler) { GroupName = name };
         Frames.Add(frame);
         return frame;
     }
 
-    public bool IsCapturingShortcut(nint foreground) => Capturing;
+    public bool IsCapturingShortcut(WindowHandle foreground) => Capturing;
     public void CaptureShortcut(ShortcutKey key) => Captured.Add(key);
     public void ShowSettings() => SettingsShown++;
-    public void ShowLayouts(string? layoutName = null)
+    public void ShowLayouts(LayoutName? layoutName = null)
     {
         LayoutsShown++;
-        LayoutsSelected.Add(layoutName);
+        LayoutsSelected.Add(layoutName?.Value);
     }
 
     public void Notify(string message, Action? onClick = null)
@@ -149,7 +149,7 @@ internal sealed class FakeCatalog : IWindowCatalog
     public List<WindowInfo> Windows { get; } = [];
 
     public IReadOnlyList<WindowInfo> GetCandidates() => Windows.Where(w => w.Title.Length > 0).ToList();
-    public WindowInfo? Describe(nint window) => Windows.FirstOrDefault(w => w.Handle == window);
+    public WindowInfo? Describe(WindowHandle window) => Windows.FirstOrDefault(w => w.Handle == window);
 }
 
 internal sealed class FakeInput : IInputState
@@ -168,13 +168,13 @@ internal sealed class FakeInput : IInputState
 
 internal sealed class FakeWindowEvents : IWindowEventSource
 {
-    public event Action<WindowEvent, nint>? Received;
-    public event Action<nint, PixelRect>? ShiftMouseDown;
+    public event Action<WindowEvent, WindowHandle>? Received;
+    public event Action<WindowHandle, PixelRect>? ShiftMouseDown;
     public int ForegroundChecks { get; private set; }
 
     public void CheckForeground() => ForegroundChecks++;
-    public void Raise(WindowEvent evt, nint window) => Received?.Invoke(evt, window);
-    public void RaiseShiftMouseDown(nint window, PixelRect bounds) => ShiftMouseDown?.Invoke(window, bounds);
+    public void Raise(WindowEvent evt, WindowHandle window) => Received?.Invoke(evt, window);
+    public void RaiseShiftMouseDown(WindowHandle window, PixelRect bounds) => ShiftMouseDown?.Invoke(window, bounds);
 }
 
 internal sealed class FakeKeyboard : IKeyboardSource
@@ -235,9 +235,9 @@ internal sealed class RecordingLayoutShortcuts : ILayoutShortcuts
 {
     public List<string> Created { get; } = [];
 
-    public string? CreateOnDesktop(string layoutName)
+    public string? CreateOnDesktop(LayoutName layoutName)
     {
-        Created.Add(layoutName);
+        Created.Add(layoutName.Value);
         return $@"C:\Users\me\Desktop\Dockyard - {layoutName}.lnk";
     }
 }

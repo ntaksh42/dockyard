@@ -13,20 +13,20 @@ public interface IShell
     IDockGuide DockGuide { get; }
 
     /// <summary>Creates a frame and leaves it hidden; the workspace then binds its controller and shows it.</summary>
-    IGroupFrame CreateFrame(string name, TabBarPlacement placement, IFrameContext context);
+    IGroupFrame CreateFrame(LayoutName name, TabBarPlacement placement, IFrameContext context);
 
     /// <summary>
     /// True while the settings window waits for the keys of a shortcut and has the focus. The keyboard hook then
     /// sends key presses there instead: many shortcuts (anything with Win) never reach a WPF window.
     /// </summary>
-    bool IsCapturingShortcut(nint foreground);
+    bool IsCapturingShortcut(WindowHandle foreground);
 
     void CaptureShortcut(ShortcutKey key);
 
     void ShowSettings();
 
     /// <summary>Shows the settings window on its Layouts tab, with the layout of that name chosen when given.</summary>
-    void ShowLayouts(string? layoutName = null);
+    void ShowLayouts(LayoutName? layoutName = null);
 
     /// <summary>
     /// Tells the user something briefly, e.g. with a tray balloon. <paramref name="onClick"/>, if given, runs when

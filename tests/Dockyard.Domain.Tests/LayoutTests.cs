@@ -4,15 +4,17 @@ namespace Dockyard.Domain.Tests;
 
 public class LayoutTreeTests
 {
+    private static WindowHandle W(int n) => new(n);
+
     [Fact]
     public void AddTab_ActivatesNewTab()
     {
         var tree = new LayoutTree();
         var pane = (Pane)tree.Root;
-        tree.AddTab(pane, 1);
-        tree.AddTab(pane, 2);
-        Assert.Equal([1, 2], pane.Windows);
-        Assert.Equal(2, pane.ActiveWindow);
+        tree.AddTab(pane, W(1));
+        tree.AddTab(pane, W(2));
+        Assert.Equal([W(1), W(2)], pane.Windows);
+        Assert.Equal(W(2), pane.ActiveWindow);
     }
 
     [Theory]
@@ -24,9 +26,9 @@ public class LayoutTreeTests
     {
         var tree = new LayoutTree();
         var original = (Pane)tree.Root;
-        tree.AddTab(original, 1);
+        tree.AddTab(original, W(1));
 
-        var added = tree.Split(original, side, 2);
+        var added = tree.Split(original, side, W(2));
 
         var split = Assert.IsType<SplitNode>(tree.Root);
         Assert.Equal(orientation, split.Orientation);
@@ -42,16 +44,16 @@ public class LayoutTreeTests
     {
         var tree = new LayoutTree();
         var a = (Pane)tree.Root;
-        tree.AddTab(a, 1);
-        var b = tree.Split(a, DockSide.Right, 2);
-        var c = tree.Split(b, DockSide.Bottom, 3);
+        tree.AddTab(a, W(1));
+        var b = tree.Split(a, DockSide.Right, W(2));
+        var c = tree.Split(b, DockSide.Bottom, W(3));
 
         var root = Assert.IsType<SplitNode>(tree.Root);
         var inner = Assert.IsType<SplitNode>(root.Second);
         Assert.Same(root, inner.Parent);
         Assert.Same(b, inner.First);
         Assert.Same(c, inner.Second);
-        Assert.Equal([1, 2, 3], tree.Windows);
+        Assert.Equal([W(1), W(2), W(3)], tree.Windows);
     }
 
     [Fact]
@@ -59,17 +61,17 @@ public class LayoutTreeTests
     {
         var tree = new LayoutTree();
         var a = (Pane)tree.Root;
-        tree.AddTab(a, 1);
-        var b = tree.Split(a, DockSide.Right, 2);
-        tree.Split(b, DockSide.Bottom, 3);
+        tree.AddTab(a, W(1));
+        var b = tree.Split(a, DockSide.Right, W(2));
+        tree.Split(b, DockSide.Bottom, W(3));
 
-        tree.Remove(2);
+        tree.Remove(W(2));
 
         var root = Assert.IsType<SplitNode>(tree.Root);
         Assert.Same(a, root.First);
         var c = Assert.IsType<Pane>(root.Second);
         Assert.Same(root, c.Parent);
-        Assert.Equal([1, 3], tree.Windows);
+        Assert.Equal([W(1), W(3)], tree.Windows);
     }
 
     [Fact]
@@ -77,10 +79,10 @@ public class LayoutTreeTests
     {
         var tree = new LayoutTree();
         var a = (Pane)tree.Root;
-        tree.AddTab(a, 1);
-        tree.Split(a, DockSide.Right, 2);
+        tree.AddTab(a, W(1));
+        tree.Split(a, DockSide.Right, W(2));
 
-        tree.Remove(2);
+        tree.Remove(W(2));
 
         Assert.Same(a, tree.Root);
         Assert.Null(a.Parent);
@@ -90,28 +92,28 @@ public class LayoutTreeTests
     public void Remove_LastWindowOverall_KeepsEmptyRootPane()
     {
         var tree = new LayoutTree();
-        tree.AddTab((Pane)tree.Root, 1);
-        tree.Remove(1);
+        tree.AddTab((Pane)tree.Root, W(1));
+        tree.Remove(W(1));
         var root = Assert.IsType<Pane>(tree.Root);
         Assert.Empty(root.Windows);
         Assert.Null(root.ActiveWindow);
     }
 
     [Theory]
-    [InlineData(0, 2, 2)] // removing before the active tab keeps the same window active
+    [InlineData(0, 2, 3)] // removing before the active tab keeps the same window active
     [InlineData(2, 2, 2)] // removing the active last tab activates the previous one
     [InlineData(1, 0, 1)]
-    public void Remove_AdjustsActiveIndex(int removeIndex, int activeIndex, nint expectedActive)
+    public void Remove_AdjustsActiveIndex(int removeIndex, int activeIndex, int expectedActive)
     {
         var tree = new LayoutTree();
         var pane = (Pane)tree.Root;
-        nint[] windows = [1, 2, 3];
+        WindowHandle[] windows = [W(1), W(2), W(3)];
         foreach (var w in windows) tree.AddTab(pane, w);
         pane.ActiveIndex = activeIndex;
 
         tree.Remove(windows[removeIndex]);
 
-        Assert.Equal(expectedActive, pane.ActiveWindow);
+        Assert.Equal(W(expectedActive), pane.ActiveWindow);
     }
 
     [Fact]
@@ -120,9 +122,9 @@ public class LayoutTreeTests
         // [ a | [ b / c ] ]
         var tree = new LayoutTree();
         var a = (Pane)tree.Root;
-        tree.AddTab(a, 1);
-        var b = tree.Split(a, DockSide.Right, 2);
-        var c = tree.Split(b, DockSide.Bottom, 3);
+        tree.AddTab(a, W(1));
+        var b = tree.Split(a, DockSide.Right, W(2));
+        var c = tree.Split(b, DockSide.Bottom, W(3));
         var root = (SplitNode)tree.Root;
         var inner = (SplitNode)root.Second;
 
@@ -141,16 +143,18 @@ public class LayoutTreeTests
     {
         var tree = new LayoutTree();
         var pane = (Pane)tree.Root;
-        tree.AddTab(pane, 1);
-        tree.AddTab(pane, 2);
-        tree.Activate(1);
-        Assert.Equal(1, pane.ActiveWindow);
+        tree.AddTab(pane, W(1));
+        tree.AddTab(pane, W(2));
+        tree.Activate(W(1));
+        Assert.Equal(W(1), pane.ActiveWindow);
     }
 }
 
 public class LayoutEngineTests
 {
     private static readonly LayoutMetrics M = new(SplitterThickness: 4, TabBarHeight: 20, MinPaneWidth: 50, MinPaneHeight: 30);
+
+    private static WindowHandle W(int n) => new(n);
 
     [Fact]
     public void Arrange_SinglePane_SplitsTabBarAndContent()
@@ -185,9 +189,9 @@ public class LayoutEngineTests
     public void TitleBarPlacement_PanesThatKeepTheirTitleBarGetTabsAbove()
     {
         var tree = new LayoutTree();
-        tree.AddTab((Pane)tree.Root, 1);
-        tree.Split((Pane)tree.Root, DockSide.Right, 2);
-        var m = M with { TabBarPlacement = TabBarPlacement.TitleBar, KeepsTitleBar = p => p.Windows.Contains(2) };
+        tree.AddTab((Pane)tree.Root, W(1));
+        tree.Split((Pane)tree.Root, DockSide.Right, W(2));
+        var m = M with { TabBarPlacement = TabBarPlacement.TitleBar, KeepsTitleBar = p => p.Windows.Contains(W(2)) };
 
         var panes = LayoutEngine.Arrange(tree.Root, new Rect(0, 0, 204, 100), m).Panes;
 
@@ -206,7 +210,7 @@ public class LayoutEngineTests
     public void MinSize_ReservesRoomForTabsByPlacement(TabBarPlacement placement, double width, double height)
     {
         var tree = new LayoutTree();
-        tree.AddTab((Pane)tree.Root, 1);
+        tree.AddTab((Pane)tree.Root, W(1));
         var m = M with { TabBarPlacement = placement, TabColumnWidth = 60 };
         Assert.Equal(new Size(width, height), LayoutEngine.MinSize(tree.Root, m, _ => new Size(90, 100)));
     }
@@ -216,8 +220,8 @@ public class LayoutEngineTests
     {
         var tree = new LayoutTree();
         var a = (Pane)tree.Root;
-        tree.AddTab(a, 1);
-        tree.Split(a, DockSide.Right, 2);
+        tree.AddTab(a, W(1));
+        tree.Split(a, DockSide.Right, W(2));
         ((SplitNode)tree.Root).Ratio = 0.25;
 
         var result = LayoutEngine.Arrange(tree.Root, new Rect(10, 0, 404, 100), M);
@@ -232,8 +236,8 @@ public class LayoutEngineTests
     {
         var tree = new LayoutTree();
         var a = (Pane)tree.Root;
-        tree.AddTab(a, 1);
-        tree.Split(a, DockSide.Bottom, 2);
+        tree.AddTab(a, W(1));
+        tree.Split(a, DockSide.Bottom, W(2));
 
         var result = LayoutEngine.Arrange(tree.Root, new Rect(0, 0, 100, 204), M);
 
@@ -246,10 +250,10 @@ public class LayoutEngineTests
     {
         var tree = new LayoutTree();
         var a = (Pane)tree.Root;
-        tree.AddTab(a, 1);
-        tree.AddTab(a, 2);
-        tree.Split(a, DockSide.Right, 3);
-        var mins = new Dictionary<nint, Size> { [1] = new(120, 10), [2] = new(60, 90), [3] = new(0, 0) };
+        tree.AddTab(a, W(1));
+        tree.AddTab(a, W(2));
+        tree.Split(a, DockSide.Right, W(3));
+        var mins = new Dictionary<WindowHandle, Size> { [W(1)] = new(120, 10), [W(2)] = new(60, 90), [W(3)] = new(0, 0) };
 
         var size = LayoutEngine.MinSize(tree.Root, M, w => mins[w]);
 
@@ -265,11 +269,11 @@ public class LayoutEngineTests
     {
         var tree = new LayoutTree();
         var a = (Pane)tree.Root;
-        tree.AddTab(a, 1);
-        tree.Split(a, DockSide.Right, 2);
+        tree.AddTab(a, W(1));
+        tree.Split(a, DockSide.Right, W(2));
         var split = (SplitNode)tree.Root;
 
-        var ratio = LayoutEngine.ClampRatio(split, requested, 404, M, w => w == 1 ? new Size(120, 0) : new Size(0, 0));
+        var ratio = LayoutEngine.ClampRatio(split, requested, 404, M, w => w == W(1) ?new Size(120, 0) : new Size(0, 0));
 
         Assert.Equal(expected, ratio, 6);
     }
@@ -280,15 +284,15 @@ public class LayoutEngineTests
         // [ a | [ b | c ] ], c needs 200 wide
         var tree = new LayoutTree();
         var a = (Pane)tree.Root;
-        tree.AddTab(a, 1);
-        var b = tree.Split(a, DockSide.Right, 2);
-        tree.Split(b, DockSide.Right, 3);
+        tree.AddTab(a, W(1));
+        var b = tree.Split(a, DockSide.Right, W(2));
+        tree.Split(b, DockSide.Right, W(3));
         var root = (SplitNode)tree.Root;
         var inner = (SplitNode)root.Second;
         root.Ratio = 0.5;
         inner.Ratio = 0.5;
 
-        LayoutEngine.ClampAll(tree.Root, new Rect(0, 0, 604, 100), M, w => w == 3 ? new Size(200, 0) : new Size(0, 0));
+        LayoutEngine.ClampAll(tree.Root, new Rect(0, 0, 604, 100), M, w => w == W(3) ?new Size(200, 0) : new Size(0, 0));
 
         // inner needs 50 + 4 + 200 = 254, so root gives it at least that; inner then leaves c its 200.
         var result = LayoutEngine.Arrange(tree.Root, new Rect(0, 0, 604, 100), M);
@@ -302,8 +306,8 @@ public class LayoutEngineTests
     {
         var tree = new LayoutTree();
         var a = (Pane)tree.Root;
-        tree.AddTab(a, 1);
-        tree.Split(a, DockSide.Right, 2);
+        tree.AddTab(a, W(1));
+        tree.Split(a, DockSide.Right, W(2));
         var split = (SplitNode)tree.Root;
 
         var ratio = LayoutEngine.ClampRatio(split, 0.5, 104, M, _ => new Size(150, 0));
@@ -316,12 +320,14 @@ public class LayoutEdgeCaseTests
 {
     private static readonly LayoutMetrics M = new(SplitterThickness: 4, TabBarHeight: 20, MinPaneWidth: 50, MinPaneHeight: 30);
 
+    private static WindowHandle W(int n) => new(n);
+
     private static LayoutTree TwoPanes(DockSide side)
     {
         var tree = new LayoutTree();
         var a = (Pane)tree.Root;
-        tree.AddTab(a, 1);
-        tree.Split(a, side, 2);
+        tree.AddTab(a, W(1));
+        tree.Split(a, side, W(2));
         return tree;
     }
 
@@ -342,9 +348,9 @@ public class LayoutEdgeCaseTests
     {
         var tree = new LayoutTree();
         var a = (Pane)tree.Root;
-        tree.AddTab(a, 1);
-        var b = tree.Split(a, DockSide.Right, 2);
-        tree.Split(a, DockSide.Right, 3);
+        tree.AddTab(a, W(1));
+        var b = tree.Split(a, DockSide.Right, W(2));
+        tree.Split(a, DockSide.Right, W(3));
         ((SplitNode)tree.Root).Ratio = 0; // the nested split gets no width at all
 
         var result = LayoutEngine.Arrange(tree.Root, new Rect(0, 0, 300, 100), M);
@@ -379,7 +385,7 @@ public class LayoutEdgeCaseTests
     public void MinSize_VerticalSplit_StacksHeights()
     {
         var tree = TwoPanes(DockSide.Bottom);
-        var size = LayoutEngine.MinSize(tree.Root, M, w => w == 1 ? new Size(200, 100) : new Size(0, 0));
+        var size = LayoutEngine.MinSize(tree.Root, M, w => w == W(1) ?new Size(200, 100) : new Size(0, 0));
         Assert.Equal(new Size(200, (100 + 20) + 4 + (30 + 20)), size);
     }
 
@@ -387,7 +393,7 @@ public class LayoutEdgeCaseTests
     public void ClampRatio_VerticalSplit_UsesHeights()
     {
         var tree = TwoPanes(DockSide.Bottom);
-        var ratio = LayoutEngine.ClampRatio((SplitNode)tree.Root, 0.01, 504, M, w => w == 1 ? new Size(0, 180) : new Size(0, 0));
+        var ratio = LayoutEngine.ClampRatio((SplitNode)tree.Root, 0.01, 504, M, w => w == W(1) ?new Size(0, 180) : new Size(0, 0));
         Assert.Equal(200.0 / 500, ratio, 6); // 180 content + 20 tab bar of 500 available
     }
 
@@ -395,7 +401,7 @@ public class LayoutEdgeCaseTests
     public void RemoveOrActivate_UnknownWindow_Throws()
     {
         var tree = new LayoutTree();
-        Assert.Throws<ArgumentException>(() => tree.Remove(9));
-        Assert.Throws<ArgumentException>(() => tree.Activate(9));
+        Assert.Throws<ArgumentException>(() => tree.Remove(W(9)));
+        Assert.Throws<ArgumentException>(() => tree.Activate(W(9)));
     }
 }

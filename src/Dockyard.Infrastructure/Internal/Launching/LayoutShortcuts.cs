@@ -13,12 +13,12 @@ internal sealed class LayoutShortcuts : ILayoutShortcuts
     /// <summary>The alias installer/AppxManifest.xml declares: the package's own exe path cannot be started from a shortcut.</summary>
     private const string PackageAlias = "dockyard.exe";
 
-    public string? CreateOnDesktop(string layoutName)
+    public string? CreateOnDesktop(LayoutName layoutName)
     {
         try
         {
             var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-            var path = Path.Combine(desktop, $"Dockyard - {FileSafe(layoutName)}.lnk");
+            var path = Path.Combine(desktop, $"Dockyard - {FileSafe(layoutName.Value)}.lnk");
             var exe = Environment.ProcessPath!;
             var link = (IShellLink)new ShellLink();
             link.SetPath(AppPackage.IsPackaged

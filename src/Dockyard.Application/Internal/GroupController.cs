@@ -11,12 +11,12 @@ internal sealed class GroupController : IGroupControl
 {
     public LayoutMetrics Metrics { get; private set; } = new(SplitterThickness: 4, TabBarHeight: 24);
 
-    private sealed class Member(nint handle, PixelRect originalBounds)
+    private sealed class Member(WindowHandle handle, PixelRect originalBounds)
     {
-        public nint Handle { get; } = handle;
+        public WindowHandle Handle { get; } = handle;
         public PixelRect OriginalBounds { get; } = originalBounds;
         public string Title { get; set; } = "";
-        public string ProcessName { get; init; } = "";
+        public ProcessName ProcessName { get; init; } = new("");
         public string? ProcessPath { get; init; }
         /// <summary>Whether the window was always on top before it joined; stacking it in the group ends that, so it is given back on release.</summary>
         public bool Topmost { get; init; }
@@ -34,13 +34,13 @@ internal sealed class GroupController : IGroupControl
     private readonly IScheduler _scheduler;
     private readonly IRestartableTimer _settleTimer;
     private readonly LayoutTree _tree = new();
-    private readonly Dictionary<nint, Member> _members = [];
+    private readonly Dictionary<WindowHandle, Member> _members = [];
     /// <summary>Saved tabs whose windows were not open when the layout was restored, by the pane they belong in.</summary>
     private readonly Dictionary<Pane, List<SavedTab>> _waiting = [];
     private LayoutResult? _layout;
-    private nint _lastActive;
+    private WindowHandle _lastActive;
     /// <summary>Member the user is dragging or resizing, between move/size start and end.</summary>
-    private nint _dragged;
+    private WindowHandle _dragged;
     private bool _dragUpdatePending;
     /// <summary>True while we restack windows ourselves, so our own changes are not mistaken for the system's.</summary>
     private bool _raising;
@@ -61,12 +61,12 @@ internal sealed class GroupController : IGroupControl
 
     public LayoutResult? Layout => _layout;
 
-    public IEnumerable<nint> Members => _members.Keys;
+    public IEnumerable<WindowHandle> Members => _members.Keys;
 
-    public bool Owns(nint window) => _members.ContainsKey(window);
+    public bool Owns(WindowHandle window) => _members.ContainsKey(window);
 
     /// <summary>The tab the user last worked in, which keyboard shortcuts act on when the frame has the focus.</summary>
-    public nint? LastActive => _members.ContainsKey(_lastActive) ? _lastActive : null;
+    public WindowHandle? LastActive => _members.ContainsKey(_lastActive) ? _lastActive : null;
 
     /// <summary>Raised after the layout or the members change, so the host can keep the session file current.</summary>
     public event Action? Changed;
@@ -77,10 +77,10 @@ internal sealed class GroupController : IGroupControl
 
     /// <summary>
     /// Replaces an empty group's layout with a saved one. <paramref name="resolve"/> picks the window for each
-    /// saved tab (0 for none); tabs whose windows are not found wait for one (see <see cref="FillWaiting"/>), and
+    /// saved tab (<see cref="WindowHandle.None"/> for none); tabs whose windows are not found wait for one (see <see cref="FillWaiting"/>), and
     /// their panes stay empty until then (Q3). Returns how many windows joined.
     /// </summary>
-    public int RestoreLayout(SavedNode layout, Func<SavedTab, nint> resolve)
+    public int RestoreLayout(SavedNode layout, Func<SavedTab, WindowHandle> resolve)
     {
         if (_closing || _members.Count > 0) return 0;
         _waiting.Clear();
@@ -102,7 +102,7 @@ internal sealed class GroupController : IGroupControl
         _ => throw new InvalidOperationException(),
     };
 
-    private LayoutNode Build(SavedNode node, Func<SavedTab, nint> resolve)
+    private LayoutNode Build(SavedNode node, Func<SavedTab, WindowHandle> resolve)
     {
         if (node is { Split: { } orientation, First: { } first, Second: { } second })
             return new SplitNode(orientation, Build(first, resolve), Build(second, resolve)) { Ratio = Math.Clamp(node.Ratio, 0, 1) };
@@ -111,11 +111,11 @@ internal sealed class GroupController : IGroupControl
         for (var i = 0; i < tabs.Count; i++)
         {
             var h = resolve(tabs[i]);
-            if (h == 0 || _members.ContainsKey(h) || !_windows.Exists(h))
+            if (h.IsNone || _members.ContainsKey(h) || !_windows.Exists(h))
             {
                 // Not the window: a window of the same app may still come.
                 if (!_waiting.TryGetValue(pane, out var waiting)) _waiting[pane] = waiting = [];
-                waiting.Add(tabs[i] with { Handle = 0, OriginalBounds = null });
+                waiting.Add(tabs[i] with { Handle = WindowHandle.None, OriginalBounds = null });
                 continue;
             }
             if (_windows.IsMinimized(h) || _windows.IsMaximized(h)) _windows.Restore(h);
@@ -141,18 +141,18 @@ internal sealed class GroupController : IGroupControl
     private IEnumerable<SavedTab> Waiting(Pane pane) => _waiting.TryGetValue(pane, out var tabs) ? tabs : [];
 
     /// <summary>Takes the window out of the tree, keeping its pane while restored tabs still wait there.</summary>
-    private void Detach(nint window) => _tree.Remove(window, collapse: !Waiting(_tree.FindPane(window)!).Any());
+    private void Detach(WindowHandle window) => _tree.Remove(window, collapse: !Waiting(_tree.FindPane(window)!).Any());
 
     /// <summary>
     /// A window just opened: if a restored tab waits for its app, the window takes that tab's place, preferring
     /// the tab with the same title. Returns false if no tab waits for it.
     /// </summary>
-    public bool FillWaiting(nint window, string processName, string title)
+    public bool FillWaiting(WindowHandle window, ProcessName processName, string title)
     {
         if (_closing) return false;
         var candidates = _tree.Panes
             .SelectMany(p => Waiting(p).Select(t => (Pane: p, Tab: t)))
-            .Where(w => w.Tab.ProcessName.Equals(processName, StringComparison.OrdinalIgnoreCase))
+            .Where(w => w.Tab.ProcessName == processName)
             .ToList();
         if (candidates.Count == 0) return false;
         var (pane, tab) = candidates.FirstOrDefault(w => w.Tab.Title == title) is { Pane: not null } same ? same : candidates[0];
@@ -165,7 +165,7 @@ internal sealed class GroupController : IGroupControl
     // ---- user commands ------------------------------------------------------------------------
 
     /// <summary>Adds a window as a tab of <paramref name="pane"/>, or in a new pane split off it on <paramref name="side"/>.</summary>
-    public bool Adopt(nint window, Pane pane, DockSide? side, PixelRect? originalBounds = null)
+    public bool Adopt(WindowHandle window, Pane pane, DockSide? side, PixelRect? originalBounds = null)
     {
         // The picker is modal and pumps events: the window or its target pane may have gone away meanwhile.
         if (_closing || !_windows.Exists(window) || _members.ContainsKey(window) || !_tree.Panes.Contains(pane)) return false;
@@ -187,7 +187,7 @@ internal sealed class GroupController : IGroupControl
     }
 
     /// <summary>Moves a tab without losing its original bounds or learned minimum size.</summary>
-    public bool Dock(nint window, Pane pane, DockSide? side, GroupController? source = null, PixelRect? originalBounds = null)
+    public bool Dock(WindowHandle window, Pane pane, DockSide? side, GroupController? source = null, PixelRect? originalBounds = null)
     {
         source ??= this;
         if (!source.Owns(window)) return Adopt(window, pane, side, originalBounds);
@@ -204,7 +204,7 @@ internal sealed class GroupController : IGroupControl
         var member = source._members[window];
         source.Detach(window);
         source._members.Remove(window);
-        source._dragged = 0;
+        source._dragged = WindowHandle.None;
         member.DragStart = null;
         _members.Add(window, member);
         if (side is { } s) _tree.Split(pane, s, window);
@@ -219,26 +219,26 @@ internal sealed class GroupController : IGroupControl
         return true;
     }
 
-    public void BeginDockDrag(nint window)
+    public void BeginDockDrag(WindowHandle window)
     {
         if (Owns(window)) _dragged = window;
     }
 
     public void EndDockDrag()
     {
-        _dragged = 0;
+        _dragged = WindowHandle.None;
         Refresh(raise: true);
     }
 
     /// <summary>Takes a tab out of the group (its × button).</summary>
-    public void Remove(nint window)
+    public void Remove(WindowHandle window)
     {
         if (!_members.ContainsKey(window)) return;
         Release(window);
         Refresh(raise: true);
     }
 
-    public void ActivateTab(nint window)
+    public void ActivateTab(WindowHandle window)
     {
         if (!_members.ContainsKey(window)) return;
         Diagnostics.Trace?.Invoke($"activate tab {window:X}");
@@ -249,7 +249,7 @@ internal sealed class GroupController : IGroupControl
     }
 
     /// <summary>Runs a keyboard shortcut on behalf of <paramref name="window"/>, a member that has the focus.</summary>
-    public void Execute(ShortcutAction action, nint window)
+    public void Execute(ShortcutAction action, WindowHandle window)
     {
         if (!Accepts(window, out _) || _tree.FindPane(window) is not { } pane) return;
         if (action == ShortcutAction.RemoveFromGroup)
@@ -268,7 +268,7 @@ internal sealed class GroupController : IGroupControl
             ResizePane(pane, action == ShortcutAction.GrowPane ? PaneStep : -PaneStep);
             return;
         }
-        nint? target = null;
+        WindowHandle? target = null;
         if (action is >= ShortcutAction.Tab1 and <= ShortcutAction.Tab9)
         {
             // Like browsers, the last number goes to the last tab however many there are.
@@ -297,7 +297,7 @@ internal sealed class GroupController : IGroupControl
     /// Moves the tab into the neighbouring pane on <paramref name="side"/>; without one there, splits its own pane
     /// so the tab gets a pane of its own on that side (if it shares the pane with other tabs).
     /// </summary>
-    private void MoveTab(nint window, Pane pane, DockSide side)
+    private void MoveTab(WindowHandle window, Pane pane, DockSide side)
     {
         if (_layout is not null && Navigation.FindNeighbor(_layout, pane, side) is { } neighbour) Dock(window, neighbour.Pane, null);
         else if (pane.Windows.Count > 1) Dock(window, pane, side);
@@ -340,9 +340,9 @@ internal sealed class GroupController : IGroupControl
     /// Apps (exe names) that draw controls in their own title bar, such as browsers with tabs there: with
     /// placement B, panes holding one of them keep their tabs above the content instead of covering it.
     /// </summary>
-    public void SetTitleBarApps(IEnumerable<string> processNames)
+    public void SetTitleBarApps(IEnumerable<ProcessName> processNames)
     {
-        var apps = processNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var apps = processNames.ToHashSet();
         Metrics = Metrics with { KeepsTitleBar = pane => pane.Windows.Any(h => _members.TryGetValue(h, out var m) && apps.Contains(m.ProcessName)) };
         Refresh(raise: true);
     }
@@ -401,13 +401,13 @@ internal sealed class GroupController : IGroupControl
     /// instead: just below them. Raising them afterwards would let the frame cover them for a moment, which
     /// shows up as blank panes flashing. Returns null to leave the change as it is.
     /// </summary>
-    public nint? OnFrameZChanging(FrameZChange change)
+    public WindowHandle? OnFrameZChanging(FrameZChange change)
     {
         if (_raising || _live || !_view.IsOnScreen) return null;
         Diagnostics.Trace?.Invoke($"frame z-change {change}");
         var actives = ActiveWindows();
         if (!ZOrderPolicy.ShouldCarryTabs(change, [.. _members.Keys, _view.TabOverlay]) || actives.Count == 0) return null;
-        Stack(change.Placement == ZPlacement.Top ? 0 : change.Below, [.. Overlay(), .. actives]);
+        Stack(change.Placement == ZPlacement.Top ? WindowHandle.None : change.Below, [.. Overlay(), .. actives]);
         return actives[^1];
     }
 
@@ -420,7 +420,7 @@ internal sealed class GroupController : IGroupControl
 
     // ---- member window events -----------------------------------------------------------------
 
-    public void OnForeground(nint window)
+    public void OnForeground(WindowHandle window)
     {
         if (!Accepts(window, out _)) return;
         Diagnostics.Trace?.Invoke($"foreground {window:X}");
@@ -431,23 +431,23 @@ internal sealed class GroupController : IGroupControl
         Raise(window);
     }
 
-    public void OnMoveSizeStart(nint window)
+    public void OnMoveSizeStart(WindowHandle window)
     {
         if (!Accepts(window, out var m)) return;
         _dragged = window;
         m.DragStart = _windows.GetVisibleBounds(window);
     }
 
-    public void OnMoveSizeEnd(nint window)
+    public void OnMoveSizeEnd(WindowHandle window)
     {
         if (!Accepts(window, out var m)) return;
-        _dragged = 0;
+        _dragged = WindowHandle.None;
         ApplyMemberDrag(m);
         m.DragStart = null;
         Refresh(raise: false);
     }
 
-    public void OnLocationChanged(nint window)
+    public void OnLocationChanged(WindowHandle window)
     {
         if (!Accepts(window, out var m)) return;
         if (window == _dragged)
@@ -477,7 +477,7 @@ internal sealed class GroupController : IGroupControl
         }
     }
 
-    public void OnTitleChanged(nint window)
+    public void OnTitleChanged(WindowHandle window)
     {
         if (!Accepts(window, out var m)) return;
         var title = _windows.GetTitle(window);
@@ -486,34 +486,34 @@ internal sealed class GroupController : IGroupControl
         RenderVisuals();
     }
 
-    public void OnDestroyed(nint window)
+    public void OnDestroyed(WindowHandle window)
     {
         if (!Accepts(window, out _)) return;
-        if (_dragged == window) _dragged = 0;
+        if (_dragged == window) _dragged = WindowHandle.None;
         _members.Remove(window);
         Detach(window);
         Refresh(raise: false);
         RestackAtFrame();
     }
 
-    private bool Accepts(nint window, out Member member) => _members.TryGetValue(window, out member!) && !_closing;
+    private bool Accepts(WindowHandle window, out Member member) => _members.TryGetValue(window, out member!) && !_closing;
 
     // ---- layout and placement -----------------------------------------------------------------
 
-    private void Release(nint window)
+    private void Release(WindowHandle window)
     {
         var m = _members[window];
         _members.Remove(window);
         // A drag in progress ends with it: the notification that would end it may come after the window is
         // added again, and the window would be left out of placement as one the user still holds.
-        if (_dragged == window) _dragged = 0;
+        if (_dragged == window) _dragged = WindowHandle.None;
         Detach(window);
         if (!_windows.Exists(window)) return;
         _windows.SetBounds(window, m.OriginalBounds);
         if (m.Topmost) _windows.SetTopmost(window);
     }
 
-    private void Refresh(bool raise, nint? top = null)
+    private void Refresh(bool raise, WindowHandle? top = null)
     {
         if (_closing) return;
         Changed?.Invoke();
@@ -536,7 +536,7 @@ internal sealed class GroupController : IGroupControl
         _view.Render(new GroupSnapshot(_layout, _members.ToDictionary(p => p.Key, p => p.Value.Title), active, waiting));
     }
 
-    private void SyncWindows(bool raise, nint? top = null)
+    private void SyncWindows(bool raise, WindowHandle? top = null)
     {
         if (_layout is null || !_view.IsOnScreen) return;
         foreach (var p in _layout.Panes)
@@ -555,7 +555,7 @@ internal sealed class GroupController : IGroupControl
     }
 
     /// <summary>Z-order: [top, other active tabs..., frame, inactive tabs...].</summary>
-    private void Raise(nint? top)
+    private void Raise(WindowHandle? top)
     {
         Diagnostics.Trace?.Invoke(
             $"raise top={top:X} actives={string.Join(",", ActiveWindows().Select(h => h.ToString("X")))} onScreen={_view.IsOnScreen} live={_live}");
@@ -577,9 +577,9 @@ internal sealed class GroupController : IGroupControl
     }
 
     /// <summary>The window drawing tab bars over the members (placement B), which goes above the active tabs.</summary>
-    private nint[] Overlay() => _view.TabOverlay == 0 ? [] : [_view.TabOverlay];
+    private WindowHandle[] Overlay() => _view.TabOverlay.IsNone ? [] : [_view.TabOverlay];
 
-    private void Stack(nint after, IReadOnlyList<nint> topDown)
+    private void Stack(WindowHandle after, IReadOnlyList<WindowHandle> topDown)
     {
         _raising = true;
         try
@@ -592,9 +592,9 @@ internal sealed class GroupController : IGroupControl
         }
     }
 
-    private List<nint> ActiveWindows() => _tree.Panes.Select(p => p.ActiveWindow).OfType<nint>().ToList();
+    private List<WindowHandle> ActiveWindows() => _tree.Panes.Select(p => p.ActiveWindow).OfType<WindowHandle>().ToList();
 
-    private Size MinSizeOf(nint window) => _members[window].MinSize;
+    private Size MinSizeOf(WindowHandle window) => _members[window].MinSize;
 
     /// <summary>
     /// A member's invisible resize border covers the splitters and the frame edges, so dragging a member is how

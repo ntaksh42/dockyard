@@ -1,3 +1,5 @@
+using Dockyard.Domain;
+
 namespace Dockyard.Application;
 
 public enum ZPlacement
@@ -12,4 +14,4 @@ public enum ZPlacement
 }
 
 /// <summary>A z-order change the system is about to make to the frame.</summary>
-public readonly record struct FrameZChange(ZPlacement Placement, nint Below = 0, bool Hiding = false);
+public readonly record struct FrameZChange(ZPlacement Placement, WindowHandle Below = default, bool Hiding = false);

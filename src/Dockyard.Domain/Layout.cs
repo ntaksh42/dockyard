@@ -17,9 +17,9 @@ public abstract class LayoutNode
 /// <summary>A leaf of the layout tree. Holds external windows as tabs.</summary>
 public sealed class Pane : LayoutNode
 {
-    public List<nint> Windows { get; } = [];
+    public List<WindowHandle> Windows { get; } = [];
     public int ActiveIndex { get; set; }
-    public nint? ActiveWindow => Windows.Count == 0 ? null : Windows[ActiveIndex];
+    public WindowHandle? ActiveWindow => Windows.Count == 0 ? null : Windows[ActiveIndex];
 }
 
 public sealed class SplitNode : LayoutNode
@@ -55,9 +55,9 @@ public sealed class LayoutTree
 
     public IEnumerable<Pane> Panes => Enumerate(Root);
 
-    public IEnumerable<nint> Windows => Panes.SelectMany(p => p.Windows);
+    public IEnumerable<WindowHandle> Windows => Panes.SelectMany(p => p.Windows);
 
-    public Pane? FindPane(nint window) => Panes.FirstOrDefault(p => p.Windows.Contains(window));
+    public Pane? FindPane(WindowHandle window) => Panes.FirstOrDefault(p => p.Windows.Contains(window));
 
     /// <summary>Replaces the whole tree, e.g. with a saved layout.</summary>
     public void Load(LayoutNode root)
@@ -66,14 +66,14 @@ public sealed class LayoutTree
         Root = root;
     }
 
-    public void AddTab(Pane pane, nint window)
+    public void AddTab(Pane pane, WindowHandle window)
     {
         pane.Windows.Add(window);
         pane.ActiveIndex = pane.Windows.Count - 1;
     }
 
     /// <summary>Splits <paramref name="target"/> and puts <paramref name="window"/> in a new pane on <paramref name="side"/>.</summary>
-    public Pane Split(Pane target, DockSide side, nint window)
+    public Pane Split(Pane target, DockSide side, WindowHandle window)
     {
         var pane = new Pane();
         pane.Windows.Add(window);
@@ -92,7 +92,7 @@ public sealed class LayoutTree
     /// Removes the window. An emptied pane is collapsed unless it is the last one, or <paramref name="collapse"/>
     /// is false because something else still belongs there.
     /// </summary>
-    public void Remove(nint window, bool collapse = true)
+    public void Remove(WindowHandle window, bool collapse = true)
     {
         var pane = FindPane(window) ?? throw new ArgumentException("Window is not in this layout.", nameof(window));
         var index = pane.Windows.IndexOf(window);
@@ -115,7 +115,7 @@ public sealed class LayoutTree
         }
     }
 
-    public void Activate(nint window)
+    public void Activate(WindowHandle window)
     {
         var pane = FindPane(window) ?? throw new ArgumentException("Window is not in this layout.", nameof(window));
         pane.ActiveIndex = pane.Windows.IndexOf(window);

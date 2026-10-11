@@ -16,7 +16,7 @@ internal sealed class DockDragSession
     private bool _running;
     private OpenGroup? _source, _target;
     private DockTarget? _drop;
-    private nint _window;
+    private WindowHandle _window;
     private bool _cancelled;
     private PixelRect _originalBounds;
 
@@ -29,7 +29,7 @@ internal sealed class DockDragSession
         _timer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(30), Tick);
     }
 
-    public void Begin(nint window, OpenGroup? source, PixelRect? originalBounds = null)
+    public void Begin(WindowHandle window, OpenGroup? source, PixelRect? originalBounds = null)
     {
         Finish(true);
         _window = window;
@@ -81,7 +81,7 @@ internal sealed class DockDragSession
 
     public void Finish(bool cancel = false)
     {
-        if (_window == 0) return;
+        if (_window.IsNone) return;
         _running = false;
         _timer.Stop();
         if (!cancel && !_cancelled) Update();
@@ -90,7 +90,7 @@ internal sealed class DockDragSession
         var target = _target;
         var drop = _drop;
         var cancelled = cancel || _cancelled;
-        _window = 0;
+        _window = WindowHandle.None;
         _source = null;
         HideGuide();
         if (!cancelled && target is not null && drop is not null)

@@ -51,17 +51,17 @@ public sealed class WpfShell : IShell, IDisposable
 
     IDockGuide IShell.DockGuide => _dockGuide;
 
-    IGroupFrame IShell.CreateFrame(string name, TabBarPlacement placement, IFrameContext context) =>
+    IGroupFrame IShell.CreateFrame(LayoutName name, TabBarPlacement placement, IFrameContext context) =>
         new GroupWindow(name, _platform, context, placement);
 
-    bool IShell.IsCapturingShortcut(nint foreground) =>
+    bool IShell.IsCapturingShortcut(WindowHandle foreground) =>
         _settingsWindow is { IsCapturing: true } settings && settings.Handle == foreground;
 
     void IShell.CaptureShortcut(ShortcutKey key) => _settingsWindow?.Capture(key);
 
     void IShell.ShowSettings() => ShowSettingsWindow();
 
-    void IShell.ShowLayouts(string? layoutName) => ShowSettingsWindow().ShowLayoutsTab(layoutName);
+    void IShell.ShowLayouts(LayoutName? layoutName) => ShowSettingsWindow().ShowLayoutsTab(layoutName);
 
     void IShell.Notify(string message, Action? onClick)
     {
@@ -99,7 +99,7 @@ public sealed class WpfShell : IShell, IDisposable
         {
             open.DropDownItems.Clear();
             foreach (var saved in _platform.Layouts.Load())
-                open.DropDownItems.Add(saved.Name, null, (_, _) => workspace.OpenLayout(saved));
+                open.DropDownItems.Add(saved.Name.Value, null, (_, _) => workspace.OpenLayout(saved));
             if (open.DropDownItems.Count == 0) open.DropDownItems.Add(new Forms.ToolStripMenuItem("(No saved layouts)") { Enabled = false });
         };
         // A placeholder: without any item the menu shows no submenu to open.

@@ -12,8 +12,10 @@ public class LayoutPropertyTests
 
     public static IEnumerable<object[]> Seeds => Enumerable.Range(1, 25).Select(i => new object[] { i });
 
+    private static WindowHandle W(nint n) => new(n);
+
     /// <summary>Applies one random operation and keeps <paramref name="model"/> (the expected window set) in step.</summary>
-    private static string RandomStep(Random rng, LayoutTree tree, HashSet<nint> model, ref nint next)
+    private static string RandomStep(Random rng, LayoutTree tree, HashSet<WindowHandle> model, ref nint next)
     {
         var panes = tree.Panes.ToList();
         var windows = model.ToList();
@@ -22,8 +24,8 @@ public class LayoutPropertyTests
             case 0:
             {
                 var pane = panes[rng.Next(panes.Count)];
-                tree.AddTab(pane, next);
-                model.Add(next);
+                tree.AddTab(pane, W(next));
+                model.Add(W(next));
                 return $"tab {next++}";
             }
             case 1:
@@ -31,9 +33,9 @@ public class LayoutPropertyTests
                 var pane = panes[rng.Next(panes.Count)];
                 var side = (DockSide)rng.Next(4);
                 // Splitting an empty pane is only possible for the root, which the app never does with no window.
-                if (pane.Windows.Count == 0) { tree.AddTab(pane, next); model.Add(next); return $"tab {next++}"; }
-                tree.Split(pane, side, next);
-                model.Add(next);
+                if (pane.Windows.Count == 0) { tree.AddTab(pane, W(next)); model.Add(W(next)); return $"tab {next++}"; }
+                tree.Split(pane, side, W(next));
+                model.Add(W(next));
                 return $"split {side} {next++}";
             }
             case 2 or 3:
@@ -63,7 +65,7 @@ public class LayoutPropertyTests
         ? new[] { s }.Concat(AllSplits(s.First)).Concat(AllSplits(s.Second))
         : [];
 
-    private static void CheckTree(LayoutTree tree, HashSet<nint> model, string at)
+    private static void CheckTree(LayoutTree tree, HashSet<WindowHandle> model, string at)
     {
         Assert.True(tree.Root.Parent is null, at);
         Check(tree.Root);
@@ -97,7 +99,7 @@ public class LayoutPropertyTests
     {
         var rng = new Random(seed);
         var tree = new LayoutTree();
-        var model = new HashSet<nint>();
+        var model = new HashSet<WindowHandle>();
         nint next = 1;
         for (var step = 0; step < 300; step++)
         {
@@ -112,7 +114,7 @@ public class LayoutPropertyTests
     {
         var rng = new Random(seed);
         var tree = new LayoutTree();
-        var model = new HashSet<nint>();
+        var model = new HashSet<WindowHandle>();
         nint next = 1;
         for (var step = 0; step < 200; step++)
         {
@@ -150,8 +152,8 @@ public class LayoutPropertyTests
     {
         var rng = new Random(seed);
         var tree = new LayoutTree();
-        var model = new HashSet<nint>();
-        var mins = new Dictionary<nint, Size>();
+        var model = new HashSet<WindowHandle>();
+        var mins = new Dictionary<WindowHandle, Size>();
         nint next = 1;
         for (var step = 0; step < 150; step++)
         {
@@ -181,7 +183,7 @@ public class LayoutPropertyTests
     {
         var rng = new Random(seed);
         var tree = new LayoutTree();
-        var model = new HashSet<nint>();
+        var model = new HashSet<WindowHandle>();
         nint next = 1;
         var bounds = new Rect(0, 0, 2000, 1200);
         for (var step = 0; step < 100; step++)
@@ -213,11 +215,11 @@ public class LayoutPropertyTests
         var rng = new Random(seed);
         var tree = new LayoutTree();
         var a = (Pane)tree.Root;
-        tree.AddTab(a, 1);
-        var split = (SplitNode)tree.Split(a, rng.Next(2) == 0 ? DockSide.Right : DockSide.Bottom, 2).Parent!;
+        tree.AddTab(a, W(1));
+        var split = (SplitNode)tree.Split(a, rng.Next(2) == 0 ? DockSide.Right : DockSide.Bottom, W(2)).Parent!;
         for (var i = 0; i < 500; i++)
         {
-            var mins = new Dictionary<nint, Size> { [1] = new(rng.Next(0, 900), rng.Next(0, 900)), [2] = new(rng.Next(0, 900), rng.Next(0, 900)) };
+            var mins = new Dictionary<WindowHandle, Size> { [W(1)] = new(rng.Next(0, 900), rng.Next(0, 900)), [W(2)] = new(rng.Next(0, 900), rng.Next(0, 900)) };
             var length = rng.Next(0, 2000);
             var once = LayoutEngine.ClampRatio(split, rng.NextDouble() * 3 - 1, length, M, w => mins[w]);
             split.Ratio = once;

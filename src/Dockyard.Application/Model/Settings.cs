@@ -11,11 +11,11 @@ public sealed class Settings
     public Dictionary<string, string>? Shortcuts { get; set; }
 
     /// <summary>Apps (exe names) that keep their title bar with tab bar placement B. Null means the defaults.</summary>
-    public List<string>? TitleBarApps { get; set; }
+    public List<ProcessName>? TitleBarApps { get; set; }
 
     /// <summary>Browsers and other apps known to put tabs or menus in their own title bar.</summary>
-    public static IReadOnlyList<string> DefaultTitleBarApps { get; } =
-        ["chrome", "msedge", "firefox", "brave", "opera", "vivaldi", "Code", "WindowsTerminal", "explorer"];
+    public static IReadOnlyList<ProcessName> DefaultTitleBarApps { get; } =
+        [new("chrome"), new("msedge"), new("firefox"), new("brave"), new("opera"), new("vivaldi"), new("Code"), new("WindowsTerminal"), new("explorer")];
 
     /// <summary>When a layout is opened, start the apps whose windows are missing (from the exe paths saved with it).</summary>
     public bool LaunchMissingApps { get; set; }

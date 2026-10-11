@@ -1,3 +1,4 @@
+using Dockyard.Domain;
 
 namespace Dockyard.Application.Internal;
 
@@ -8,7 +9,7 @@ internal static class ZOrderPolicy
     /// and placements relative to a member are left alone; following them would push the tabs to the bottom
     /// or reorder them against each other.
     /// </summary>
-    public static bool ShouldCarryTabs(FrameZChange change, IReadOnlyCollection<nint> members) =>
+    public static bool ShouldCarryTabs(FrameZChange change, IReadOnlyCollection<WindowHandle> members) =>
         !change.Hiding
         && members.Count > 0
         && (change.Placement == ZPlacement.Top || (change.Placement == ZPlacement.Below && !members.Contains(change.Below)));

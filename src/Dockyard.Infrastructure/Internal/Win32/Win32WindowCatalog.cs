@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Dockyard.Application;
+using Dockyard.Domain;
 using static Dockyard.Infrastructure.Internal.Win32.Native;
 
 namespace Dockyard.Infrastructure.Internal.Win32;
@@ -15,7 +16,7 @@ internal sealed class Win32WindowCatalog : IWindowCatalog
         var result = new List<WindowInfo>();
         EnumWindows((hwnd, _) =>
         {
-            if (Describe(hwnd) is { Title.Length: > 0 } info) result.Add(info);
+            if (Describe(new WindowHandle(hwnd)) is { Title.Length: > 0 } info) result.Add(info);
             return true;
         }, 0);
         return result;
@@ -25,15 +26,16 @@ internal sealed class Win32WindowCatalog : IWindowCatalog
     /// The window if it is an app window of another process, as Alt+Tab would list it once it has a title; null
     /// otherwise. The title may still be empty for a window that has just appeared.
     /// </summary>
-    public WindowInfo? Describe(nint hwnd)
+    public WindowInfo? Describe(WindowHandle window)
     {
+        var hwnd = window.Value;
         if (!IsWindowVisible(hwnd) || IsCloaked(hwnd) || GetWindow(hwnd, GW_OWNER) != 0) return null;
         var ex = (long)GetWindowLongPtr(hwnd, GWL_EXSTYLE);
         if ((ex & WS_EX_TOOLWINDOW) != 0 && (ex & WS_EX_APPWINDOW) == 0) return null;
         if (ShellClasses.Contains(GetClassName(hwnd))) return null;
         var pid = GetAppProcessId(hwnd);
         if (pid == (uint)Environment.ProcessId) return null;
-        return new WindowInfo(hwnd, GetWindowText(hwnd), ProcessName(pid), CanControl(hwnd));
+        return new WindowInfo(window, GetWindowText(hwnd), ProcessNameOf(pid), CanControl(hwnd));
     }
 
     /// <summary>
@@ -43,13 +45,13 @@ internal sealed class Win32WindowCatalog : IWindowCatalog
     private static bool CanControl(nint hwnd) =>
         SetWindowPos(hwnd, 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
 
-    internal static string ProcessName(uint pid)
+    internal static ProcessName ProcessNameOf(uint pid)
     {
         try
         {
             using var process = Process.GetProcessById((int)pid);
-            return process.ProcessName;
+            return new ProcessName(process.ProcessName);
         }
-        catch (ArgumentException) { return "?"; }
+        catch (ArgumentException) { return new ProcessName("?"); }
     }
 }

@@ -36,6 +36,7 @@ internal static class PublicApi
         "Dockyard.Domain.SplitNode",
         "Dockyard.Domain.SplitterLayout",
         "Dockyard.Domain.TabBarPlacement",
+        "Dockyard.Domain.WindowHandle",
     ];
 
     /// <summary>
@@ -74,6 +75,8 @@ internal static class PublicApi
         // values that cross the ports
         "Dockyard.Application.PixelRect",
         "Dockyard.Application.WindowInfo",
+        "Dockyard.Application.LayoutName",
+        "Dockyard.Application.ProcessName",
         "Dockyard.Application.WindowEvent",
         "Dockyard.Application.GroupSnapshot",
         "Dockyard.Application.FrameZChange",

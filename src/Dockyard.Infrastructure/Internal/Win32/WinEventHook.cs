@@ -1,4 +1,5 @@
 using Dockyard.Application;
+using Dockyard.Domain;
 using Dockyard.Infrastructure.Internal.Logging;
 using static Dockyard.Infrastructure.Internal.Win32.Native;
 using System.Runtime.InteropServices;
@@ -29,8 +30,8 @@ internal sealed class WinEventHook : IWindowEventSource, IDisposable
     private readonly MouseHookProc _mouseProc;
     private readonly nint _mouseHook;
 
-    public event Action<WindowEvent, nint>? Received;
-    public event Action<nint, PixelRect>? ShiftMouseDown;
+    public event Action<WindowEvent, WindowHandle>? Received;
+    public event Action<WindowHandle, PixelRect>? ShiftMouseDown;
 
     public WinEventHook()
     {
@@ -55,13 +56,13 @@ internal sealed class WinEventHook : IWindowEventSource, IDisposable
         {
             try
             {
-                if ((GetAsyncKeyState(0x10) & 0x8000) == 0) ShiftMouseDown?.Invoke(0, default);
+                if ((GetAsyncKeyState(0x10) & 0x8000) == 0) ShiftMouseDown?.Invoke(WindowHandle.None, default);
                 else
                 {
                     var mouse = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(data);
                     var window = GetAncestor(WindowFromPoint(mouse.point), 2 /* GA_ROOT */);
                     if (window != 0 && GetWindowRect(window, out var r))
-                        ShiftMouseDown?.Invoke(window, new PixelRect(r.Left, r.Top, r.Right, r.Bottom));
+                        ShiftMouseDown?.Invoke(new WindowHandle(window), new PixelRect(r.Left, r.Top, r.Right, r.Bottom));
                 }
             }
             catch (Exception ex) { Log.Error("Mouse hook", ex); }
@@ -103,7 +104,7 @@ internal sealed class WinEventHook : IWindowEventSource, IDisposable
         // without reaching WPF's unhandled-exception handler.
         try
         {
-            Received?.Invoke(Events[eventType], hwnd);
+            Received?.Invoke(Events[eventType], new WindowHandle(hwnd));
         }
         catch (Exception ex)
         {

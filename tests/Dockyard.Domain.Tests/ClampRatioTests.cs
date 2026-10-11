@@ -6,12 +6,14 @@ public class ClampRatioTests
 {
     private static readonly LayoutMetrics M = new(SplitterThickness: 4, TabBarHeight: 28, MinPaneWidth: 80, MinPaneHeight: 40);
 
+    private static WindowHandle W(int n) => new(n);
+
     private static SplitNode TwoPanes(out LayoutTree tree)
     {
         tree = new LayoutTree();
         var a = (Pane)tree.Root;
-        tree.AddTab(a, 1);
-        tree.Split(a, DockSide.Right, 2);
+        tree.AddTab(a, W(1));
+        tree.Split(a, DockSide.Right, W(2));
         return (SplitNode)tree.Root;
     }
 
@@ -23,7 +25,7 @@ public class ClampRatioTests
         double min1 = 401.33333333333331, min2 = 805.6666666666666;
         var length = min1 + min2 + M.SplitterThickness;
 
-        var ratio = LayoutEngine.ClampRatio(split, 0.3, length, M, w => w == 1 ? new Size(min1, 0) : new Size(min2, 0));
+        var ratio = LayoutEngine.ClampRatio(split, 0.3, length, M, w => w == W(1) ? new Size(min1, 0) : new Size(min2, 0));
 
         Assert.Equal(min1 / (min1 + min2), ratio, 9);
     }
@@ -41,7 +43,7 @@ public class ClampRatioTests
             var length = min1 + min2 + M.SplitterThickness + (rng.NextDouble() - 0.5) * 1e-9 * (i % 3);
             var requested = rng.NextDouble() * 1.4 - 0.2;
 
-            var ratio = LayoutEngine.ClampRatio(split, requested, length, M, w => w == 1 ? new Size(min1, 0) : new Size(min2, 0));
+            var ratio = LayoutEngine.ClampRatio(split, requested, length, M, w => w == W(1) ? new Size(min1, 0) : new Size(min2, 0));
 
             Assert.InRange(ratio, 0, 1);
         }
@@ -76,9 +78,9 @@ public class ClampRatioTests
     {
         var tree = new LayoutTree();
         var a = (Pane)tree.Root;
-        tree.AddTab(a, 1);
-        var b = tree.Split(a, DockSide.Right, 2);
-        tree.Split(b, DockSide.Bottom, 3);
+        tree.AddTab(a, W(1));
+        var b = tree.Split(a, DockSide.Right, W(2));
+        tree.Split(b, DockSide.Bottom, W(3));
 
         foreach (var w in new[] { 0.0, 3, 4, 5, 100, 1000 })
             LayoutEngine.ClampAll(tree.Root, new Rect(0, 0, w, w), M, _ => new Size(300, 300));

@@ -7,7 +7,7 @@ public class LaunchCommandTests
     [Fact]
     public void Format_QuotesTheName()
     {
-        Assert.Equal("--layout \"Dev work\"", LaunchCommand.Format("Dev work"));
+        Assert.Equal("--layout \"Dev work\"", LaunchCommand.Format(new LayoutName("Dev work")));
     }
 
     [Theory]
@@ -18,9 +18,9 @@ public class LaunchCommandTests
     [InlineData(@"back\\slash\""quote")]
     public void Format_CanBeReadBackByTheSystemsCommandLineRules(string name)
     {
-        var args = NativeCommandLine.Split(LaunchCommand.Format(name));
+        var args = NativeCommandLine.Split(LaunchCommand.Format(new LayoutName(name)));
 
-        Assert.Equal(name, LaunchCommand.ParseLayout(args));
+        Assert.Equal(new LayoutName(name), LaunchCommand.ParseLayout(args));
     }
 
     [Theory]
@@ -30,7 +30,7 @@ public class LaunchCommandTests
     [InlineData("--layout", "", null)]
     public void ParseLayout_TakesTheArgumentAfterTheOption(string option, string value, string? expected)
     {
-        Assert.Equal(expected, LaunchCommand.ParseLayout([option, value]));
+        Assert.Equal(expected, LaunchCommand.ParseLayout([option, value])?.Value);
     }
 
     [Fact]

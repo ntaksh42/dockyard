@@ -1,61 +1,63 @@
+using Dockyard.Domain;
+
 namespace Dockyard.Application;
 
 /// <summary>Operations on other applications' top-level windows. Implemented with Win32 in Infrastructure.</summary>
 public interface IWindowSystem
 {
-    bool Exists(nint window);
-    bool IsVisible(nint window);
-    bool IsMinimized(nint window);
-    bool IsMaximized(nint window);
+    bool Exists(WindowHandle window);
+    bool IsVisible(WindowHandle window);
+    bool IsMinimized(WindowHandle window);
+    bool IsMaximized(WindowHandle window);
 
     /// <summary>Whether the window is always on top.</summary>
-    bool IsTopmost(nint window);
+    bool IsTopmost(WindowHandle window);
 
-    string GetTitle(nint window);
+    string GetTitle(WindowHandle window);
 
-    /// <summary>The window that has the keyboard focus, or 0.</summary>
-    nint GetForeground();
+    /// <summary>The window that has the keyboard focus, or <see cref="WindowHandle.None"/>.</summary>
+    WindowHandle GetForeground();
 
     /// <summary>Whether the window is a top-level window rather than a child of another.</summary>
-    bool IsTopLevel(nint window);
+    bool IsTopLevel(WindowHandle window);
 
     /// <summary>Whether the window is being moved by its caption, as opposed to being resized.</summary>
-    bool IsCaptionDrag(nint window);
+    bool IsCaptionDrag(WindowHandle window);
 
     /// <summary>All top-level windows, topmost first.</summary>
-    IReadOnlyList<nint> GetTopLevelWindows();
+    IReadOnlyList<WindowHandle> GetTopLevelWindows();
 
-    /// <summary>Name of the process that owns the window, e.g. "notepad".</summary>
-    string GetProcessName(nint window);
+    /// <summary>The process that owns the window.</summary>
+    ProcessName GetProcessName(WindowHandle window);
 
     /// <summary>Full path of the owning process's exe, or null if it cannot be read.</summary>
-    string? GetProcessPath(nint window);
+    string? GetProcessPath(WindowHandle window);
 
     /// <summary>What the user sees, without the invisible resize border most windows have.</summary>
-    PixelRect GetVisibleBounds(nint window);
+    PixelRect GetVisibleBounds(WindowHandle window);
 
     /// <summary>The full window rectangle, including the invisible resize border.</summary>
-    PixelRect GetBounds(nint window);
+    PixelRect GetBounds(WindowHandle window);
 
-    void Restore(nint window);
-    void Show(nint window);
-    void Hide(nint window);
+    void Restore(WindowHandle window);
+    void Show(WindowHandle window);
+    void Hide(WindowHandle window);
 
     /// <summary>Gives the window the keyboard focus (makes it the foreground window).</summary>
-    void Focus(nint window);
+    void Focus(WindowHandle window);
 
     /// <summary>Moves the window so its visible bounds match <paramref name="target"/>. Does not wait for the app.</summary>
-    void PlaceVisible(nint window, PixelRect target);
+    void PlaceVisible(WindowHandle window, PixelRect target);
 
     /// <summary>Shows the window, sets its full rectangle and brings it to the top without activating it.</summary>
-    void SetBounds(nint window, PixelRect bounds);
+    void SetBounds(WindowHandle window, PixelRect bounds);
 
     /// <summary>Makes the window always on top again: <see cref="Stack"/> and <see cref="SetBounds"/> end in the normal band.</summary>
-    void SetTopmost(nint window);
+    void SetTopmost(WindowHandle window);
 
     /// <summary>
-    /// Orders windows top to bottom: the first goes just below <paramref name="after"/> (0 for the very top of
+    /// Orders windows top to bottom: the first goes just below <paramref name="after"/> (<see cref="WindowHandle.None"/> for the very top of
     /// the z-order), each following one just below the previous.
     /// </summary>
-    void Stack(nint after, IReadOnlyList<nint> topDown);
+    void Stack(WindowHandle after, IReadOnlyList<WindowHandle> topDown);
 }

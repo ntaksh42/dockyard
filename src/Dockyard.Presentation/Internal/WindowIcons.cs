@@ -3,6 +3,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Dockyard.Application;
+using Dockyard.Domain;
 
 namespace Dockyard.Presentation.Internal;
 
@@ -12,10 +13,10 @@ namespace Dockyard.Presentation.Internal;
 /// </summary>
 internal sealed class WindowIcons(IWindowSystem windows)
 {
-    private readonly Dictionary<nint, ImageSource> _icons = [];
+    private readonly Dictionary<WindowHandle, ImageSource> _icons = [];
 
     /// <summary>The window's own icon, else its exe's; null when it has neither (asked again next time: a busy app may answer later).</summary>
-    public ImageSource? Get(nint window)
+    public ImageSource? Get(WindowHandle window)
     {
         if (_icons.TryGetValue(window, out var icon)) return icon;
         icon = FromWindow(window) ?? FromExe(windows.GetProcessPath(window));
@@ -24,15 +25,15 @@ internal sealed class WindowIcons(IWindowSystem windows)
     }
 
     /// <summary>Forgets the windows that are gone: Windows reuses handles, and a new window must not get an old icon.</summary>
-    public void Keep(IEnumerable<nint> alive)
+    public void Keep(IEnumerable<WindowHandle> alive)
     {
         var keep = alive.ToHashSet();
         foreach (var window in _icons.Keys.Where(w => !keep.Contains(w)).ToList()) _icons.Remove(window);
     }
 
-    private static ImageSource? FromWindow(nint window)
+    private static ImageSource? FromWindow(WindowHandle window)
     {
-        var handle = Native.GetWindowIcon(window);
+        var handle = Native.GetWindowIcon(window.Value);
         return handle == 0 ? null : FromHandle(handle);
     }
 

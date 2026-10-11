@@ -30,13 +30,13 @@ internal partial class GroupWindow : Window, IGroupFrame
     private IGroupControl? _control;
     private readonly WindowIcons _icons;
     /// <summary>Live thumbnails of the active tabs, by window, drawn while the frame moves or resizes (see BeginLive).</summary>
-    private readonly Dictionary<nint, nint> _thumbnails = [];
+    private readonly Dictionary<WindowHandle, nint> _thumbnails = [];
     /// <summary>Each pane's "+" button as last built, where the keyboard opens that pane's menu.</summary>
     private readonly Dictionary<Pane, Button> _addButtons = [];
     /// <summary>The tab each pane showed when its bar was last built, to tell UI Automation when that changes.</summary>
-    private readonly Dictionary<Pane, nint> _shownTabs = [];
+    private readonly Dictionary<Pane, WindowHandle> _shownTabs = [];
     /// <summary>Where each thumbnail was last put: moving the frame leaves it unchanged, and DWM need not hear it again.</summary>
-    private readonly Dictionary<nint, (RECT Destination, RECT Source)> _thumbnailPlaces = [];
+    private readonly Dictionary<WindowHandle, (RECT Destination, RECT Source)> _thumbnailPlaces = [];
     /// <summary>Ends the live view once the frame has been still for a moment, so the apps have repainted at their final size.</summary>
     private readonly System.Windows.Threading.DispatcherTimer _liveEnd = new() { Interval = TimeSpan.FromMilliseconds(200) };
     /// <summary>Between WM_ENTERSIZEMOVE and WM_EXITSIZEMOVE: the user is dragging the frame or one of its borders.</summary>
@@ -44,14 +44,14 @@ internal partial class GroupWindow : Window, IGroupFrame
     private SplitterLayout? _dragging;
     private nint _hwnd;
     private bool _closing;
-    private nint _tabWindow;
+    private WindowHandle _tabWindow;
     private Point _tabStart;
     private bool _tabDragging;
     public event Action? FrameActivated;
     public event Action? FrameMoved;
     public event Action? Renamed;
     public event Action? FrameClosed;
-    public event Action<IGroupFrame, nint>? TabDragStarted;
+    public event Action<IGroupFrame, WindowHandle>? TabDragStarted;
     public event Action<bool>? TabDragEnded;
     public event Action? SettingsRequested;
     public event Action<IGroupFrame>? SaveLayoutRequested;
@@ -70,7 +70,7 @@ internal partial class GroupWindow : Window, IGroupFrame
 
     /// <param name="context">What the frame asks of the workspace: which windows are grouped, the saved layouts, the shortcuts.</param>
     /// <param name="placement">Applied once the controller is bound (see <see cref="Bind"/>).</param>
-    internal GroupWindow(string name, IPlatform platform, IFrameContext context, TabBarPlacement placement)
+    internal GroupWindow(LayoutName name, IPlatform platform, IFrameContext context, TabBarPlacement placement)
     {
         InitializeComponent();
         _context = context;
@@ -128,7 +128,7 @@ internal partial class GroupWindow : Window, IGroupFrame
         };
         Surface.MouseMove += (_, e) =>
         {
-            if (_tabWindow != 0 && !_tabDragging && e.LeftButton == MouseButtonState.Pressed)
+            if (!_tabWindow.IsNone && !_tabDragging && e.LeftButton == MouseButtonState.Pressed)
             {
                 var point = e.GetPosition(Surface);
                 if (Math.Abs(point.X - _tabStart.X) >= SystemParameters.MinimumHorizontalDragDistance ||
@@ -146,17 +146,17 @@ internal partial class GroupWindow : Window, IGroupFrame
         {
             var window = _tabWindow;
             var dragged = _tabDragging;
-            _tabWindow = 0;
+            _tabWindow = WindowHandle.None;
             _tabDragging = false;
             if (dragged) TabDragEnded?.Invoke(false);
-            else if (window != 0) Controller.ActivateTab(window);
+            else if (!window.IsNone) Controller.ActivateTab(window);
             _dragging = null;
             Surface.ReleaseMouseCapture();
         };
         Surface.LostMouseCapture += (_, _) =>
         {
             if (_tabDragging) TabDragEnded?.Invoke(true);
-            _tabWindow = 0;
+            _tabWindow = WindowHandle.None;
             _tabDragging = false;
             _dragging = null;
         };
@@ -173,12 +173,12 @@ internal partial class GroupWindow : Window, IGroupFrame
         HwndSource.FromHwnd(_hwnd).AddHook(WndProc);
     }
 
-    public string GroupName
+    public LayoutName GroupName
     {
-        get => GroupNameText.Text;
+        get => new(GroupNameText.Text);
         set
         {
-            GroupNameText.Text = value;
+            GroupNameText.Text = value.Value;
             UpdateTitle();
         }
     }
@@ -196,7 +196,7 @@ internal partial class GroupWindow : Window, IGroupFrame
 
     // ---- IGroupView ---------------------------------------------------------------------------
 
-    public nint Handle => _hwnd;
+    public WindowHandle Handle => new(_hwnd);
 
     public bool IsOnScreen =>
         !_closing && _hwnd != 0 && WindowState != WindowState.Minimized && PresentationSource.FromVisual(Surface) is not null;
@@ -207,8 +207,8 @@ internal partial class GroupWindow : Window, IGroupFrame
 
     public double Scale => PresentationSource.FromVisual(this)?.CompositionTarget.TransformToDevice.M11 ?? 1;
 
-    public nint ZAnchor => _picker is { } p ? new WindowInteropHelper(p).Handle : 0;
-    public nint TabOverlay => _overlay is { IsVisible: true } o ? new WindowInteropHelper(o).Handle : 0;
+    public WindowHandle ZAnchor => _picker is { } p ? new(new WindowInteropHelper(p).Handle) : WindowHandle.None;
+    public WindowHandle TabOverlay => _overlay is { IsVisible: true } o ? new(new WindowInteropHelper(o).Handle) : WindowHandle.None;
     public bool CanDock => IsOnScreen && _picker is null;
 
     public bool IsEditingText => Keyboard.FocusedElement is TextBox;
@@ -379,7 +379,7 @@ internal partial class GroupWindow : Window, IGroupFrame
     /// Drawn over a member's title bar (placement B): only the tabs themselves, so the app's own caption buttons
     /// stay visible and clickable through the transparent rest of the overlay.
     /// </param>
-    private FrameworkElement BuildTabBar(Pane pane, IReadOnlyDictionary<nint, string> titles, DomainRect bounds, bool overMember)
+    private FrameworkElement BuildTabBar(Pane pane, IReadOnlyDictionary<WindowHandle, string> titles, DomainRect bounds, bool overMember)
     {
         var vertical = Controller.Metrics.TabBarPlacement == TabBarPlacement.Left;
         // Over a member the bar ends after its buttons, leaving the app's own caption buttons uncovered.
@@ -658,10 +658,10 @@ internal partial class GroupWindow : Window, IGroupFrame
                 -2 => ZPlacement.NoTopmost,
                 _ => ZPlacement.Below,
             },
-            pos.hwndInsertAfter,
+            new WindowHandle(pos.hwndInsertAfter),
             (pos.flags & SWP_HIDEWINDOW) != 0);
         if (Controller.OnFrameZChanging(change) is not { } after) return 0;
-        pos.hwndInsertAfter = after;
+        pos.hwndInsertAfter = after.Value;
         Marshal.StructureToPtr(pos, lParam, false);
         return 0;
     }
@@ -717,7 +717,7 @@ internal partial class GroupWindow : Window, IGroupFrame
     {
         if (_closing || GroupNameEdit.IsVisible) return;
         Activate();
-        GroupNameEdit.Text = GroupName;
+        GroupNameEdit.Text = GroupName.Value;
         GroupNameText.Visibility = Visibility.Hidden;
         GroupNameEdit.Visibility = Visibility.Visible;
         GroupNameEdit.Focus();
@@ -734,8 +734,8 @@ internal partial class GroupWindow : Window, IGroupFrame
     private void EndRename(bool commit)
     {
         if (!GroupNameEdit.IsVisible) return;
-        var name = GroupNameEdit.Text.Trim();
-        var renamed = commit && name.Length > 0 && name != GroupName;
+        var name = new LayoutName(GroupNameEdit.Text.Trim());
+        var renamed = commit && name.Value.Length > 0 && name != GroupName;
         if (renamed) GroupName = name;
         GroupNameEdit.Visibility = Visibility.Collapsed;
         GroupNameText.Visibility = Visibility.Visible;
@@ -830,13 +830,13 @@ object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
     {
         if (_rendered is null || _hwnd == 0) return;
         var client = PointToScreen(new Point(0, 0));
-        var shown = new HashSet<nint>();
+        var shown = new HashSet<WindowHandle>();
         foreach (var p in _rendered.Panes)
         {
             if (p.Pane.ActiveWindow is not { } window || !_windows.Exists(window)) continue;
             if (!_thumbnails.TryGetValue(window, out var thumbnail))
             {
-                if (DwmRegisterThumbnail(_hwnd, window, out thumbnail) != 0) continue;
+                if (DwmRegisterThumbnail(_hwnd, window.Value, out thumbnail) != 0) continue;
                 _thumbnails[window] = thumbnail;
             }
             shown.Add(window);
@@ -880,8 +880,8 @@ object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
     private List<MenuItem> OpenLayoutItems()
     {
-        var items = _context.SavedLayouts().OrderBy(l => l.Name, StringComparer.CurrentCultureIgnoreCase)
-            .Select(layout => MenuItem(layout.Name, () => OpenLayoutRequested?.Invoke(this, layout))).ToList();
+        var items = _context.SavedLayouts().OrderBy(l => l.Name.Value, StringComparer.CurrentCultureIgnoreCase)
+            .Select(layout => MenuItem(layout.Name.Value, () => OpenLayoutRequested?.Invoke(this, layout))).ToList();
         if (items.Count == 0) items.Add(new MenuItem { Header = "(No saved layouts)", IsEnabled = false });
         return items;
     }

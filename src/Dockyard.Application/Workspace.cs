@@ -23,11 +23,11 @@ public sealed class Workspace : IFrameContext
     private readonly IRestartableTimer _sessionSave;
     private Dictionary<ShortcutAction, ShortcutKey> _shortcuts;
     /// <summary>The layouts' hotkeys by key, kept here because the keyboard hook asks on every key press.</summary>
-    private Dictionary<ShortcutKey, string> _layoutHotkeys = [];
+    private Dictionary<ShortcutKey, LayoutName> _layoutHotkeys = [];
     private bool _externalPolling;
-    private nint _externalDrag;
-    private nint _finishedExternalDrag;
-    private (nint Window, PixelRect Bounds)? _dragOrigin;
+    private WindowHandle _externalDrag;
+    private WindowHandle _finishedExternalDrag;
+    private (WindowHandle Window, PixelRect Bounds)? _dragOrigin;
     /// <summary>Set while quitting: the groups are closed one by one then, which must not empty the last groups.</summary>
     private bool _quitting;
     /// <summary>Set from the moment Windows asks to end the session: apps then close, which must not be written down.</summary>
@@ -40,7 +40,7 @@ public sealed class Workspace : IFrameContext
     /// waiting tab: a window that already existed, such as one a minimized group lets go and shows again, is not
     /// the app's window opening.
     /// </summary>
-    private readonly HashSet<nint> _fresh = [];
+    private readonly HashSet<WindowHandle> _fresh = [];
 
     public Workspace(IPlatform platform, IShell shell)
     {
@@ -91,12 +91,12 @@ public sealed class Workspace : IFrameContext
     /// Starts listening and opens the groups: those of a crashed run, the last ones, the saved layout
     /// <paramref name="openLayout"/> if one is asked for (the shortcut file that started Dockyard), or an empty one.
     /// </summary>
-    public void Start(string? openLayout = null)
+    public void Start(LayoutName? openLayout = null)
     {
         _platform.WindowEvents.ShiftMouseDown += (window, bounds) =>
         {
-            _dragOrigin = window == 0 ? null : (window, bounds);
-            if (window != 0) StartExternalPoll();
+            _dragOrigin = window.IsNone ? null : (window, bounds);
+            if (!window.IsNone) StartExternalPoll();
         };
         _platform.WindowEvents.Received += Dispatch;
         RefreshLayoutHotkeys();
@@ -143,7 +143,7 @@ public sealed class Workspace : IFrameContext
     /// is open already it is brought forward instead: pressing the hotkey again must not start every app twice.
     /// Returns false (and tells the user) if there is no such layout.
     /// </summary>
-    public bool OpenLayoutByName(string name)
+    public bool OpenLayoutByName(LayoutName name)
     {
         if (_platform.Layouts.Load().Find(l => l.Name == name) is not { } saved)
         {
@@ -164,7 +164,7 @@ public sealed class Workspace : IFrameContext
     /// Gives the saved layout a hotkey that opens it from anywhere, or removes it with null. A key does one thing:
     /// this, <see cref="BindShortcut"/> and <see cref="SetShortcuts"/> take it from whatever action or layout had it.
     /// </summary>
-    public void SetLayoutHotkey(string name, ShortcutKey? hotkey)
+    public void SetLayoutHotkey(LayoutName name, ShortcutKey? hotkey)
     {
         var layouts = _platform.Layouts.Load();
         if (!LayoutLibrary.SetHotkey(layouts, name, hotkey)) return;
@@ -178,7 +178,7 @@ public sealed class Workspace : IFrameContext
     public void LayoutsChanged() => RefreshLayoutHotkeys();
 
     /// <summary>Puts a shortcut file for the saved layout on the desktop.</summary>
-    public void CreateLayoutShortcut(string name)
+    public void CreateLayoutShortcut(LayoutName name)
     {
         var path = _platform.LayoutShortcuts.CreateOnDesktop(name);
         _shell.Notify(path is null
@@ -252,7 +252,7 @@ public sealed class Workspace : IFrameContext
         DropLayoutHotkeysUsedByActions();
     }
 
-    public void SetTitleBarApps(IReadOnlyList<string> apps)
+    public void SetTitleBarApps(IReadOnlyList<ProcessName> apps)
     {
         _settings.TitleBarApps = [.. apps];
         SaveSettings();
@@ -264,7 +264,7 @@ public sealed class Workspace : IFrameContext
 
     // ---- IFrameContext --------------------------------------------------------------------------
 
-    bool IFrameContext.IsGrouped(nint window) => IsGrouped(window);
+    bool IFrameContext.IsGrouped(WindowHandle window) => IsGrouped(window);
 
     IReadOnlyList<SavedGroup> IFrameContext.SavedLayouts() => _platform.Layouts.Load();
 
@@ -272,9 +272,9 @@ public sealed class Workspace : IFrameContext
 
     // ---- groups ---------------------------------------------------------------------------------
 
-    private bool IsGrouped(nint window) => _groups.Any(g => g.Controller.Owns(window));
+    private bool IsGrouped(WindowHandle window) => _groups.Any(g => g.Controller.Owns(window));
 
-    private OpenGroup NewGroup(string? name, PixelRect? bounds)
+    private OpenGroup NewGroup(LayoutName? name, PixelRect? bounds)
     {
         var frame = _shell.CreateFrame(name ?? NextGroupName(), _settings.TabBarPlacement, this);
         var controller = new GroupController(frame, _windows, _shell.Scheduler);
@@ -305,12 +305,12 @@ public sealed class Workspace : IFrameContext
     /// "Group N" with the smallest N no open group has. Layouts are saved under the group's name, so a second
     /// group of the same name would replace the first one's layout.
     /// </summary>
-    private string NextGroupName()
+    private LayoutName NextGroupName()
     {
         var used = _groups.Select(g => g.Frame.GroupName).ToHashSet();
         var number = 1;
-        while (used.Contains($"Group {number}")) number++;
-        return $"Group {number}";
+        while (used.Contains(new LayoutName($"Group {number}"))) number++;
+        return new LayoutName($"Group {number}");
     }
 
     private static SavedGroup Save(OpenGroup g, bool includeWindows) =>
@@ -321,11 +321,11 @@ public sealed class Workspace : IFrameContext
     {
         First = node.First is null ? null : WithoutWindows(node.First),
         Second = node.Second is null ? null : WithoutWindows(node.Second),
-        Tabs = node.Tabs?.Select(tab => tab with { Handle = 0, OriginalBounds = null }).ToList(),
+        Tabs = node.Tabs?.Select(tab => tab with { Handle = WindowHandle.None, OriginalBounds = null }).ToList(),
     };
 
     /// <summary>Takes a saved group's name, tab bar placement and layout (see <see cref="GroupController.RestoreLayout"/>).</summary>
-    private static int Restore(OpenGroup g, SavedGroup saved, Func<SavedTab, nint> resolve)
+    private static int Restore(OpenGroup g, SavedGroup saved, Func<SavedTab, WindowHandle> resolve)
     {
         g.Frame.GroupName = saved.Name;
         if (saved.TabBarPlacement is { } placement) g.Frame.SetTabBarPlacement(placement);
@@ -417,17 +417,17 @@ public sealed class Workspace : IFrameContext
     private bool RestoreSession()
     {
         if (_platform.Sessions.LoadSession() is not { Count: > 0 } saved) return false;
-        var claimed = new HashSet<nint>();
+        var claimed = new HashSet<WindowHandle>();
         var restored = false;
         foreach (var s in saved)
         {
             var g = NewGroup(s.Name, s.Bounds);
             var count = Restore(g, s, tab =>
             {
-                var h = (nint)tab.Handle;
+                var h = tab.Handle;
                 return _windows.Exists(h)
                     ? WindowMatcher.Match(tab, [new WindowCandidate(h, _windows.GetProcessName(h), "")], claimed, sameWindowOnly: true)
-                    : 0;
+                    : WindowHandle.None;
             });
             if (count == 0) g.Frame.Close();
             restored |= count > 0;
@@ -494,10 +494,10 @@ public sealed class Workspace : IFrameContext
         _externalDragPoll.Stop();
     }
 
-    private void BeginExternalDrag(nint window, PixelRect? originalBounds)
+    private void BeginExternalDrag(WindowHandle window, PixelRect? originalBounds)
     {
         _externalDrag = window;
-        _finishedExternalDrag = 0;
+        _finishedExternalDrag = WindowHandle.None;
         _dockDrag.Begin(window, _groups.FirstOrDefault(g => g.Controller.Owns(window)), originalBounds);
         StartExternalPoll();
     }
@@ -505,7 +505,7 @@ public sealed class Workspace : IFrameContext
     private void FinishExternalDrag(bool cancel)
     {
         _finishedExternalDrag = _externalDrag;
-        _externalDrag = 0;
+        _externalDrag = WindowHandle.None;
         _dragOrigin = null;
         StopExternalPoll();
         _dockDrag.Finish(cancel || _input.IsEscapeDown);
@@ -513,22 +513,22 @@ public sealed class Workspace : IFrameContext
 
     private void CheckExternalDrag()
     {
-        var window = _externalDrag != 0 ? _externalDrag : _dragOrigin?.Window ?? 0;
-        if (window == 0 || !_windows.Exists(window) || _input.IsEscapeDown)
+        var window = !_externalDrag.IsNone ? _externalDrag : _dragOrigin?.Window ?? WindowHandle.None;
+        if (window.IsNone || !_windows.Exists(window) || _input.IsEscapeDown)
         {
-            if (_externalDrag != 0) FinishExternalDrag(true);
+            if (!_externalDrag.IsNone) FinishExternalDrag(true);
             _dragOrigin = null;
             StopExternalPoll();
             return;
         }
         if (!_input.IsLeftButtonDown)
         {
-            if (_externalDrag != 0) FinishExternalDrag(false);
+            if (!_externalDrag.IsNone) FinishExternalDrag(false);
             _dragOrigin = null;
             StopExternalPoll();
             return;
         }
-        if (_externalDrag != 0 || !_input.IsShiftDown || _dragOrigin is not { } origin) return;
+        if (!_externalDrag.IsNone || !_input.IsShiftDown || _dragOrigin is not { } origin) return;
         // Custom title bars can move windows without a standard caption hit or move/size events.
         // Same-size movement distinguishes that drag from a resize or a click in the client area.
         if (DragInterpreter.Interpret(origin.Bounds.ToRect(), _windows.GetBounds(window).ToRect()).Moved &&
@@ -536,25 +536,25 @@ public sealed class Workspace : IFrameContext
             BeginExternalDrag(window, origin.Bounds);
     }
 
-    private bool CanControl(nint window) =>
+    private bool CanControl(WindowHandle window) =>
         _platform.Catalog.GetCandidates().Any(w => w.Handle == window && w.Controllable);
 
-    private void Dispatch(WindowEvent evt, nint window)
+    private void Dispatch(WindowEvent evt, WindowHandle window)
     {
-        if (evt == WindowEvent.MoveSizeStart) _finishedExternalDrag = 0;
+        if (evt == WindowEvent.MoveSizeStart) _finishedExternalDrag = WindowHandle.None;
         if (evt == WindowEvent.MoveSizeEnd && _finishedExternalDrag == window)
         {
-            _finishedExternalDrag = 0;
+            _finishedExternalDrag = WindowHandle.None;
             return;
         }
-        if (_externalDrag == 0 && evt == WindowEvent.MoveSizeStart && _input.IsShiftDown && _input.IsLeftButtonDown &&
+        if (_externalDrag.IsNone && evt == WindowEvent.MoveSizeStart && _input.IsShiftDown && _input.IsLeftButtonDown &&
             _windows.IsCaptionDrag(window) && CanControl(window))
         {
             BeginExternalDrag(window,
                 _dragOrigin is { } origin && origin.Window == window ? origin.Bounds : null);
             return;
         }
-        if (evt == WindowEvent.LocationChanged && _externalDrag == 0 && _dragOrigin?.Window == window)
+        if (evt == WindowEvent.LocationChanged && _externalDrag.IsNone && _dragOrigin?.Window == window)
             CheckExternalDrag();
         if (_externalDrag == window && evt is WindowEvent.MoveSizeEnd or WindowEvent.Destroyed)
         {
@@ -584,7 +584,7 @@ public sealed class Workspace : IFrameContext
     /// restored). It is offered once it is shown with a title: many windows get their title only after they
     /// appear.
     /// </summary>
-    private void OfferToWaitingTabs(WindowEvent evt, nint window)
+    private void OfferToWaitingTabs(WindowEvent evt, WindowHandle window)
     {
         switch (evt)
         {

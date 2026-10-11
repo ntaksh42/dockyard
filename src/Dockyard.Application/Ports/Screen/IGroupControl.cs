@@ -12,21 +12,21 @@ public interface IGroupControl
     bool IsLive { get; }
 
     /// <summary>The tab the user last worked in, which keyboard shortcuts act on when the frame has the focus.</summary>
-    nint? LastActive { get; }
+    WindowHandle? LastActive { get; }
 
     /// <param name="includeWindows">
     /// Whether tabs keep their window handle and pre-join bounds, which only mean something to the run that wrote
     /// them (the crash session). Left out of saved layouts: handles are reused and the place is stale by then.
     /// </param>
     SavedNode SaveLayout(bool includeWindows = true);
-    int RestoreLayout(SavedNode layout, Func<SavedTab, nint> resolve);
+    int RestoreLayout(SavedNode layout, Func<SavedTab, WindowHandle> resolve);
 
-    bool Adopt(nint window, Pane pane, DockSide? side, PixelRect? originalBounds = null);
+    bool Adopt(WindowHandle window, Pane pane, DockSide? side, PixelRect? originalBounds = null);
     void PickerCancelled();
-    void ActivateTab(nint window);
+    void ActivateTab(WindowHandle window);
 
     /// <summary>Takes a window out of the group (a tab's x button).</summary>
-    void Remove(nint window);
+    void Remove(WindowHandle window);
     void DragSplitter(SplitterLayout splitter, double pointer);
     void SetTabBarPlacement(TabBarPlacement placement);
 
@@ -41,5 +41,5 @@ public interface IGroupControl
     void OnClosing();
 
     /// <summary>Called as the system is about to change the frame's z-order; returns the window to insert after instead, or null.</summary>
-    nint? OnFrameZChanging(FrameZChange change);
+    WindowHandle? OnFrameZChanging(FrameZChange change);
 }

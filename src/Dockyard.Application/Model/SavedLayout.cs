@@ -7,7 +7,8 @@ namespace Dockyard.Application;
 /// window and where it was before it joined, so a restart after a crash can give it back.
 /// </summary>
 /// <param name="Path">The app's exe, to start it when a layout is opened without it; null if unknown.</param>
-public sealed record SavedTab(string ProcessName, string Title, long Handle = 0, PixelRect? OriginalBounds = null, string? Path = null);
+public sealed record SavedTab(
+    ProcessName ProcessName, string Title, WindowHandle Handle = default, PixelRect? OriginalBounds = null, string? Path = null);
 
 /// <summary>A layout tree node: a split when <see cref="Split"/> is set, otherwise a pane with tabs.</summary>
 public sealed record SavedNode(
@@ -21,7 +22,7 @@ public sealed record SavedNode(
 /// one: the session and last-groups files leave it out.
 /// </param>
 public sealed record SavedGroup(
-    string Name, PixelRect Bounds, SavedNode Layout, TabBarPlacement? TabBarPlacement = null, string? Hotkey = null);
+    LayoutName Name, PixelRect Bounds, SavedNode Layout, TabBarPlacement? TabBarPlacement = null, string? Hotkey = null);
 
 /// <summary>Saved layouts are known by their names, which stay unique.</summary>
 public static class LayoutLibrary
@@ -42,7 +43,7 @@ public static class LayoutLibrary
     /// Sets the layout's hotkey, or clears it with null. A key does one thing: another layout that had it loses it.
     /// Returns false if there is no layout of that name.
     /// </summary>
-    public static bool SetHotkey(List<SavedGroup> layouts, string name, ShortcutKey? hotkey)
+    public static bool SetHotkey(List<SavedGroup> layouts, LayoutName name, ShortcutKey? hotkey)
     {
         var index = layouts.FindIndex(l => l.Name == name);
         if (index < 0) return false;
@@ -54,9 +55,9 @@ public static class LayoutLibrary
     }
 
     /// <summary>The hotkeys of the layouts by key. A text that does not parse, or a key taken twice, is ignored.</summary>
-    public static Dictionary<ShortcutKey, string> Hotkeys(IEnumerable<SavedGroup> layouts)
+    public static Dictionary<ShortcutKey, LayoutName> Hotkeys(IEnumerable<SavedGroup> layouts)
     {
-        var keys = new Dictionary<ShortcutKey, string>();
+        var keys = new Dictionary<ShortcutKey, LayoutName>();
         foreach (var layout in layouts)
             if (layout.Hotkey is { } text && ShortcutKey.Parse(text) is { } key)
                 keys.TryAdd(key, layout.Name);
@@ -64,12 +65,12 @@ public static class LayoutLibrary
     }
 
     /// <summary>Renames a layout. Fails for a blank name or one another layout has.</summary>
-    public static bool Rename(List<SavedGroup> layouts, string from, string to)
+    public static bool Rename(List<SavedGroup> layouts, LayoutName from, string to)
     {
-        to = to.Trim();
+        var renamed = new LayoutName(to.Trim());
         var index = layouts.FindIndex(l => l.Name == from);
-        if (index < 0 || to.Length == 0 || layouts.Any(l => l.Name == to && l.Name != from)) return false;
-        layouts[index] = layouts[index] with { Name = to };
+        if (index < 0 || renamed.Value.Length == 0 || layouts.Any(l => l.Name == renamed && l.Name != from)) return false;
+        layouts[index] = layouts[index] with { Name = renamed };
         return true;
     }
 }

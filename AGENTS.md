@@ -52,6 +52,7 @@ pwsh installer/build.ps1 -Dev                  # 署名せず layout フォル�
 ## 規約
 
 - ドキュメント・コミットメッセージは日本語、コード内のコメントと識別子は英語。
+- ID・名前を `nint` や `string` のまま持ち回らない。ウィンドウハンドルは `WindowHandle`（Domain。「窓なし」は `WindowHandle.None`）、グループ・レイアウトの名前は `LayoutName`、プロセス名は `ProcessName`（大文字小文字を区別しない）で持つ。生の `nint` を使うのは P/Invoke の境界（Infrastructure の `Win32`、Presentation の `Native`）だけで、保存ファイルの形式は `Infrastructure/Internal/Storage/IdJsonConverters.cs` が従来の数値・文字列のまま保つ。
 - Domain と Application は Windows・WPF を参照させず `net10.0` のままにし（Application.Tests・Domain.Tests も `net10.0`）、Infrastructure・Exe とそのテストの TFM は `net10.0-windows10.0.19041.0`（MSIX の `StartupTask` のため）にする。
 - C# のコーディングポリシー（可読性）は次に従う。
 

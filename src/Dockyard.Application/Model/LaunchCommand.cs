@@ -11,14 +11,14 @@ public static class LaunchCommand
     private const string LayoutOption = "--layout";
 
     /// <summary>The arguments that open the layout, quoted so that <see cref="ParseLayout"/> gets the name back.</summary>
-    public static string Format(string layoutName) => $"{LayoutOption} {Quote(layoutName)}";
+    public static string Format(LayoutName layoutName) => $"{LayoutOption} {Quote(layoutName.Value)}";
 
     /// <summary>The layout name the arguments ask for; null if they ask for none.</summary>
-    public static string? ParseLayout(IReadOnlyList<string> args)
+    public static LayoutName? ParseLayout(IReadOnlyList<string> args)
     {
         for (var i = 0; i + 1 < args.Count; i++)
             if (args[i].Equals(LayoutOption, StringComparison.OrdinalIgnoreCase) && args[i + 1].Length > 0)
-                return args[i + 1];
+                return new LayoutName(args[i + 1]);
         return null;
     }
 

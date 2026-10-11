@@ -82,7 +82,7 @@ public static class LayoutEngine
     }
 
     /// <summary>Smallest size the node can take. <paramref name="windowMinSize"/> gives each window's minimum content size.</summary>
-    public static Size MinSize(LayoutNode node, LayoutMetrics m, Func<nint, Size> windowMinSize)
+    public static Size MinSize(LayoutNode node, LayoutMetrics m, Func<WindowHandle, Size> windowMinSize)
     {
         switch (node)
         {
@@ -115,7 +115,7 @@ public static class LayoutEngine
     /// Clamps a splitter ratio so neither side goes below its minimum size (Q9: the splitter stops).
     /// <paramref name="length"/> is the split's full length along its orientation, including the splitter.
     /// </summary>
-    public static double ClampRatio(SplitNode split, double ratio, double length, LayoutMetrics m, Func<nint, Size> windowMinSize)
+    public static double ClampRatio(SplitNode split, double ratio, double length, LayoutMetrics m, Func<WindowHandle, Size> windowMinSize)
     {
         var available = length - m.SplitterThickness;
         if (!double.IsFinite(ratio) || !(available > 0)) return split.Ratio;
@@ -130,7 +130,7 @@ public static class LayoutEngine
     }
 
     /// <summary>Re-clamps every split ratio top-down so each side fits its minimum within <paramref name="bounds"/>.</summary>
-    public static void ClampAll(LayoutNode node, Rect bounds, LayoutMetrics m, Func<nint, Size> windowMinSize)
+    public static void ClampAll(LayoutNode node, Rect bounds, LayoutMetrics m, Func<WindowHandle, Size> windowMinSize)
     {
         if (node is not SplitNode s) return;
         var horizontal = s.Orientation == Orientation.Horizontal;

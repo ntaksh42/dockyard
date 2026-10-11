@@ -5,8 +5,8 @@ namespace Dockyard.Application.Tests;
 
 public class GroupControllerTests
 {
-    private const nint Frame = 1000, Other = 900, Dialog = 950;
-    private const nint A = 1, B = 2, C = 3;
+    private static readonly WindowHandle Frame = new(1000), Other = new(900), Dialog = new(950);
+    private static readonly WindowHandle A = new(1), B = new(2), C = new(3);
     private static readonly PixelRect Initial = new(10, 10, 610, 410);
 
     private readonly FakeWindowSystem _ws = new();
@@ -24,16 +24,16 @@ public class GroupControllerTests
 
     private Pane RootPane => _c.Layout!.Panes[0].Pane;
 
-    private PaneLayout PaneOf(nint w) => _c.Layout!.Panes.First(p => p.Pane.Windows.Contains(w));
+    private PaneLayout PaneOf(WindowHandle w) => _c.Layout!.Panes.First(p => p.Pane.Windows.Contains(w));
 
-    private nint Window(nint h, int minWidth = 0)
+    private WindowHandle Window(WindowHandle h, int minWidth = 0)
     {
         _ws.Add(h, Initial, $"w{h}");
         _ws.Windows[h].MinWidth = minWidth;
         return h;
     }
 
-    private void AssertPlaced(nint w) => Assert.Equal(_view.ToScreen(PaneOf(w).Content), _ws.GetVisibleBounds(w));
+    private void AssertPlaced(WindowHandle w) => Assert.Equal(_view.ToScreen(PaneOf(w).Content), _ws.GetVisibleBounds(w));
 
     private void SplitAC()
     {
@@ -68,7 +68,7 @@ public class GroupControllerTests
         var target = PaneOf(C).Pane;
         Assert.True(_c.Dock(A, target, null));
         Assert.Single(_c.Layout!.Panes);
-        Assert.Equal(new nint[] { C, A }, target.Windows);
+        Assert.Equal(new[] { C, A }, target.Windows);
         AssertPlaced(A);
         _c.Remove(A);
         Assert.Equal(Initial, _ws.GetBounds(A));
@@ -89,7 +89,7 @@ public class GroupControllerTests
         _c.Adopt(Window(A), RootPane, null);
         _c.Adopt(Window(B), RootPane, null);
         _c.ActivateTab(A);
-        var view = new FakeView(2000);
+        var view = new FakeView(new WindowHandle(2000));
         _ws.AddToZOrder(view.Handle);
         var target = new GroupController(view, _ws, _scheduler);
         target.OnSurfaceResized();
@@ -170,7 +170,7 @@ public class GroupControllerTests
     [Fact]
     public void Adopt_RefusesWindowThatIsGoneOrAlreadyMember()
     {
-        Assert.False(_c.Adopt(77, RootPane, null));
+        Assert.False(_c.Adopt(new WindowHandle(77), RootPane, null));
         _c.Adopt(Window(A), RootPane, null);
         Assert.False(_c.Adopt(A, RootPane, null));
     }
@@ -384,7 +384,7 @@ public class GroupControllerTests
     [Fact]
     public void TabOverlay_StaysAboveTheActiveTabs()
     {
-        const nint overlay = 960;
+        var overlay = new WindowHandle(960);
         _ws.AddToZOrder(overlay);
         _view.TabOverlay = overlay;
         SplitAC();
@@ -422,7 +422,7 @@ public class GroupControllerTests
         _c.Remove(C);
         _c.Adopt(C, PaneOf(A).Pane, DockSide.Right);
         _c.SetTabBarPlacement(TabBarPlacement.TitleBar);
-        _c.SetTitleBarApps(["MSEdge"]);
+        _c.SetTitleBarApps([new ProcessName("MSEdge")]);
 
         Assert.Equal(TabBarPlacement.TitleBar, PaneOf(A).Placement);
         Assert.Equal(TabBarPlacement.Top, PaneOf(C).Placement);
@@ -455,13 +455,13 @@ public class GroupControllerTests
     {
         _c.Adopt(Window(A), RootPane, null);
         _c.Adopt(Window(B), RootPane, null);
-        _c.ActivateTab(from);
+        _c.ActivateTab(new WindowHandle(from));
 
-        _c.Execute(action, from);
+        _c.Execute(action, new WindowHandle(from));
 
-        Assert.Equal(expected, RootPane.ActiveWindow);
-        Assert.Equal(expected, _ws.Focused);
-        Assert.True(_ws.Z(expected) < _ws.Z(Frame));
+        Assert.Equal(new WindowHandle(expected), RootPane.ActiveWindow);
+        Assert.Equal(new WindowHandle(expected), _ws.Focused);
+        Assert.True(_ws.Z(new WindowHandle(expected)) < _ws.Z(Frame));
     }
 
     [Fact]
@@ -658,7 +658,7 @@ public class GroupControllerTests
 
     // ---- dragging members ---------------------------------------------------------------------
 
-    private void UserDrags(nint w, Func<PixelRect, PixelRect> change)
+    private void UserDrags(WindowHandle w,Func<PixelRect, PixelRect> change)
     {
         _c.OnMoveSizeStart(w);
         _ws.Windows[w].Bounds = FakeWindowSystem.BoundsFor(change(_ws.GetVisibleBounds(w)));
@@ -963,7 +963,7 @@ public class GroupControllerTests
         _c.OnFrameMoved();
         _c.OnFrameActivated();
         _scheduler.RunPosted();
-        Assert.Null(_c.OnFrameZChanging(new FrameZChange(ZPlacement.Top, 0, false)));
+        Assert.Null(_c.OnFrameZChanging(new FrameZChange(ZPlacement.Top, WindowHandle.None, false)));
         Assert.True(_ws.Z(Frame) < _ws.Z(A) && _ws.Z(Frame) < _ws.Z(C));
         AssertPlaced(A);
         AssertPlaced(C);
@@ -1058,17 +1058,17 @@ public class GroupControllerTests
     }
 
     /// <summary>A view whose z-order changes come back into the controller, as the frame's WndProc does.</summary>
-    private sealed class ReentrantView(nint handle) : IGroupView
+    private sealed class ReentrantView(WindowHandle handle) : IGroupView
     {
         private readonly FakeView _inner = new(handle);
         public GroupController? Controller { get; set; }
-        public nint Handle => _inner.Handle;
+        public WindowHandle Handle => _inner.Handle;
         public bool IsOnScreen => true;
         public bool IsMinimized => false;
         public Size SurfaceSize => _inner.SurfaceSize;
         public double Scale => 1;
-        public nint ZAnchor => 0;
-        public nint TabOverlay => 0;
+        public WindowHandle ZAnchor => WindowHandle.None;
+        public WindowHandle TabOverlay => WindowHandle.None;
         public PixelRect ToScreen(Rect r) => _inner.ToScreen(r);
         public Rect FromScreen(PixelRect r) => _inner.FromScreen(r);
         public void Render(GroupSnapshot s) { }
@@ -1082,29 +1082,29 @@ public class GroupControllerTests
     /// <summary>Calls back into the controller whenever the frame itself is restacked.</summary>
     private sealed class ReentrantWindowSystem(FakeWindowSystem inner, Action onFrameStacked) : IWindowSystem
     {
-        public bool Exists(nint w) => inner.Exists(w);
-        public bool IsVisible(nint w) => inner.IsVisible(w);
-        public bool IsMinimized(nint w) => inner.IsMinimized(w);
-        public bool IsMaximized(nint w) => inner.IsMaximized(w);
-        public bool IsTopmost(nint w) => inner.IsTopmost(w);
-        public string GetTitle(nint w) => inner.GetTitle(w);
-        public nint GetForeground() => inner.GetForeground();
-        public bool IsTopLevel(nint w) => inner.IsTopLevel(w);
-        public bool IsCaptionDrag(nint w) => inner.IsCaptionDrag(w);
-        public IReadOnlyList<nint> GetTopLevelWindows() => inner.GetTopLevelWindows();
-        public string GetProcessName(nint w) => inner.GetProcessName(w);
-        public string? GetProcessPath(nint w) => inner.GetProcessPath(w);
-        public PixelRect GetVisibleBounds(nint w) => inner.GetVisibleBounds(w);
-        public PixelRect GetBounds(nint w) => inner.GetBounds(w);
-        public void Restore(nint w) => inner.Restore(w);
-        public void Show(nint w) => inner.Show(w);
-        public void Hide(nint w) => inner.Hide(w);
-        public void Focus(nint w) => inner.Focus(w);
-        public void PlaceVisible(nint w, PixelRect t) => inner.PlaceVisible(w, t);
-        public void SetBounds(nint w, PixelRect b) => inner.SetBounds(w, b);
-        public void SetTopmost(nint w) => inner.SetTopmost(w);
+        public bool Exists(WindowHandle w) => inner.Exists(w);
+        public bool IsVisible(WindowHandle w) => inner.IsVisible(w);
+        public bool IsMinimized(WindowHandle w) => inner.IsMinimized(w);
+        public bool IsMaximized(WindowHandle w) => inner.IsMaximized(w);
+        public bool IsTopmost(WindowHandle w) => inner.IsTopmost(w);
+        public string GetTitle(WindowHandle w) => inner.GetTitle(w);
+        public WindowHandle GetForeground() => inner.GetForeground();
+        public bool IsTopLevel(WindowHandle w) => inner.IsTopLevel(w);
+        public bool IsCaptionDrag(WindowHandle w) => inner.IsCaptionDrag(w);
+        public IReadOnlyList<WindowHandle> GetTopLevelWindows() => inner.GetTopLevelWindows();
+        public ProcessName GetProcessName(WindowHandle w) => inner.GetProcessName(w);
+        public string? GetProcessPath(WindowHandle w) => inner.GetProcessPath(w);
+        public PixelRect GetVisibleBounds(WindowHandle w) => inner.GetVisibleBounds(w);
+        public PixelRect GetBounds(WindowHandle w) => inner.GetBounds(w);
+        public void Restore(WindowHandle w) => inner.Restore(w);
+        public void Show(WindowHandle w) => inner.Show(w);
+        public void Hide(WindowHandle w) => inner.Hide(w);
+        public void Focus(WindowHandle w) => inner.Focus(w);
+        public void PlaceVisible(WindowHandle w, PixelRect t) => inner.PlaceVisible(w, t);
+        public void SetBounds(WindowHandle w, PixelRect b) => inner.SetBounds(w, b);
+        public void SetTopmost(WindowHandle w) => inner.SetTopmost(w);
 
-        public void Stack(nint after, IReadOnlyList<nint> topDown)
+        public void Stack(WindowHandle after, IReadOnlyList<WindowHandle> topDown)
         {
             inner.Stack(after, topDown);
             if (topDown.Contains(Frame)) onFrameStacked();

@@ -6,7 +6,7 @@ namespace Dockyard.Application;
 public interface IGroupView
 {
     /// <summary>The frame's own window handle.</summary>
-    nint Handle { get; }
+    WindowHandle Handle { get; }
 
     /// <summary>False while minimized, closing or not yet shown; screen mapping is not possible then.</summary>
     bool IsOnScreen { get; }
@@ -19,11 +19,11 @@ public interface IGroupView
     /// <summary>Physical pixels per layout unit.</summary>
     double Scale { get; }
 
-    /// <summary>0 when tabs may go to the top of the z-order; otherwise a window they must stay below, such as an open dialog.</summary>
-    nint ZAnchor { get; }
+    /// <summary><see cref="WindowHandle.None"/> when tabs may go to the top of the z-order; otherwise a window they must stay below, such as an open dialog.</summary>
+    WindowHandle ZAnchor { get; }
 
-    /// <summary>A window drawing tab bars over the member windows (tab bar placement B), or 0.</summary>
-    nint TabOverlay { get; }
+    /// <summary>A window drawing tab bars over the member windows (tab bar placement B), or <see cref="WindowHandle.None"/>.</summary>
+    WindowHandle TabOverlay { get; }
 
     PixelRect ToScreen(Rect surfaceRect);
     Rect FromScreen(PixelRect screenRect);

@@ -4,5 +4,5 @@ namespace Dockyard.Application;
 public interface ILayoutShortcuts
 {
     /// <summary>Writes the shortcut on the desktop, replacing one for the same layout. Returns its path, or null if it could not be written.</summary>
-    string? CreateOnDesktop(string layoutName);
+    string? CreateOnDesktop(LayoutName layoutName);
 }

@@ -20,10 +20,10 @@ internal sealed class FakeWindowSystem : IWindowSystem
         public int MinWidth, MinHeight;
     }
 
-    public Dictionary<nint, Window> Windows { get; } = [];
-    public List<nint> ZOrder { get; } = [];
+    public Dictionary<WindowHandle, Window> Windows { get; } = [];
+    public List<WindowHandle> ZOrder { get; } = [];
 
-    public nint Add(nint handle, PixelRect bounds, string title = "")
+    public WindowHandle Add(WindowHandle handle, PixelRect bounds, string title = "")
     {
         Windows[handle] = new Window { Bounds = bounds, Title = title };
         ZOrder.Insert(0, handle);
@@ -31,9 +31,9 @@ internal sealed class FakeWindowSystem : IWindowSystem
     }
 
     /// <summary>Puts a window (e.g. the frame) in the z-order without tracking anything else about it.</summary>
-    public void AddToZOrder(nint handle) => ZOrder.Insert(0, handle);
+    public void AddToZOrder(WindowHandle handle) => ZOrder.Insert(0, handle);
 
-    public void Close(nint handle)
+    public void Close(WindowHandle handle)
     {
         Windows.Remove(handle);
         ZOrder.Remove(handle);
@@ -44,39 +44,39 @@ internal sealed class FakeWindowSystem : IWindowSystem
 
     public static PixelRect BoundsFor(PixelRect visible) => new(visible.Left - Border, visible.Top, visible.Right + Border, visible.Bottom + Border);
 
-    public bool Exists(nint window) => Windows.ContainsKey(window);
-    public bool IsVisible(nint window) => Windows[window].Visible;
-    public bool IsMinimized(nint window) => Windows[window].Minimized;
-    public bool IsMaximized(nint window) => Windows[window].Maximized;
-    public bool IsTopmost(nint window) => Windows[window].Topmost;
-    public string GetTitle(nint window) => Windows[window].Title;
-    public nint GetForeground() => Focused;
-    public bool IsTopLevel(nint window) => Windows.ContainsKey(window);
-    public bool IsCaptionDrag(nint window) => false;
-    public IReadOnlyList<nint> GetTopLevelWindows() => ZOrder.ToList();
-    public string GetProcessName(nint window) => Windows[window].ProcessName;
-    public string? GetProcessPath(nint window) => Windows[window].ProcessPath;
-    public PixelRect GetVisibleBounds(nint window) => VisibleOf(Windows[window].Bounds);
-    public PixelRect GetBounds(nint window) => Windows[window].Bounds;
+    public bool Exists(WindowHandle window) => Windows.ContainsKey(window);
+    public bool IsVisible(WindowHandle window) => Windows[window].Visible;
+    public bool IsMinimized(WindowHandle window) => Windows[window].Minimized;
+    public bool IsMaximized(WindowHandle window) => Windows[window].Maximized;
+    public bool IsTopmost(WindowHandle window) => Windows[window].Topmost;
+    public string GetTitle(WindowHandle window) => Windows[window].Title;
+    public WindowHandle GetForeground() => Focused;
+    public bool IsTopLevel(WindowHandle window) => Windows.ContainsKey(window);
+    public bool IsCaptionDrag(WindowHandle window) => false;
+    public IReadOnlyList<WindowHandle> GetTopLevelWindows() => ZOrder.ToList();
+    public ProcessName GetProcessName(WindowHandle window) => new(Windows[window].ProcessName);
+    public string? GetProcessPath(WindowHandle window) => Windows[window].ProcessPath;
+    public PixelRect GetVisibleBounds(WindowHandle window) => VisibleOf(Windows[window].Bounds);
+    public PixelRect GetBounds(WindowHandle window) => Windows[window].Bounds;
 
-    public void Restore(nint window)
+    public void Restore(WindowHandle window)
     {
         Windows[window].Minimized = false;
         Windows[window].Maximized = false;
     }
 
-    public void Show(nint window) => Windows[window].Visible = true;
-    public void Hide(nint window) => Windows[window].Visible = false;
+    public void Show(WindowHandle window) => Windows[window].Visible = true;
+    public void Hide(WindowHandle window) => Windows[window].Visible = false;
 
-    public nint Focused { get; private set; }
+    public WindowHandle Focused { get; private set; }
 
-    public void Focus(nint window)
+    public void Focus(WindowHandle window)
     {
         Focused = window;
         BringToTop(window);
     }
 
-    public void PlaceVisible(nint window, PixelRect target)
+    public void PlaceVisible(WindowHandle window, PixelRect target)
     {
         var w = Windows[window];
         var visible = new PixelRect(target.Left, target.Top,
@@ -84,7 +84,7 @@ internal sealed class FakeWindowSystem : IWindowSystem
         w.Bounds = BoundsFor(visible);
     }
 
-    public void SetBounds(nint window, PixelRect bounds)
+    public void SetBounds(WindowHandle window, PixelRect bounds)
     {
         Windows[window].Visible = true;
         Windows[window].Bounds = bounds;
@@ -94,34 +94,34 @@ internal sealed class FakeWindowSystem : IWindowSystem
         ZOrder.Insert(0, window);
     }
 
-    public void SetTopmost(nint window) => Windows[window].Topmost = true;
+    public void SetTopmost(WindowHandle window) => Windows[window].Topmost = true;
 
-    public void Stack(nint after, IReadOnlyList<nint> topDown)
+    public void Stack(WindowHandle after, IReadOnlyList<WindowHandle> topDown)
     {
         foreach (var w in topDown)
         {
             if (Windows.TryGetValue(w, out var window)) window.Topmost = false;
             ZOrder.Remove(w);
-            ZOrder.Insert(after == 0 ? 0 : ZOrder.IndexOf(after) + 1, w);
+            ZOrder.Insert(after.IsNone ? 0 : ZOrder.IndexOf(after) + 1, w);
             after = w;
         }
     }
 
     /// <summary>The user brings a window to the top (e.g. by clicking it).</summary>
-    public void BringToTop(nint window)
+    public void BringToTop(WindowHandle window)
     {
         ZOrder.Remove(window);
         ZOrder.Insert(0, window);
     }
 
-    public int Z(nint window) => ZOrder.IndexOf(window);
+    public int Z(WindowHandle window) => ZOrder.IndexOf(window);
 }
 
 /// <summary>
 /// The frame. Its layout surface sits at <see cref="Origin"/> on the screen, one pixel per layout unit.
 /// Like the WPF window, it reports its own moves and resizes back (see <see cref="Connect"/>).
 /// </summary>
-internal sealed class FakeView(nint handle) : IGroupView
+internal sealed class FakeView(WindowHandle handle) : IGroupView
 {
     private GroupController? _controller;
     private IScheduler? _scheduler;
@@ -143,13 +143,13 @@ internal sealed class FakeView(nint handle) : IGroupView
     public GroupSnapshot? LastRender;
     public bool Minimized;
 
-    public nint Handle { get; } = handle;
+    public WindowHandle Handle { get; } = handle;
     public bool IsOnScreen => !Minimized;
     public bool IsMinimized => Minimized;
     public Size SurfaceSize => Surface;
     public double Scale => 1;
-    public nint ZAnchor { get; set; }
-    public nint TabOverlay { get; set; }
+    public WindowHandle ZAnchor { get; set; }
+    public WindowHandle TabOverlay { get; set; }
 
     public PixelRect ToScreen(Rect r) => new(
         (int)Math.Round(Origin.X + r.X), (int)Math.Round(Origin.Y + r.Y),
