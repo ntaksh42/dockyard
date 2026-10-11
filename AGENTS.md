@@ -41,6 +41,9 @@ pwsh installer/build.ps1 -Dev                  # 署名せず layout フォル�
 
 - ドキュメント・コミットメッセージは日本語、コード内のコメントと識別子は英語。
 - App とテストの TFM は `net10.0-windows10.0.19041.0`（MSIX の `StartupTask` のため）。Domain.Tests は `net10.0` で Windows に依存させない。
+- C# のコーディングポリシー（可読性）は次に従う。
+
+@docs/csharp-coding-policy.md
 
 ## MSIX パッケージ（installer/）
 
