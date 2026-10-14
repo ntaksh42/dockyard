@@ -38,6 +38,9 @@ internal sealed class WinEventHook : IWindowEventSource, IDisposable
     public event Action<WindowEvent, WindowHandle>? Received;
     public event Action<WindowHandle, PixelRect>? ShiftMouseDown;
 
+    /// <summary>The foreground window, on every foreground event and every <see cref="CheckForeground"/>.</summary>
+    public event Action<nint>? ForegroundChecked;
+
     public WinEventHook()
     {
         _proc = OnEvent;
@@ -82,8 +85,8 @@ internal sealed class WinEventHook : IWindowEventSource, IDisposable
     public void CheckForeground()
     {
         var fg = GetForegroundWindow();
-        if (fg == _lastForeground) return;
-        Raise(EVENT_SYSTEM_FOREGROUND, fg);
+        if (fg != _lastForeground) Raise(EVENT_SYSTEM_FOREGROUND, fg);
+        else ForegroundChecked?.Invoke(fg);
     }
 
     private void OnEvent(nint hook, uint eventType, nint hwnd, int idObject, int idChild, uint thread, uint time)
@@ -104,12 +107,16 @@ internal sealed class WinEventHook : IWindowEventSource, IDisposable
 
     private void Raise(uint eventType, nint hwnd)
     {
-        if (eventType == EVENT_SYSTEM_FOREGROUND) _lastForeground = hwnd;
         var watch = Stopwatch.StartNew();
         // This may run inside a native callback: an exception escaping here kills the process outright,
         // without reaching WPF's unhandled-exception handler.
         try
         {
+            if (eventType == EVENT_SYSTEM_FOREGROUND)
+            {
+                _lastForeground = hwnd;
+                ForegroundChecked?.Invoke(hwnd);
+            }
             Received?.Invoke(Events[eventType], new WindowHandle(hwnd));
         }
         catch (Exception ex)

@@ -16,6 +16,11 @@ public sealed class PlatformServices : IPlatform, IDisposable
     private readonly WinEventHook _windowEvents = new();
     private readonly KeyboardHook _keyboard = new();
 
+    public PlatformServices()
+    {
+        _windowEvents.ForegroundChecked += _keyboard.StayAheadOf;
+    }
+
     public IWindowSystem Windows { get; } = new Win32WindowSystem();
     public IWindowCatalog Catalog { get; } = new Win32WindowCatalog();
     public IInputState Input { get; } = new Win32Input();

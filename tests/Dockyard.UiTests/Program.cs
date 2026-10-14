@@ -31,6 +31,7 @@ internal static partial class Program
     private static int Main(string[] args)
     {
         if (args.Contains("--client-caption")) return RunClientCaption(args.Contains("--manual-move"));
+        if (args.Contains("--fake-rdp")) return RunFakeRdp();
         var root = AppContext.BaseDirectory;
         while (!File.Exists(Path.Combine(root, "Dockyard.slnx"))) root = Path.GetDirectoryName(root)!;
         _dragOnly = args.Contains("--drag-only") || args.Contains("--external-only");
@@ -45,7 +46,8 @@ internal static partial class Program
         }
         var features = args.Contains("--features");
         var stress = args.Contains("--stress");
-        var backup = features || stress || args.Contains("--perf") ? BackUpData() : null;
+        var rdp = args.Contains("--rdp");
+        var backup = features || stress || rdp || args.Contains("--perf") ? BackUpData() : null;
         if (backup is not null) WriteTestSettings();
 
         _app = Process.Start(_exe)!;
@@ -57,6 +59,7 @@ internal static partial class Program
             else if (_dragOnly) RunDockDrag();
             else if (features) RunFeatures();
             else if (stress) RunStress();
+            else if (rdp) RunRemoteDesktop();
             else if (args.Contains("--perf")) RunPerf();
             else Run();
         }

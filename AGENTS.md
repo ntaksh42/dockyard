@@ -14,7 +14,7 @@ pwsh installer/build.ps1 -Dev                  # 署名せず layout フォル�
 ```
 
 - Dockyard は多重起動しない（2 つ目はすぐ終了する。`--layout "名前"` 付きなら、終了する前に起動中の Dockyard へそのレイアウトを開かせる）。起動中の Dockyard.exe はビルド出力をロックするので、ビルド前に終了する。
-- 実機 E2E の `tests/Dockyard.UiTests` は `dotnet test` の対象ではない。デスクトップを実マウスで 1 分ほど操作するので、ユーザーに確認してから `dotnet run --project tests/Dockyard.UiTests` で実行する。`src/Dockyard.Exe/bin/Debug/.../Dockyard.exe` を起動するので先に Dockyard.Exe を Debug でビルドしておく。`-- --features`（メニュー・レイアウト・設定・復元）、`-- --stress`（負荷）、`-- --perf` がある。`%LOCALAPPDATA%\Dockyard\session.json` が残っていると開始しない。
+- 実機 E2E の `tests/Dockyard.UiTests` は `dotnet test` の対象ではない。デスクトップを実マウスで 1 分ほど操作するので、ユーザーに確認してから `dotnet run --project tests/Dockyard.UiTests` で実行する。`src/Dockyard.Exe/bin/Debug/.../Dockyard.exe` を起動するので先に Dockyard.Exe を Debug でビルドしておく。`-- --features`（メニュー・レイアウト・設定・復元）、`-- --stress`（負荷）、`-- --perf`、`-- --rdp`（RDP クライアントが前面のときのショートカット。`mstsc.exe` に名前を変えた偽のクライアントで確かめる）がある。`%LOCALAPPDATA%\Dockyard\session.json` が残っていると開始しない。
 - ログは `%LOCALAPPDATA%\Dockyard\dockyard.log`（MSIX 版はパッケージ専用の場所へリダイレクトされる。下の「MSIX パッケージ」節参照）。詳細トレースは `dockyard.trace.log` に出る。Debug ビルドは常に出し、Release は `DOCKYARD_TRACE=1` のときだけ。
 
 ## アーキテクチャ
