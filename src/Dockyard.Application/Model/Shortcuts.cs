@@ -97,7 +97,6 @@ public static class Shortcuts
         [ShortcutAction.MoveTabDown] = new(KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Win, 0x28),
         [ShortcutAction.GrowPane] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0xDD),
         [ShortcutAction.ShrinkPane] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0xDB),
-        [ShortcutAction.SaveLayout] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x53),
         [ShortcutAction.RenameGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x52),
         [ShortcutAction.ChangeTabBar] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x42),
         [ShortcutAction.MaximizeGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x26),
@@ -198,7 +197,7 @@ public static class Shortcuts
     /// <summary>Only the bindings that differ from the defaults, so a later change of a default still applies.</summary>
     public static Dictionary<string, string> Save(IReadOnlyDictionary<ShortcutAction, ShortcutKey> bindings) =>
         Enum.GetValues<ShortcutAction>()
-            .Where(a => !bindings.TryGetValue(a, out var b) || b != Defaults[a])
+            .Where(a => bindings.TryGetValue(a, out var b) != Defaults.TryGetValue(a, out var d) || b != d)
             .ToDictionary(a => a.ToString(), a => bindings.TryGetValue(a, out var b) ? b.ToString() : "");
 
     internal static DockSide? Direction(ShortcutAction action) => action switch

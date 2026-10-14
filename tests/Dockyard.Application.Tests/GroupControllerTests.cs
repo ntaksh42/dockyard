@@ -578,18 +578,29 @@ public class GroupControllerTests
     [Fact]
     public void Shortcuts_AKeyTheUserChoseWinsOverANewDefault()
     {
-        var bindings = Shortcuts.Load(new Dictionary<string, string> { ["NextTab"] = "Ctrl+Alt+S" });
+        var bindings = Shortcuts.Load(new Dictionary<string, string> { ["NextTab"] = "Ctrl+Alt+R" });
 
-        Assert.Equal(ShortcutAction.NextTab, Shortcuts.Match(bindings, 0x53, KeyModifiers.Ctrl | KeyModifiers.Alt));
-        Assert.False(bindings.ContainsKey(ShortcutAction.SaveLayout));
-        Assert.True(bindings.ContainsKey(ShortcutAction.RenameGroup));
+        Assert.Equal(ShortcutAction.NextTab, Shortcuts.Match(bindings, 0x52, KeyModifiers.Ctrl | KeyModifiers.Alt));
+        Assert.False(bindings.ContainsKey(ShortcutAction.RenameGroup));
+        Assert.True(bindings.ContainsKey(ShortcutAction.ChangeTabBar));
     }
 
     [Fact]
     public void Shortcuts_DefaultsAreAllDistinctAndNamed()
     {
         Assert.Equal(Shortcuts.Defaults.Count, Shortcuts.Defaults.Values.Distinct().Count());
-        Assert.All(Enum.GetValues<ShortcutAction>(), a => Assert.True(Shortcuts.Defaults.ContainsKey(a) && Shortcuts.Names.ContainsKey(a), a.ToString()));
+        Assert.All(Enum.GetValues<ShortcutAction>(), a => Assert.True(Shortcuts.Names.ContainsKey(a), a.ToString()));
+    }
+
+    [Fact]
+    public void Shortcuts_SaveLayoutHasNoDefaultKeyButCanBeBound()
+    {
+        Assert.False(Shortcuts.Defaults.ContainsKey(ShortcutAction.SaveLayout));
+        Assert.DoesNotContain("SaveLayout", Shortcuts.Save(Shortcuts.Defaults).Keys);
+
+        var saved = Shortcuts.Save(Shortcuts.Load(new Dictionary<string, string> { ["SaveLayout"] = "Ctrl+Alt+S" }));
+
+        Assert.Equal("Ctrl+Alt+S", saved["SaveLayout"]);
     }
 
     [Theory]
