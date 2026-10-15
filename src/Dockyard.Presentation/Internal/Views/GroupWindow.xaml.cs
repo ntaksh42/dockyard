@@ -797,6 +797,7 @@ object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
     /// </summary>
     private void BeginLive()
     {
+        _liveEnd.Stop();
         if (_closing || _picker is not null || !IsOnScreen || Controller.IsLive) return;
         // Thumbnails first, so the panes are never blank while the windows go behind the frame.
         UpdateThumbnails(null, EventArgs.Empty);
@@ -806,7 +807,7 @@ object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
     private void EndLiveSoon()
     {
-        if (!Controller.IsLive) return;
+        if (!Controller.IsLive || _sizing) return;
         _liveEnd.Stop();
         _liveEnd.Start();
     }

@@ -18,6 +18,8 @@ internal sealed class Win32WindowSystem : IWindowSystem
     // Waits at least this long are traced, to find out which apps make Dockyard wait.
     private const long SlowMs = 50;
 
+    private readonly Queue<(WindowHandle After, WindowHandle[] Windows)> _stackQueue = [];
+
     public bool Exists(WindowHandle window) => IsWindow(window.Value);
     public bool IsVisible(WindowHandle window) => IsWindowVisible(window.Value);
     public bool IsMinimized(WindowHandle window) => IsIconic(window.Value);
@@ -99,35 +101,71 @@ internal sealed class Win32WindowSystem : IWindowSystem
     public void SetTopmost(WindowHandle window) =>
         SetWindowPos(window.Value, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
 
+    public bool IsStacking { get; private set; }
+
     public void Stack(WindowHandle after, IReadOnlyList<WindowHandle> topDown)
     {
-        var watch = Stopwatch.StartNew();
-        foreach (var w in topDown)
-        {
-            if (after.IsNone)
-            {
-                BringToTop(w);
-            }
-            else
-            {
-                Request(w, "stack", flags => SetWindowPos(w.Value, after.Value, 0, 0, 0, 0, ZOrderFlags | flags));
-            }
-            after = w;
-        }
-        if (watch.ElapsedMilliseconds >= SlowMs) Log.Trace($"stack of {topDown.Count} windows took {watch.ElapsedMilliseconds}ms");
+        _stackQueue.Enqueue((after, [.. topDown]));
+        if (!IsStacking) _ = ApplyStacksAsync();
     }
 
-    /// <summary>
-    /// Puts another app's window at the top of the z-order without activating it. SetWindowPos(HWND_TOP) is
-    /// silently ignored for other processes' windows (seen with Notepad and Paint even while Dockyard had the
-    /// foreground); passing through the topmost band is not restricted and ends at the top of the normal band.
-    /// </summary>
-    private static void BringToTop(WindowHandle window) => Request(window, "raise", flags =>
+    private async Task ApplyStacksAsync()
     {
-        // Both requests go the same way, so they reach the window's thread in this order.
-        SetWindowPos(window.Value, HWND_TOPMOST, 0, 0, 0, 0, ZOrderFlags | flags);
-        SetWindowPos(window.Value, HWND_NOTOPMOST, 0, 0, 0, 0, ZOrderFlags | flags);
-    });
+        IsStacking = true;
+        try
+        {
+            while (_stackQueue.TryDequeue(out var request))
+            {
+                var after = request.After;
+                foreach (var window in request.Windows)
+                {
+                    if (!Exists(window)) continue;
+                    if (after.IsNone)
+                    {
+                        // Wait asynchronously for each band change before another window uses this one as its
+                        // anchor. Otherwise the next window can inherit the temporary topmost band.
+                        SetWindowPos(window.Value, HWND_TOPMOST, 0, 0, 0, 0, ZOrderFlags | SWP_ASYNCWINDOWPOS);
+                        var raised = await WaitForZOrderAsync(window, () => IsTopmost(window));
+                        // Queue the reset even on timeout, so a slow app is never left topmost later.
+                        SetWindowPos(window.Value, HWND_NOTOPMOST, 0, 0, 0, 0, ZOrderFlags | SWP_ASYNCWINDOWPOS);
+                        if (!raised || !await WaitForZOrderAsync(window, () => !IsTopmost(window))) break;
+                    }
+                    else
+                    {
+                        SetWindowPos(window.Value, after.Value, 0, 0, 0, 0, ZOrderFlags | SWP_ASYNCWINDOWPOS);
+                        if (!await WaitForZOrderAsync(window, () => GetWindow(window.Value, GW_HWNDPREV) == after.Value)) break;
+                    }
+                    after = window;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // This task starts in a native callback and must not leave an unobserved exception behind.
+            Log.Error("Apply window stack", ex);
+        }
+        finally
+        {
+            IsStacking = false;
+        }
+    }
+
+    private async Task<bool> WaitForZOrderAsync(WindowHandle window, Func<bool> applied)
+    {
+        var watch = Stopwatch.StartNew();
+        while (Exists(window))
+        {
+            if (applied()) return true;
+            if (watch.ElapsedMilliseconds >= 100)
+            {
+                Log.Trace($"stack: 0x{window:X} did not reach its requested z-order in {watch.ElapsedMilliseconds}ms");
+                return false;
+            }
+            // Resume on the UI thread: it must keep pumping input and frame callbacks while the app responds.
+            await Task.Delay(1);
+        }
+        return false;
+    }
 
     /// <summary>
     /// Posts requests without probing the target first: an app can become busy after answering a probe.

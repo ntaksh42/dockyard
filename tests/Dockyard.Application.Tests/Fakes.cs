@@ -22,6 +22,7 @@ internal sealed class FakeWindowSystem : IWindowSystem
 
     public Dictionary<WindowHandle, Window> Windows { get; } = [];
     public List<WindowHandle> ZOrder { get; } = [];
+    public bool IsStacking { get; set; }
 
     public WindowHandle Add(WindowHandle handle, PixelRect bounds, string title = "")
     {

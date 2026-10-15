@@ -60,4 +60,7 @@ public interface IWindowSystem
     /// the z-order), each following one just below the previous.
     /// </summary>
     void Stack(WindowHandle after, IReadOnlyList<WindowHandle> topDown);
+
+    /// <summary>Whether queued z-order changes are still being applied, including changes to the frame itself.</summary>
+    bool IsStacking => false;
 }

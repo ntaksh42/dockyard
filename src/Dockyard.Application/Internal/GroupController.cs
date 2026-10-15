@@ -405,7 +405,7 @@ internal sealed class GroupController : IGroupControl
     /// </summary>
     public WindowHandle? OnFrameZChanging(FrameZChange change)
     {
-        if (_raising || _live || !_view.IsOnScreen) return null;
+        if (_raising || _windows.IsStacking || _live || !_view.IsOnScreen) return null;
         Diagnostics.Trace?.Invoke($"frame z-change {change}");
         var actives = ActiveWindows();
         if (!ZOrderPolicy.ShouldCarryTabs(change, [.. _members.Keys, _view.TabOverlay]) || actives.Count == 0) return null;

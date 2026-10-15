@@ -1045,6 +1045,18 @@ public class GroupControllerTests
     }
 
     [Fact]
+    public void QueuedStackChanges_DoNotStartAnotherFrameRestack()
+    {
+        SplitAC();
+        _ws.IsStacking = true;
+
+        Assert.Null(_c.OnFrameZChanging(new FrameZChange(ZPlacement.Top)));
+
+        _ws.IsStacking = false;
+        Assert.NotNull(_c.OnFrameZChanging(new FrameZChange(ZPlacement.Top)));
+    }
+
+    [Fact]
     public void FrameMovedOrResized_MembersFollow()
     {
         SplitAC();

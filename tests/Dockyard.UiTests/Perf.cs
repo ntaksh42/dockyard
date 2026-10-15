@@ -142,6 +142,36 @@ internal static partial class Program
             ReportBlank(blanks);
             Settle();
         }
+        Step("rapid drag keeps the preview after a restore", () =>
+        {
+            Invoke(FindIn(_frame, "Maximize"));
+            Settle();
+            Invoke(FindIn(_frame, "Restore"));
+            Thread.Sleep(25);
+            var start = Visible(_frame);
+            int x = start.Left + 300, y = start.Top + 15;
+            SetCursorPos(x, y);
+            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+            try
+            {
+                for (var i = 0; i < 120; i++)
+                {
+                    SetCursorPos(x + (i / 10 % 2 == 0 ? 200 : 0) + i, y + i / 2);
+                    Thread.Sleep(3);
+                    if (i != 100) continue;
+                    var order = ZOrder();
+                    if (order.IndexOf(_frame) > order.IndexOf(a.Hwnd) || order.IndexOf(_frame) > order.IndexOf(b.Hwnd))
+                        throw new InvalidOperationException("preview ended while the caption was still being dragged");
+                }
+            }
+            finally
+            {
+                mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+            }
+            var end = Visible(_frame);
+            if (Math.Abs(end.Left - start.Left) < 50)
+                throw new InvalidOperationException("the rapid drag did not move the frame");
+        }, [a, b], [a, b]);
         ReportMemory("after all of the above");
     }
 
