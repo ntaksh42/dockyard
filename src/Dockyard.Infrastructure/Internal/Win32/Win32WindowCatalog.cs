@@ -43,7 +43,7 @@ internal sealed class Win32WindowCatalog : IWindowCatalog
     /// is the case for windows of elevated processes while Dockyard runs unelevated.
     /// </summary>
     private static bool CanControl(nint hwnd) =>
-        SetWindowPos(hwnd, 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+        SetWindowPos(hwnd, 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_ASYNCWINDOWPOS);
 
     internal static ProcessName ProcessNameOf(uint pid)
     {

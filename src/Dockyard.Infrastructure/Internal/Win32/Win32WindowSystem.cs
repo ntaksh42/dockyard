@@ -15,10 +15,6 @@ internal sealed class Win32WindowSystem : IWindowSystem
 
     private const uint VisibilityFlags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE;
 
-    // A request to a window waits for its app, and this thread also runs the input hooks that the input of every
-    // app passes through: an app that does not answer within this is not waited for (see Request).
-    private const uint ResponseTimeoutMs = 100;
-
     // Waits at least this long are traced, to find out which apps make Dockyard wait.
     private const long SlowMs = 50;
 
@@ -51,19 +47,13 @@ internal sealed class Win32WindowSystem : IWindowSystem
 
     public PixelRect GetBounds(WindowHandle window) => GetWindowRect(window.Value, out var r) ? ToPixel(r) : default;
 
-    public void Restore(WindowHandle window) => ShowWindow(window.Value, SW_RESTORE);
+    public void Restore(WindowHandle window) => ShowWindowAsync(window.Value, SW_RESTORE);
 
     public void Show(WindowHandle window) => Request(window, "show", flags =>
-    {
-        if (flags == 0) ShowWindow(window.Value, SW_SHOWNOACTIVATE);
-        else SetWindowPos(window.Value, 0, 0, 0, 0, 0, SWP_SHOWWINDOW | VisibilityFlags | flags);
-    });
+        SetWindowPos(window.Value, 0, 0, 0, 0, 0, SWP_SHOWWINDOW | VisibilityFlags | flags));
 
     public void Hide(WindowHandle window) => Request(window, "hide", flags =>
-    {
-        if (flags == 0) ShowWindow(window.Value, SW_HIDE);
-        else SetWindowPos(window.Value, 0, 0, 0, 0, 0, SWP_HIDEWINDOW | VisibilityFlags | flags);
-    });
+        SetWindowPos(window.Value, 0, 0, 0, 0, 0, SWP_HIDEWINDOW | VisibilityFlags | flags));
 
     public void Focus(WindowHandle window)
     {
@@ -118,11 +108,9 @@ internal sealed class Win32WindowSystem : IWindowSystem
             {
                 BringToTop(w);
             }
-            // An asynchronous request is not carried out yet, so there is nothing to compare it with.
-            else if (Request(w, "stack", flags => SetWindowPos(w.Value, after.Value, 0, 0, 0, 0, ZOrderFlags | flags)))
+            else
             {
-                var above = GetWindow(w.Value, GW_HWNDPREV);
-                if (above != after.Value) Log.Trace($"stack: 0x{w:X} wanted below 0x{after:X} but is below 0x{above:X} (foreground 0x{GetForegroundWindow():X})");
+                Request(w, "stack", flags => SetWindowPos(w.Value, after.Value, 0, 0, 0, 0, ZOrderFlags | flags));
             }
             after = w;
         }
@@ -142,23 +130,15 @@ internal sealed class Win32WindowSystem : IWindowSystem
     });
 
     /// <summary>
-    /// Sends a request to another app's window and waits for it as usual, so that requests are carried out in
-    /// order, unless the app does not answer: <paramref name="send"/> then gets SWP_ASYNCWINDOWPOS to add to its
-    /// flags, which hands the request over without waiting. A busy app would otherwise stall this thread, and with
-    /// it the mouse and keyboard hooks, which delays the input of every app.
+    /// Posts requests without probing the target first: an app can become busy after answering a probe.
+    /// This thread also runs the input hooks, so waiting here delays input in every app.
+    /// Requests to each window's thread retain their order; completion across threads is asynchronous.
     /// </summary>
-    /// <returns>Whether the request was sent synchronously, that is, is carried out by now.</returns>
-    private static bool Request(WindowHandle window, string operation, Action<uint> send)
+    private static void Request(WindowHandle window, string operation, Action<uint> send)
     {
         var watch = Stopwatch.StartNew();
-        var responds = Responds(window.Value, ResponseTimeoutMs);
-        var probed = watch.ElapsedMilliseconds;
-        watch.Restart();
-        send(responds ? 0 : SWP_ASYNCWINDOWPOS);
-        var sent = watch.ElapsedMilliseconds;
-        if (!responds) Log.Trace($"{operation}: 0x{window:X} ({ProcessNameOf(window)}) did not answer in {probed}ms, sent without waiting");
-        else TraceIfSlow(operation, window, probed + sent);
-        return responds;
+        send(SWP_ASYNCWINDOWPOS);
+        TraceIfSlow(operation, window, watch.ElapsedMilliseconds);
     }
 
     private static void TraceIfSlow(string operation, WindowHandle window, long milliseconds)
