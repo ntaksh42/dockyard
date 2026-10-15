@@ -66,7 +66,7 @@ public readonly record struct ShortcutKey(KeyModifiers Modifiers, int Key)
 }
 
 /// <summary>
-/// Keyboard shortcuts (Q7). By default all on Ctrl+Alt: ←/→ switch tabs in the pane, Shift+arrows move to the
+/// Keyboard shortcuts (Q7). Most default to Ctrl+Alt: ←/→ switch tabs in the pane, Shift+arrows move to the
 /// next pane, W takes the window out of its group. Not Ctrl+Win: Ctrl+Win+←/→ switches virtual desktops. The
 /// user can rebind them in the settings.
 /// </summary>
@@ -103,7 +103,7 @@ public static class Shortcuts
         [ShortcutAction.MinimizeGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x28),
         [ShortcutAction.CloseGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Shift, 0x57),
         [ShortcutAction.OpenMenu] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x4D),
-        [ShortcutAction.AddTab] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x54),
+        [ShortcutAction.AddTab] = new(KeyModifiers.Ctrl | KeyModifiers.Shift, 0x4E),
         // V and H as in vim's :vsplit and :split: a vertical divider puts the new window to the right.
         [ShortcutAction.SplitRight] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x56),
         [ShortcutAction.SplitDown] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x48),

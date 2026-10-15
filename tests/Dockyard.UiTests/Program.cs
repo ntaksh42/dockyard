@@ -240,9 +240,11 @@ internal static partial class Program
         {
             Invoke(FindIn(_frame, "Add Window…"));
             Pick(a);
-        }, members: [a], active: [a], below: [e]);
+        }, members: [a], active: [a], below: [e],
+            extra: () => GetForegroundWindow() == a.Hwnd ? null : "added window did not receive focus without a click");
 
-        Step("add a minimized window as a tab", () => AddVia(a, "Add as Tab…", b), members: [a, b], active: [b]);
+        Step("add a minimized window as a tab", () => AddVia(a, "Add as Tab…", b), members: [a, b], active: [b],
+            extra: () => GetForegroundWindow() == b.Hwnd ? null : "added tab did not receive focus without a click");
 
         Step("switch tabs by clicking a tab", () => ClickTab(a), members: [a, b], active: [a]);
 
