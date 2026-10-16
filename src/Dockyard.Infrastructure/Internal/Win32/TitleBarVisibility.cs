@@ -16,7 +16,9 @@ internal static class TitleBarVisibility
         var hwnd = window.Value;
         var saved = GetProp(hwnd, CaptionProperty);
         var style = (long)GetWindowLongPtr(hwnd, StyleIndex);
-        if (visible)
+        // WinUI and Chromium/Electron draw their own headers. Removing WS_CAPTION can expose a resize
+        // strip or change their client insets. Also undo a caption change made by an earlier build.
+        if (visible || GetClassName(hwnd) is "WinUIDesktopWin32WindowClass" or "Chrome_WidgetWin_1")
         {
             if (saved == 0) return false;
             var restored = style | (long)saved;
