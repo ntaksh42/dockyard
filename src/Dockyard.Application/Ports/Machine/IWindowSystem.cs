@@ -18,6 +18,12 @@ public interface IWindowSystem
     /// <summary>The window that has the keyboard focus, or <see cref="WindowHandle.None"/>.</summary>
     WindowHandle GetForeground();
 
+    /// <summary>The top-level window under a screen position, including overlays.</summary>
+    WindowHandle GetWindowAt(int x, int y);
+
+    /// <summary>Hides a standard title bar, or restores only the caption bits Dockyard removed. Returns whether the style changed.</summary>
+    bool SetTitleBarVisible(WindowHandle window, bool visible);
+
     /// <summary>Whether the window is a top-level window rather than a child of another.</summary>
     bool IsTopLevel(WindowHandle window);
 

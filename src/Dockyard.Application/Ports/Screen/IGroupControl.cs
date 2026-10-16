@@ -10,6 +10,7 @@ public interface IGroupControl
 {
     LayoutMetrics Metrics { get; }
     bool IsLive { get; }
+    bool AutoHideTitleBars { get; }
 
     /// <summary>The tab the user last worked in, which keyboard shortcuts act on when the frame has the focus.</summary>
     WindowHandle? LastActive { get; }
@@ -29,6 +30,10 @@ public interface IGroupControl
     void Remove(WindowHandle window);
     void DragSplitter(SplitterLayout splitter, double pointer);
     void SetTabBarPlacement(TabBarPlacement placement);
+    void SetAutoHideTitleBars(bool enabled);
+    void UpdateTitleBarHover(int x, int y, WindowHandle hitWindow, bool interacting = false);
+    void RevealTitleBar(WindowHandle window);
+    bool IsTitleBarVisible(WindowHandle window);
 
     void BeginLive();
     void EndLive();

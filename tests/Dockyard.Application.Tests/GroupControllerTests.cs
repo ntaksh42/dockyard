@@ -43,6 +43,151 @@ public class GroupControllerTests
 
     // ---- adding and removing ----------------------------------------------------------------------
 
+    [Fact]
+    public void TitleBars_AreHiddenOnAdoptionAndRestoredOnRelease()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        Assert.False(_ws.Windows[A].TitleBarVisible);
+
+        _c.Remove(A);
+
+        Assert.True(_ws.Windows[A].TitleBarVisible);
+        Assert.Equal(Initial, _ws.GetBounds(A));
+    }
+
+    [Theory]
+    [InlineData(TabBarPlacement.Top)]
+    [InlineData(TabBarPlacement.TitleBar)]
+    [InlineData(TabBarPlacement.Left)]
+    public void TitleBarHover_RevealsOnlyTheHoveredPaneAndHidesAfterLeaving(TabBarPlacement placement)
+    {
+        SplitAC();
+        _c.SetTabBarPlacement(placement);
+        var target = _view.ToScreen(PaneOf(A).Content);
+        var order = _ws.ZOrder.ToArray();
+
+        _c.UpdateTitleBarHover(target.Right - 20, target.Top + 1, A);
+        Assert.True(_ws.Windows[A].TitleBarVisible);
+        Assert.False(_ws.Windows[C].TitleBarVisible);
+        Assert.Equal(order, _ws.ZOrder);
+        AssertPlaced(A);
+
+        _c.UpdateTitleBarHover(target.Right - 20, target.Top + 30, A);
+        _scheduler.FireTimers();
+        Assert.True(_ws.Windows[A].TitleBarVisible);
+
+        _c.UpdateTitleBarHover(target.Left, target.Bottom - 1, A);
+        Assert.True(_ws.Windows[A].TitleBarVisible);
+        _scheduler.FireTimers();
+        Assert.False(_ws.Windows[A].TitleBarVisible);
+    }
+
+    [Fact]
+    public void TitleBarHover_ReenteringCancelsDelayedHide()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        var target = _view.ToScreen(PaneOf(A).Content);
+        _c.UpdateTitleBarHover(target.Left + 20, target.Top + 1, A);
+        _c.UpdateTitleBarHover(target.Left, target.Bottom - 1, A);
+        _c.UpdateTitleBarHover(target.Left + 20, target.Top + 20, A);
+
+        _scheduler.FireTimers();
+
+        Assert.True(_ws.Windows[A].TitleBarVisible);
+    }
+
+    [Theory]
+    [InlineData(900)]
+    [InlineData(0)]
+    public void TitleBarHover_DoesNotRevealThroughAnotherWindow(int hit)
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        var target = _view.ToScreen(PaneOf(A).Content);
+
+        _c.UpdateTitleBarHover(target.Left + 20, target.Top + 1, new WindowHandle(hit));
+
+        Assert.False(_ws.Windows[A].TitleBarVisible);
+    }
+
+    [Fact]
+    public void TitleBarHover_DoesNotHideDuringMemberDrag()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        var target = _view.ToScreen(PaneOf(A).Content);
+        _c.UpdateTitleBarHover(target.Left + 20, target.Top + 1, A);
+        _c.UpdateTitleBarHover(target.Left, target.Bottom - 1, A);
+        _c.OnMoveSizeStart(A);
+
+        _scheduler.FireTimers();
+
+        Assert.True(_ws.Windows[A].TitleBarVisible);
+    }
+
+    [Fact]
+    public void TitleBarHover_KeepsKeyboardMenuAnchorVisibleWhileInteracting()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.SetTabBarPlacement(TabBarPlacement.TitleBar);
+        _c.RevealTitleBar(A);
+        _c.UpdateTitleBarHover(0, 0, Other);
+
+        _c.UpdateTitleBarHover(0, 0, Other, interacting: true);
+        _scheduler.FireTimers();
+        Assert.True(_c.IsTitleBarVisible(A));
+        Assert.True(_ws.Windows[A].TitleBarVisible);
+
+        _c.UpdateTitleBarHover(0, 0, Other);
+        _scheduler.FireTimers();
+        Assert.False(_c.IsTitleBarVisible(A));
+    }
+
+    [Theory]
+    [InlineData("chrome")]
+    [InlineData("Code")]
+    [InlineData("WINDOWSTERMINAL")]
+    public void TitleBars_KeepAppsWithCustomTitleControls(string processName)
+    {
+        Window(A);
+        _ws.Windows[A].ProcessName = processName;
+        _c.Adopt(A, RootPane, null);
+
+        Assert.True(_ws.Windows[A].TitleBarVisible);
+
+        _c.SetTitleBarApps([]);
+        Assert.False(_ws.Windows[A].TitleBarVisible);
+        _c.SetTitleBarApps([new ProcessName(processName)]);
+        Assert.True(_ws.Windows[A].TitleBarVisible);
+    }
+
+    [Fact]
+    public void TitleBars_DisablingAutoHideRestoresAllMembers()
+    {
+        SplitAC();
+
+        _c.SetAutoHideTitleBars(false);
+        Assert.All(_ws.Windows.Values, w => Assert.True(w.TitleBarVisible));
+
+        _c.SetAutoHideTitleBars(true);
+        Assert.All(_ws.Windows.Values, w => Assert.False(w.TitleBarVisible));
+        _c.OnClosing();
+        _scheduler.FireTimers();
+        Assert.All(_ws.Windows.Values, w => Assert.True(w.TitleBarVisible));
+    }
+
+    [Fact]
+    public void TitleBars_AreRestoredWhenAnAppHidesItsWindow()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _ws.Hide(A);
+        _c.OnHidden(A);
+
+        _scheduler.FireTimers();
+
+        Assert.Empty(_c.Members);
+        Assert.True(_ws.Windows[A].TitleBarVisible);
+        Assert.False(_ws.IsVisible(A));
+    }
+
     [Theory]
     [InlineData(DockSide.Left)]
     [InlineData(DockSide.Right)]
@@ -1178,6 +1323,8 @@ public class GroupControllerTests
         public bool IsTopmost(WindowHandle w) => inner.IsTopmost(w);
         public string GetTitle(WindowHandle w) => inner.GetTitle(w);
         public WindowHandle GetForeground() => inner.GetForeground();
+        public WindowHandle GetWindowAt(int x, int y) => inner.GetWindowAt(x, y);
+        public bool SetTitleBarVisible(WindowHandle w, bool visible) => inner.SetTitleBarVisible(w, visible);
         public bool IsTopLevel(WindowHandle w) => inner.IsTopLevel(w);
         public bool IsCaptionDrag(WindowHandle w) => inner.IsCaptionDrag(w);
         public IReadOnlyList<WindowHandle> GetTopLevelWindows() => inner.GetTopLevelWindows();

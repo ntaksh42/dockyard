@@ -26,7 +26,7 @@ internal sealed class GroupController : IGroupControl
         public PixelRect? LastTarget { get; set; }
         /// <summary>Visible bounds when the user started dragging the window.</summary>
         public PixelRect? DragStart { get; set; }
-        public SettleTracker Settle { get; } = new();
+        public SettleTracker Settle { get; set; } = new();
     }
 
     private readonly IGroupView _view;
@@ -34,6 +34,10 @@ internal sealed class GroupController : IGroupControl
     private readonly IScheduler _scheduler;
     private readonly IRestartableTimer _settleTimer;
     private readonly IRestartableTimer _hiddenTimer;
+    private readonly IRestartableTimer _titleBarTimer;
+    private WindowHandle _revealedTitleBar;
+    private bool _titleBarHidePending;
+    private HashSet<ProcessName> _titleBarApps = Settings.DefaultTitleBarApps.ToHashSet();
     private readonly LayoutTree _tree = new();
     private readonly Dictionary<WindowHandle, Member> _members = [];
     /// <summary>Saved tabs whose windows were not open when the layout was restored, by the pane they belong in.</summary>
@@ -59,9 +63,19 @@ internal sealed class GroupController : IGroupControl
         _scheduler = scheduler;
         _settleTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(300), CheckSettled);
         _hiddenTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(500), DropHidden);
+        _titleBarTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(400), () =>
+        {
+            _titleBarHidePending = false;
+            if (_closing || _live || !_dragged.IsNone || !_view.ZAnchor.IsNone) return;
+            _revealedTitleBar = WindowHandle.None;
+            RenderVisuals();
+            SyncWindows(raise: false);
+        });
     }
 
     public LayoutResult? Layout => _layout;
+
+    public bool AutoHideTitleBars { get; private set; } = true;
 
     public IEnumerable<WindowHandle> Members => _members.Keys;
 
@@ -345,8 +359,70 @@ internal sealed class GroupController : IGroupControl
     public void SetTitleBarApps(IEnumerable<ProcessName> processNames)
     {
         var apps = processNames.ToHashSet();
+        _titleBarApps = apps;
         Metrics = Metrics with { KeepsTitleBar = pane => pane.Windows.Any(h => _members.TryGetValue(h, out var m) && apps.Contains(m.ProcessName)) };
         Refresh(raise: true);
+    }
+
+    public void SetAutoHideTitleBars(bool enabled)
+    {
+        if (AutoHideTitleBars == enabled) return;
+        AutoHideTitleBars = enabled;
+        _titleBarTimer.Stop();
+        _titleBarHidePending = false;
+        _revealedTitleBar = WindowHandle.None;
+        RenderVisuals();
+        SyncWindows(raise: false);
+    }
+
+    public bool IsTitleBarVisible(WindowHandle window) =>
+        !AutoHideTitleBars || window == _revealedTitleBar || (_members.TryGetValue(window, out var member) && _titleBarApps.Contains(member.ProcessName));
+
+    public void RevealTitleBar(WindowHandle window)
+    {
+        if (_closing || !Owns(window)) return;
+        _titleBarTimer.Stop();
+        _titleBarHidePending = false;
+        if (_revealedTitleBar == window) return;
+        _revealedTitleBar = window;
+        RenderVisuals();
+        SyncWindows(raise: false);
+    }
+
+    /// <summary>Reveals a pane's caption at its upper edge; a short delay lets the pointer cross into its buttons.</summary>
+    public void UpdateTitleBarHover(int x, int y, WindowHandle hitWindow, bool interacting = false)
+    {
+        if (interacting)
+        {
+            _titleBarTimer.Stop();
+            _titleBarHidePending = false;
+            return;
+        }
+        if (_closing || !AutoHideTitleBars || !_view.IsOnScreen || _layout is null || _live || !_dragged.IsNone || !_view.ZAnchor.IsNone) return;
+        var hovered = WindowHandle.None;
+        if (!hitWindow.IsNone && (hitWindow == _view.Handle || hitWindow == _view.TabOverlay || Owns(hitWindow)))
+        {
+            foreach (var pane in _layout.Panes)
+            {
+                if (pane.Pane.ActiveWindow is not { } window) continue;
+                var bounds = _view.ToScreen(pane.Content);
+                var height = window == _revealedTitleBar ? 40 : pane.Placement == TabBarPlacement.TitleBar ? Metrics.TabBarHeight : 4;
+                if (x >= bounds.Left && x < bounds.Right && y >= bounds.Top && y < Math.Min(bounds.Bottom, bounds.Top + height * _view.Scale))
+                {
+                    hovered = window;
+                    break;
+                }
+            }
+        }
+        if (!hovered.IsNone)
+        {
+            RevealTitleBar(hovered);
+        }
+        else if (!_revealedTitleBar.IsNone && !_titleBarHidePending)
+        {
+            _titleBarHidePending = true;
+            _titleBarTimer.Restart();
+        }
     }
 
     /// <summary>Puts every member back where it was before it joined.</summary>
@@ -418,6 +494,7 @@ internal sealed class GroupController : IGroupControl
         _closing = true;
         _settleTimer.Stop();
         _hiddenTimer.Stop();
+        _titleBarTimer.Stop();
         ReleaseAll();
     }
 
@@ -526,6 +603,7 @@ internal sealed class GroupController : IGroupControl
         {
             Diagnostics.Trace?.Invoke($"hidden by its app {h:X}");
             if (_dragged == h) _dragged = WindowHandle.None;
+            _windows.SetTitleBarVisible(h, visible: true);
             _members.Remove(h);
             Detach(h);
         }
@@ -546,6 +624,7 @@ internal sealed class GroupController : IGroupControl
         if (_dragged == window) _dragged = WindowHandle.None;
         Detach(window);
         if (!_windows.Exists(window)) return;
+        _windows.SetTitleBarVisible(window, visible: true);
         _windows.SetBounds(window, m.OriginalBounds);
         if (m.Topmost) _windows.SetTopmost(window);
     }
@@ -583,6 +662,14 @@ internal sealed class GroupController : IGroupControl
             {
                 // The window being dragged belongs to the user until the drag ends; moving it would fight the drag.
                 if (h == _dragged) continue;
+                var member = _members[h];
+                var showTitleBar = IsTitleBarVisible(h);
+                if (_windows.SetTitleBarVisible(h, showTitleBar))
+                {
+                    // A caption changes the app's minimum outer height; do not keep a minimum learned in the other state.
+                    member.MinSize = member.MinSize with { Height = 0 };
+                    member.Settle = new SettleTracker();
+                }
                 _members[h].LastTarget = target;
                 _windows.PlaceVisible(h, target);
             }

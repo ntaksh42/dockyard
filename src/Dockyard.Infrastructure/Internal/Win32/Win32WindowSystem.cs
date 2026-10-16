@@ -20,6 +20,17 @@ internal sealed class Win32WindowSystem : IWindowSystem
 
     private readonly Queue<(WindowHandle After, WindowHandle[] Windows)> _stackQueue = [];
 
+    public Win32WindowSystem()
+    {
+        // Window properties survive a Dockyard crash and disappear when the target window is destroyed.
+        RestoreTitleBars();
+    }
+
+    internal void RestoreTitleBars()
+    {
+        foreach (var window in GetTopLevelWindows()) TitleBarVisibility.SetVisible(window, visible: true);
+    }
+
     public bool Exists(WindowHandle window) => IsWindow(window.Value);
     public bool IsVisible(WindowHandle window) => IsWindowVisible(window.Value);
     public bool IsMinimized(WindowHandle window) => IsIconic(window.Value);
@@ -27,6 +38,8 @@ internal sealed class Win32WindowSystem : IWindowSystem
     public bool IsTopmost(WindowHandle window) => ((long)GetWindowLongPtr(window.Value, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0;
     public string GetTitle(WindowHandle window) => GetWindowText(window.Value);
     public WindowHandle GetForeground() => new(GetForegroundWindow());
+    public WindowHandle GetWindowAt(int x, int y) => new(GetAncestor(WindowFromPoint(new POINT { X = x, Y = y }), 2 /* GA_ROOT */));
+    public bool SetTitleBarVisible(WindowHandle window, bool visible) => TitleBarVisibility.SetVisible(window, visible);
     public bool IsTopLevel(WindowHandle window) => GetAncestor(window.Value, 2 /* GA_ROOT */) == window.Value;
     public bool IsCaptionDrag(WindowHandle window) => Native.IsCaptionDrag(window.Value);
 

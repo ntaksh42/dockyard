@@ -5,16 +5,16 @@
         Width="1000" Height="700" WindowStartupLocation="CenterScreen" Icon="pack://application:,,,/Dockyard.Presentation;component/Assets/Dockyard.ico"
         WindowStyle="None" ResizeMode="CanResize" Background="#2B2F36">
     <WindowChrome.WindowChrome>
-        <WindowChrome CaptionHeight="24" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
+        <WindowChrome CaptionHeight="4" ResizeBorderThickness="4" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
     <DockPanel x:Name="Root">
-        <Grid x:Name="Caption" DockPanel.Dock="Top" Height="24">
+        <Grid x:Name="Caption" DockPanel.Dock="Top" Height="4" ClipToBounds="True">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <!-- Columns rather than a horizontal stack, so a long title is cut short before the caption buttons. -->
-            <Grid x:Name="CaptionInfo" VerticalAlignment="Center" Margin="10,0,8,0">
+            <Grid x:Name="CaptionInfo" VerticalAlignment="Center" Margin="10,0,8,0" Visibility="Collapsed">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -31,7 +31,7 @@
                 <TextBlock x:Name="ActiveTitleText" Grid.Column="1" Foreground="#E5E7EB" FontSize="12" Margin="8,0,0,0"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
             </Grid>
-            <StackPanel Grid.Column="1" Orientation="Horizontal">
+            <StackPanel x:Name="CaptionButtons" Grid.Column="1" Orientation="Horizontal" Visibility="Collapsed">
                 <Button Content="&#xE74E;" FontSize="12" ToolTip="Save Layout" AutomationProperties.Name="Save Layout" Click="SaveLayout_Click" Style="{StaticResource CaptionButton}" />
                 <Button Content="&#xE921;" ToolTip="Minimize" AutomationProperties.Name="Minimize" Click="Minimize_Click" Style="{StaticResource CaptionButton}" />
                 <Button x:Name="MaximizeButton" Content="&#xE922;" ToolTip="Maximize" AutomationProperties.Name="Maximize" Click="Maximize_Click" Style="{StaticResource CaptionButton}" />

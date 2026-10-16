@@ -17,6 +17,7 @@ internal sealed class FakeWindowSystem : IWindowSystem
         public string Title = "", ProcessName = "app";
         public string? ProcessPath;
         public bool Visible = true, Minimized, Maximized, Topmost;
+        public bool HasTitleBar = true, TitleBarVisible = true;
         public int MinWidth, MinHeight;
     }
 
@@ -52,6 +53,15 @@ internal sealed class FakeWindowSystem : IWindowSystem
     public bool IsTopmost(WindowHandle window) => Windows[window].Topmost;
     public string GetTitle(WindowHandle window) => Windows[window].Title;
     public WindowHandle GetForeground() => Focused;
+    public WindowHandle GetWindowAt(int x, int y) => ZOrder.FirstOrDefault(h => Windows.TryGetValue(h, out var w) && w.Visible
+        && x >= w.Bounds.Left && x < w.Bounds.Right && y >= w.Bounds.Top && y < w.Bounds.Bottom);
+    public bool SetTitleBarVisible(WindowHandle window, bool visible)
+    {
+        var w = Windows[window];
+        var changed = w.HasTitleBar && w.TitleBarVisible != visible;
+        if (w.HasTitleBar) w.TitleBarVisible = visible;
+        return changed;
+    }
     public bool IsTopLevel(WindowHandle window) => Windows.ContainsKey(window);
     public bool IsCaptionDrag(WindowHandle window) => false;
     public IReadOnlyList<WindowHandle> GetTopLevelWindows() => ZOrder.ToList();

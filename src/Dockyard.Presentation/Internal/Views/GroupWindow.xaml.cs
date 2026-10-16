@@ -20,6 +20,10 @@ namespace Dockyard.Presentation.Internal.Views;
 internal partial class GroupWindow : Window, IGroupFrame
 {
     private const double CaptionHeight = 24;
+    private const double CaptionHotEdgeHeight = 4;
+    private readonly System.Windows.Threading.DispatcherTimer _titleBarHover = new() { Interval = TimeSpan.FromMilliseconds(100) };
+    private long _captionLastHovered;
+    private bool _captionMenuOpen;
     private static readonly Brush TabBarBrush = Brush("#D1D5DB"), TabBrush = Brush("#BCC2CB"), ActiveTabBrush = Brushes.White,
         InactiveTextBrush = Brush("#4B5563"), ActiveTextBrush = Brush("#111827"), AccentBrush = Brush("#3B82F6"), PlaceholderBrush = Brush("#1F2328"), SplitterBrush = Brush("#2B2F36"), MutedTextBrush = Brush("#9CA3AF");
 
@@ -80,6 +84,8 @@ internal partial class GroupWindow : Window, IGroupFrame
         _windows = platform.Windows;
         _icons = new WindowIcons(_windows);
         _liveEnd.Tick += (_, _) => EndLive();
+        _titleBarHover.Tick += (_, _) => UpdateTitleBarHover();
+        Loaded += (_, _) => _titleBarHover.Start();
 
         LocationChanged += (_, _) =>
         {
@@ -121,6 +127,7 @@ internal partial class GroupWindow : Window, IGroupFrame
         };
         Closing += (_, _) =>
         {
+            _titleBarHover.Stop();
             EndLive();
             _closing = true;
             Controller.OnClosing();
@@ -257,7 +264,9 @@ internal partial class GroupWindow : Window, IGroupFrame
             var p = snapshot.Layout.Panes[i];
             // Over a member window the tabs must be in the overlay; the frame is below the members.
             var overMember = _overlaySurface is not null && p.Pane.Windows.Count > 0 && p.Placement == TabBarPlacement.TitleBar;
-            Place(BuildTabBar(p.Pane, snapshot.Titles, p.TabBar, overMember), l => l.Panes[index].TabBar, overMember ? _overlaySurface : null);
+            var tabBar = BuildTabBar(p.Pane, snapshot.Titles, p.TabBar, overMember);
+            if (overMember && p.Pane.ActiveWindow is { } active && !Controller.IsTitleBarVisible(active)) tabBar.Visibility = Visibility.Collapsed;
+            Place(tabBar, l => l.Panes[index].TabBar, overMember ? _overlaySurface : null);
             if (p.Pane.Windows.Count == 0)
             {
                 var add = new Button { Content = "Add Window…", Style = (Style)FindResource("AccentButton"), HorizontalAlignment = HorizontalAlignment.Center };
@@ -303,7 +312,7 @@ internal partial class GroupWindow : Window, IGroupFrame
     {
         var vertical = Controller.Metrics.TabBarPlacement == TabBarPlacement.Left;
         return string.Join("|", snapshot.Layout.Panes.Select(p =>
-                $"{p.Placement}/{p.Pane.ActiveIndex}/{(vertical ? p.TabBar.Width : 0)}/{TabSize(p.TabBar, p.Pane.Windows.Count, vertical)}/" +
+                $"{p.Placement}/{p.Pane.ActiveIndex}/{(p.Pane.ActiveWindow is { } active && Controller.IsTitleBarVisible(active))}/{(vertical ? p.TabBar.Width : 0)}/{TabSize(p.TabBar, p.Pane.Windows.Count, vertical)}/" +
                 string.Join(",", p.Pane.Windows.Select(h => $"{h}={snapshot.Titles[h]}")) + "/" +
                 (snapshot.Waiting.TryGetValue(p.Pane, out var waiting) ? string.Join(",", waiting.Select(t => $"{t.ProcessName}={t.Title}")) : ""))) +
             $"#{snapshot.Layout.Splitters.Count}#{_overlaySurface is not null}";
@@ -349,7 +358,7 @@ internal partial class GroupWindow : Window, IGroupFrame
     public void SetMinimumContentSize(DomainSize min)
     {
         MinWidth = min.Width + Surface.Margin.Left + Surface.Margin.Right;
-        MinHeight = min.Height + CaptionHeight + Surface.Margin.Bottom;
+        MinHeight = min.Height + Caption.Height + Surface.Margin.Bottom;
         if (WindowState != WindowState.Normal || (Width >= MinWidth && Height >= MinHeight)) return;
         // Grow now rather than at the next layout pass, so the caller lays out against the new size.
         Width = Math.Max(Width, MinWidth);
@@ -590,7 +599,10 @@ internal partial class GroupWindow : Window, IGroupFrame
     {
         var pane = _rendered?.Panes.FirstOrDefault(p => Controller.LastActive is { } w && p.Pane.Windows.Contains(w))?.Pane
             ?? _rendered?.Panes.FirstOrDefault()?.Pane;
-        if (pane is null || !_addButtons.TryGetValue(pane, out var add)) return;
+        if (pane is null) return;
+        // A keyboard-opened menu needs a visible anchor even when placement B's tabs have folded away.
+        if (pane.ActiveWindow is { } window) Controller.RevealTitleBar(window);
+        if (!_addButtons.TryGetValue(pane, out var add)) return;
         Activate();
         run(pane, add);
     }
@@ -628,6 +640,32 @@ internal partial class GroupWindow : Window, IGroupFrame
     }
 
     // ---- frame window -------------------------------------------------------------------------
+
+    private void UpdateTitleBarHover()
+    {
+        if (_control is null || !IsOnScreen || _sizing || _tabDragging || _dragging is not null || _captionMenuOpen || _picker is not null) return;
+        if (!_platform.Input.TryGetCursor(out var x, out var y)) return;
+        var hit = _windows.GetWindowAt(x, y);
+        Controller.UpdateTitleBarHover(x, y, hit, interacting: Mouse.Captured is not null);
+        var pointer = PointFromScreen(new Point(x, y));
+        var ownWindow = hit == Handle || hit == TabOverlay;
+        var height = Caption.Height;
+        var overCaption = ownWindow && pointer.X >= Root.Margin.Left && pointer.X < ActualWidth - Root.Margin.Right
+            && pointer.Y >= Root.Margin.Top && pointer.Y < Root.Margin.Top + height;
+        if (overCaption) _captionLastHovered = Environment.TickCount64;
+        var visible = !Controller.AutoHideTitleBars || overCaption || GroupNameEdit.IsVisible || Mouse.Captured is not null
+            || Environment.TickCount64 - _captionLastHovered < 400;
+        SetCaptionVisible(visible);
+    }
+
+    private void SetCaptionVisible(bool visible)
+    {
+        var height = visible ? CaptionHeight : CaptionHotEdgeHeight;
+        if (Caption.Height == height) return;
+        Caption.Height = height;
+        CaptionInfo.Visibility = CaptionButtons.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        System.Windows.Shell.WindowChrome.GetWindowChrome(this).CaptionHeight = height;
+    }
 
     /// <summary>Hands z-order changes the system is about to make to the frame to the controller (see OnFrameZChanging).</summary>
     private nint WndProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
@@ -696,6 +734,13 @@ internal partial class GroupWindow : Window, IGroupFrame
     private void ShowCaptionMenu()
     {
         var menu = new ContextMenu { PlacementTarget = this, Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint };
+        _captionMenuOpen = true;
+        SetCaptionVisible(true);
+        menu.Closed += (_, _) =>
+        {
+            _captionMenuOpen = false;
+            _captionLastHovered = Environment.TickCount64;
+        };
         // After the menu has closed: it takes the keyboard focus back as it goes, which would end the rename.
         menu.Items.Add(MenuItem("Rename Group", () => Dispatcher.BeginInvoke(BeginRename, System.Windows.Threading.DispatcherPriority.Input)));
         menu.Items.Add(MenuItem("Save Layout", () => SaveLayoutRequested?.Invoke(this)));
@@ -708,6 +753,13 @@ internal partial class GroupWindow : Window, IGroupFrame
             tabBar.Items.Add(item);
         }
         menu.Items.Add(tabBar);
+        var autoHide = MenuItem("Auto-hide Title Bars (Prototype)", () =>
+        {
+            Controller.SetAutoHideTitleBars(!Controller.AutoHideTitleBars);
+            SetCaptionVisible(true);
+        });
+        autoHide.IsChecked = Controller.AutoHideTitleBars;
+        menu.Items.Add(autoHide);
         menu.Items.Add(new Separator());
         menu.Items.Add(MenuItem("Settings…", () => SettingsRequested?.Invoke()));
         menu.IsOpen = true;
@@ -723,6 +775,7 @@ internal partial class GroupWindow : Window, IGroupFrame
     private void BeginRename()
     {
         if (_closing || GroupNameEdit.IsVisible) return;
+        SetCaptionVisible(true);
         Activate();
         GroupNameEdit.Text = GroupName.Value;
         GroupNameText.Visibility = Visibility.Hidden;

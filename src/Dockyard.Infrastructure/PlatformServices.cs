@@ -36,6 +36,7 @@ public sealed class PlatformServices : IPlatform, IDisposable
 
     public void Dispose()
     {
+        ((Win32WindowSystem)Windows).RestoreTitleBars();
         _keyboard.Dispose();
         _windowEvents.Dispose();
     }
