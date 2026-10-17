@@ -34,6 +34,7 @@ internal sealed class WinEventHook : IWindowEventSource, IDisposable
     private nint _lastForeground;
     private readonly MouseHookProc _mouseProc;
     private readonly nint _mouseHook;
+    private readonly ShellHook _shellHook;
 
     public event Action<WindowEvent, WindowHandle>? Received;
     public event Action<WindowHandle, PixelRect>? ShiftMouseDown;
@@ -45,6 +46,7 @@ internal sealed class WinEventHook : IWindowEventSource, IDisposable
     {
         _proc = OnEvent;
         _mouseProc = OnMouse;
+        _shellHook = new ShellHook(hwnd => Received?.Invoke(WindowEvent.Flashed, new WindowHandle(hwnd)));
         _mouseHook = SetWindowsHookEx(14 /* WH_MOUSE_LL */, _mouseProc, 0, 0);
         // Without it Shift-dragging a title bar does nothing; the rest still works, so log and go on.
         if (_mouseHook == 0) Log.Error("Mouse hook", new System.ComponentModel.Win32Exception());
@@ -131,6 +133,7 @@ internal sealed class WinEventHook : IWindowEventSource, IDisposable
     public void Dispose()
     {
         if (_mouseHook != 0) UnhookWindowsHookEx(_mouseHook);
+        _shellHook.Dispose();
         foreach (var h in _hooks) UnhookWinEvent(h);
         _hooks.Clear();
     }

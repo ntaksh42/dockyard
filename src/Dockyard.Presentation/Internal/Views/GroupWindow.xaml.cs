@@ -25,7 +25,7 @@ internal partial class GroupWindow : Window, IGroupFrame
     private long _captionLastHovered;
     private bool _captionMenuOpen;
     private static readonly Brush TabBarBrush = Brush("#D1D5DB"), TabBrush = Brush("#BCC2CB"), ActiveTabBrush = Brushes.White,
-        InactiveTextBrush = Brush("#4B5563"), ActiveTextBrush = Brush("#111827"), AccentBrush = Brush("#3B82F6"), PlaceholderBrush = Brush("#1F2328"), SplitterBrush = Brush("#2B2F36"), MutedTextBrush = Brush("#9CA3AF");
+        InactiveTextBrush = Brush("#4B5563"), ActiveTextBrush = Brush("#111827"), AccentBrush = Brush("#3B82F6"), AttentionBrush = Brush("#F59E0B"), AttentionTabBrush = Brush("#FDE68A"), PlaceholderBrush = Brush("#1F2328"), SplitterBrush = Brush("#2B2F36"), MutedTextBrush = Brush("#9CA3AF");
 
     private readonly IFrameContext _context;
     private readonly IPlatform _platform;
@@ -265,7 +265,7 @@ internal partial class GroupWindow : Window, IGroupFrame
             var p = snapshot.Layout.Panes[i];
             // Over a member window the tabs must be in the overlay; the frame is below the members.
             var overMember = _overlaySurface is not null && p.Pane.Windows.Count > 0 && p.Placement == TabBarPlacement.TitleBar;
-            var tabBar = BuildTabBar(p.Pane, snapshot.Titles, p.TabBar, overMember);
+            var tabBar = BuildTabBar(p.Pane, snapshot.Titles, snapshot.Attention, p.TabBar, overMember);
             if (overMember && p.Pane.ActiveWindow is { } active && !Controller.IsTitleBarVisible(active)) tabBar.Visibility = Visibility.Collapsed;
             Place(tabBar, l => l.Panes[index].TabBar, overMember ? _overlaySurface : null);
             if (p.Pane.Windows.Count == 0)
@@ -314,7 +314,7 @@ internal partial class GroupWindow : Window, IGroupFrame
         var vertical = Controller.Metrics.TabBarPlacement == TabBarPlacement.Left;
         return string.Join("|", snapshot.Layout.Panes.Select(p =>
                 $"{p.Placement}/{p.Pane.ActiveIndex}/{(p.Pane.ActiveWindow is { } active && Controller.IsTitleBarVisible(active))}/{(vertical ? p.TabBar.Width : 0)}/{TabSize(p.TabBar, p.Pane.Windows.Count, vertical)}/" +
-                string.Join(",", p.Pane.Windows.Select(h => $"{h}={snapshot.Titles[h]}")) + "/" +
+                string.Join(",", p.Pane.Windows.Select(h => $"{h}={snapshot.Titles[h]}{(snapshot.Attention.Contains(h) ? "!" : "")}")) + "/" +
                 (snapshot.Waiting.TryGetValue(p.Pane, out var waiting) ? string.Join(",", waiting.Select(t => $"{t.ProcessName}={t.Title}")) : ""))) +
             $"#{snapshot.Layout.Splitters.Count}#{_overlaySurface is not null}";
     }
@@ -389,7 +389,9 @@ internal partial class GroupWindow : Window, IGroupFrame
     /// Drawn over a member's title bar (placement B): only the tabs themselves, so the app's own caption buttons
     /// stay visible and clickable through the transparent rest of the overlay.
     /// </param>
-    private FrameworkElement BuildTabBar(Pane pane, IReadOnlyDictionary<WindowHandle, string> titles, DomainRect bounds, bool overMember)
+    /// <param name="attention">Members whose tabs are marked: they flashed while the user was elsewhere.</param>
+    private FrameworkElement BuildTabBar(Pane pane, IReadOnlyDictionary<WindowHandle, string> titles, IReadOnlySet<WindowHandle> attention,
+        DomainRect bounds, bool overMember)
     {
         var vertical = Controller.Metrics.TabBarPlacement == TabBarPlacement.Left;
         // Over a member the bar ends after its buttons, leaving the app's own caption buttons uncovered.
@@ -438,6 +440,9 @@ internal partial class GroupWindow : Window, IGroupFrame
             var announce = active && _shownTabs.TryGetValue(pane, out var shown) && shown != h;
             if (active) _shownTabs[pane] = h;
             var content = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            var flashed = attention.Contains(h);
+            if (flashed)
+                content.Children.Add(new System.Windows.Shapes.Ellipse { Width = 8, Height = 8, Fill = AttentionBrush, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center });
             if (_icons.Get(h) is { } icon)
             {
                 var image = new System.Windows.Controls.Image { Source = icon, Width = 16, Height = 16, Margin = new Thickness(0, 0, 4, 0) };
@@ -447,9 +452,9 @@ internal partial class GroupWindow : Window, IGroupFrame
             content.Children.Add(new TextBlock { Text = titles[h], MaxWidth = vertical ? Math.Max(0, bounds.Width - 60) : tabSize, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, FontSize = 12,
                 Foreground = active ? ActiveTextBrush : InactiveTextBrush, FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal });
             content.Children.Add(close);
-            var tab = new TabElement(titles[h], active, announce, () => Controller.ActivateTab(h))
+            var tab = new TabElement(flashed ? $"{titles[h]} (needs attention)" : titles[h], active, announce, () => Controller.ActivateTab(h))
             {
-                Background = active ? ActiveTabBrush : TabBrush,
+                Background = active ? ActiveTabBrush : flashed ? AttentionTabBrush : TabBrush,
                 BorderBrush = AccentBrush,
                 BorderThickness = vertical ? new Thickness(active ? 4 : 0, 0, 0, 0) : new Thickness(0, active ? 4 : 0, 0, 0),
                 Padding = new Thickness(10, 0, 4, 0),

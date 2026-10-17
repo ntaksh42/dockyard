@@ -357,6 +357,60 @@ public class GroupControllerTests
         Assert.True(_ws.IsVisible(A));
     }
 
+    // ---- attention ----------------------------------------------------------------------------------
+
+    [Fact]
+    public void Flashing_MarksTheTabUntilItIsActivated()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.Adopt(Window(B), RootPane, null);
+        _ws.Focus(B);
+
+        _c.OnFlashed(A);
+        Assert.Contains(A, _view.LastRender!.Attention);
+
+        _c.ActivateTab(A);
+        Assert.Empty(_view.LastRender!.Attention);
+    }
+
+    [Fact]
+    public void Flashing_IsClearedWhenTheWindowComesToTheForeground()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.Adopt(Window(B), RootPane, null);
+        _ws.Focus(B);
+        _c.OnFlashed(A);
+
+        _ws.Focus(A);
+        _c.OnForeground(A);
+
+        Assert.Empty(_view.LastRender!.Attention);
+    }
+
+    [Fact]
+    public void Flashing_OfTheWindowInUseMarksNothing()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _ws.Focus(A);
+
+        _c.OnFlashed(A);
+
+        Assert.Empty(_view.LastRender!.Attention);
+    }
+
+    [Fact]
+    public void Flashing_MarkLeavesWithTheWindow()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.Adopt(Window(B), RootPane, null);
+        _ws.Focus(B);
+        _c.OnFlashed(A);
+
+        _c.Remove(A);
+
+        Assert.Empty(_view.LastRender!.Attention);
+    }
+
     [Fact]
     public void RemoveOthers_ReleasesTheOtherTabsOfThePaneOnly()
     {

@@ -58,6 +58,32 @@ internal static class Native
 
     public delegate void WinEventProc(nint hook, uint eventType, nint hwnd, int idObject, int idChild, uint thread, uint time);
 
+    public delegate nint WindowProc(nint hwnd, uint message, nint wParam, nint lParam);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct WNDCLASSEX
+    {
+        public int cbSize;
+        public uint style;
+        public nint lpfnWndProc;
+        public int cbClsExtra, cbWndExtra;
+        public nint hInstance, hIcon, hCursor, hbrBackground;
+        public string? lpszMenuName;
+        public string lpszClassName;
+        public nint hIconSm;
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)] public static extern ushort RegisterClassExW(ref WNDCLASSEX windowClass);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern nint CreateWindowExW(uint exStyle, string className, string windowName, uint style, int x, int y, int width, int height,
+        nint parent, nint menu, nint instance, nint param);
+    [DllImport("user32.dll")] public static extern nint DefWindowProcW(nint hwnd, uint message, nint wParam, nint lParam);
+    [DllImport("user32.dll")] public static extern bool DestroyWindow(nint hwnd);
+    [DllImport("user32.dll", SetLastError = true)] public static extern bool RegisterShellHookWindow(nint hwnd);
+    [DllImport("user32.dll")] public static extern bool DeregisterShellHookWindow(nint hwnd);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern uint RegisterWindowMessageW(string name);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern nint GetModuleHandleW(string? name);
+
     public static readonly nint HWND_TOP = 0, HWND_TOPMOST = -1, HWND_NOTOPMOST = -2;
 
     public const uint SWP_NOSIZE = 0x0001, SWP_NOMOVE = 0x0002, SWP_NOZORDER = 0x0004, SWP_NOACTIVATE = 0x0010,

@@ -610,6 +610,7 @@ public sealed class Workspace : IFrameContext
             case WindowEvent.TitleChanged: controller.OnTitleChanged(window); break;
             case WindowEvent.Hidden: controller.OnHidden(window); break;
             case WindowEvent.Destroyed: controller.OnDestroyed(window); break;
+            case WindowEvent.Flashed: controller.OnFlashed(window); break;
         }
     }
 

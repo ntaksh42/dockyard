@@ -1,3 +1,3 @@
 namespace Dockyard.Application;
 
-public enum WindowEvent { Foreground, MoveSizeStart, MoveSizeEnd, LocationChanged, TitleChanged, Created, Shown, Hidden, Destroyed }
+public enum WindowEvent { Foreground, MoveSizeStart, MoveSizeEnd, LocationChanged, TitleChanged, Created, Shown, Hidden, Destroyed, Flashed }

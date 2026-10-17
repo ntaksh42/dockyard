@@ -12,6 +12,7 @@ internal sealed class FakeFrame(FakeView view, ManualScheduler scheduler) : IGro
     public bool Shown { get; private set; }
     public TabBarPlacement Placement { get; private set; }
     public List<ShortcutAction> ShortcutsRun { get; } = [];
+    public FakeView View => view;
 
     public LayoutName GroupName { get; set; } = new("");
     public bool CanDock { get; set; } = true;

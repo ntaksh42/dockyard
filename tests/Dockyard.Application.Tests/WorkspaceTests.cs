@@ -800,6 +800,22 @@ public class WorkspaceTests
     }
 
     [Fact]
+    public void AFlashingMemberIsMarkedInItsGroup()
+    {
+        Add(1);
+        Add(2);
+        Workspace.Start();
+        var frame = _shell.Frames[0];
+        frame.Controller!.Adopt(Handle(1), PaneOf(frame), null);
+        frame.Controller.Adopt(Handle(2), PaneOf(frame), null);
+        _platform.Desktop.Focus(Handle(2));
+
+        _platform.Events.Raise(WindowEvent.Flashed, Handle(1));
+
+        Assert.Contains(Handle(1), frame.View.LastRender!.Attention);
+    }
+
+    [Fact]
     public void ACancelledTabDragChangesNothing()
     {
         Add(1);

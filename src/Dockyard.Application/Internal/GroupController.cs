@@ -36,6 +36,8 @@ internal sealed class GroupController : IGroupControl
     private readonly IRestartableTimer _hiddenTimer;
     private IRestartableTimer _titleBarTimer;
     private WindowHandle _revealedTitleBar;
+    /// <summary>Members that flashed while the user was elsewhere: their tabs are marked until looked at.</summary>
+    private readonly HashSet<WindowHandle> _attention = [];
     private bool _titleBarHidePending;
     private HashSet<ProcessName> _titleBarApps = Settings.DefaultTitleBarApps.ToHashSet();
     private readonly LayoutTree _tree = new();
@@ -150,7 +152,11 @@ internal sealed class GroupController : IGroupControl
     private IEnumerable<SavedTab> Waiting(Pane pane) => _waiting.TryGetValue(pane, out var tabs) ? tabs : [];
 
     /// <summary>Takes the window out of the tree, keeping its pane while restored tabs still wait there.</summary>
-    private void Detach(WindowHandle window) => _tree.Remove(window, collapse: !Waiting(_tree.FindPane(window)!).Any());
+    private void Detach(WindowHandle window)
+    {
+        _attention.Remove(window);
+        _tree.Remove(window, collapse: !Waiting(_tree.FindPane(window)!).Any());
+    }
 
     /// <summary>
     /// A window just opened: if a restored tab waits for its app, the window takes that tab's place, preferring
@@ -272,6 +278,7 @@ internal sealed class GroupController : IGroupControl
     {
         if (!_members.ContainsKey(window)) return;
         Diagnostics.Trace?.Invoke($"activate tab {window:X}");
+        _attention.Remove(window);
         _tree.Activate(window);
         _lastActive = window;
         RenderVisuals();
@@ -540,11 +547,22 @@ internal sealed class GroupController : IGroupControl
         // Minimizing a member makes Windows activate the next window, often another member, and that report comes
         // after the one that minimized the group and hid its members. Restoring for it would undo the minimize.
         if (!_windows.IsVisible(window)) return;
+        _attention.Remove(window);
         if (_view.IsMinimized) _view.Restore();
         if (_tree.FindPane(window)!.ActiveWindow != window) _tree.Activate(window);
         _lastActive = window;
         RenderVisuals();
         Raise(window);
+    }
+
+    /// <summary>
+    /// A member flashed, as apps do to call for attention (a new message, a finished build). Inactive tabs sit
+    /// behind the frame, where the user would not see it: mark the tab until the user looks at it.
+    /// </summary>
+    public void OnFlashed(WindowHandle window)
+    {
+        if (!Accepts(window, out _) || _windows.GetForeground() == window) return;
+        if (_attention.Add(window)) RenderVisuals();
     }
 
     public void OnMoveSizeStart(WindowHandle window)
@@ -682,7 +700,7 @@ internal sealed class GroupController : IGroupControl
         if (!_members.ContainsKey(_lastActive)) _lastActive = ActiveWindows().FirstOrDefault();
         var active = _members.TryGetValue(_lastActive, out var m) ? m.Title : "";
         var waiting = _tree.Panes.Where(p => Waiting(p).Any()).ToDictionary(p => p, p => (IReadOnlyList<SavedTab>)Waiting(p).ToList());
-        _view.Render(new GroupSnapshot(_layout, _members.ToDictionary(p => p.Key, p => p.Value.Title), active, waiting));
+        _view.Render(new GroupSnapshot(_layout, _members.ToDictionary(p => p.Key, p => p.Value.Title), active, waiting, _attention.ToHashSet()));
     }
 
     private void SyncWindows(bool raise, WindowHandle? top = null)
