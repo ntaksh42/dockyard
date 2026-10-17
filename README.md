@@ -57,5 +57,5 @@ Add-AppxPackage artifacts\msix\Dockyard.msix
 - 設定の「Start Dockyard when Windows starts」で Windows 起動時に自動で起動する（MSIX 版はスタートアップ タスク、それ以外は HKCU の Run キー）
 - 設定の「When Dockyard starts, open the groups from last time」をオンにすると、起動時に前回終了時のグループ（`last-groups.json`）をレイアウトと同じ規則（exe・タイトル）で開く。PC の再起動後でも使える
 - 枠のグループ名をダブルクリックして名前を変更（Enter で確定、Esc で取り消し）。枠のキャプションの右クリックメニューからも、名前の変更・レイアウトの保存・設定を開ける
-- キーボードショートカット（Q7）：Ctrl+Alt+←/→ でタブ切替、Ctrl+Alt+1〜8 でその番号のタブ、Ctrl+Alt+9 で最後のタブ、Ctrl+Alt+Shift+矢印で隣接ペインへ移動、Ctrl+Alt+Win+矢印でタブを隣のペインへ移す（隣が無ければその向きに分割）、Ctrl+Alt+] / [ でペインを広げる・狭める、Ctrl+Alt+W でグループから解除。枠の操作は Ctrl+Alt+R で名前の変更、Ctrl+Alt+B でタブバーの位置を切り替え、Ctrl+Alt+↑ で最大化・元に戻す、Ctrl+Alt+↓ で最小化、Ctrl+Alt+Shift+W でグループを閉じる、Ctrl+Alt+M で「+」メニュー（ウィンドウの追加・分割・レイアウトを開く・設定）。グループ内のウィンドウまたは枠にフォーカスがあるときのみ有効。設定画面で割り当てを変更できる（Ctrl / Alt / Win のいずれかを含む組み合わせ）。いまの割り当てはタブバーの「+」→「Keyboard Shortcuts」で一覧できる
+- キーボードショートカット（Q7）：Ctrl+Alt+←/→ でタブ切替、Ctrl+Alt+1〜8 でその番号のタブ、Ctrl+Alt+9 で最後のタブ、Ctrl+Alt+Shift+矢印で隣接ペインへ移動、Ctrl+Alt+Win+矢印でタブを隣のペインへ移す（隣が無ければその向きに分割）、Ctrl+Alt+] / [ でペインを広げる・狭める、Ctrl+Alt+W でグループから解除。枠の操作は Ctrl+Alt+R で名前の変更、Ctrl+Alt+B でタブバーの位置を切り替え、Ctrl+Alt+↑ で最大化・元に戻す、Ctrl+Alt+↓ で最小化、Ctrl+Alt+Shift+W でグループを閉じる、Ctrl+Alt+M で「+」メニュー（ウィンドウの追加・分割・レイアウトを開く・設定）、Ctrl+Alt+T でウィンドウをタブとして追加。グループ内のウィンドウまたは枠にフォーカスがあるときのみ有効。設定画面で割り当てを変更できる（Ctrl / Alt / Win のいずれかを含む組み合わせ）。いまの割り当てはタブバーの「+」→「Keyboard Shortcuts」で一覧できる
 
