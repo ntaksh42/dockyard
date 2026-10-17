@@ -703,7 +703,7 @@ public class GroupControllerTests
     [InlineData(0x26, false, ShortcutAction.MaximizeGroup)]
     [InlineData(0x57, true, ShortcutAction.CloseGroup)]
     [InlineData(0x31, false, ShortcutAction.Tab1)]
-    [InlineData(0x54, false, null)]
+    [InlineData(0x54, false, ShortcutAction.AddTab)]
     [InlineData(0x56, false, ShortcutAction.SplitRight)]
     [InlineData(0x48, false, ShortcutAction.SplitDown)]
     [InlineData(0x4F, false, ShortcutAction.OpenLayout)]
@@ -721,10 +721,16 @@ public class GroupControllerTests
     }
 
     [Fact]
-    public void Shortcuts_CtrlShiftNAddsTab()
+    public void Shortcuts_DefaultsLeaveCtrlShiftNToTheApps()
     {
-        Assert.Equal(ShortcutAction.AddTab,
-            Shortcuts.Match(Shortcuts.Defaults, 0x4E, KeyModifiers.Ctrl | KeyModifiers.Shift));
+        Assert.Null(Shortcuts.Match(Shortcuts.Defaults, 0x4E, KeyModifiers.Ctrl | KeyModifiers.Shift));
+    }
+
+    [Fact]
+    public void Shortcuts_EveryDefaultHoldsCtrlAndAlt()
+    {
+        Assert.All(Shortcuts.Defaults.Values, key =>
+            Assert.Equal(KeyModifiers.Ctrl | KeyModifiers.Alt, key.Modifiers & (KeyModifiers.Ctrl | KeyModifiers.Alt)));
     }
 
     [Fact]
