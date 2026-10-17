@@ -2,14 +2,23 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:ClassModifier="internal"
-        Title="Choose a Window" Width="560" Height="420" WindowStartupLocation="CenterOwner"
-        ShowInTaskbar="False" ResizeMode="CanResizeWithGrip" Icon="pack://application:,,,/Dockyard.Presentation;component/Assets/Dockyard.ico" ThemeMode="Dark">
+        Title="Choose a Window" Width="860" Height="480" MinWidth="520" MinHeight="320" WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False" ResizeMode="CanResizeWithGrip" Icon="pack://application:,,,/Dockyard.Presentation;component/Assets/Dockyard.ico" ThemeMode="Dark"
+        PreviewKeyDown="Window_PreviewKeyDown">
     <DockPanel Margin="10">
-        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-            <Button x:Name="AddButton" Content="Add" Width="80" IsDefault="True" Click="Ok_Click" />
-            <Button Content="Cancel" Width="80" Margin="8,0,0,0" IsCancel="True" />
-        </StackPanel>
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0" LastChildFill="False">
+            <Button Content="Cancel" Width="80" Margin="8,0,0,0" IsCancel="True" DockPanel.Dock="Right" />
+            <Button x:Name="AddButton" Content="Add" Width="80" IsDefault="True" Click="Ok_Click" DockPanel.Dock="Right" />
+            <TextBlock Text="Enter: add  ·  Shift+Enter: split right  ·  Ctrl+Enter: split down" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" DockPanel.Dock="Left" />
+        </DockPanel>
+        <TextBox x:Name="FilterBox" DockPanel.Dock="Top" Margin="0,0,0,8" TextChanged="FilterBox_TextChanged"
+                 AutomationProperties.Name="Filter windows by title or app" />
         <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="240" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
             <!-- Not virtualized: only a few dozen windows, and every one stays visible to UI Automation. -->
             <ListBox x:Name="List" MouseDoubleClick="Ok_Click" SelectionChanged="List_SelectionChanged" VirtualizingPanel.IsVirtualizing="False">
                 <ListBox.ItemContainerStyle>
@@ -26,6 +35,11 @@
             <TextBlock x:Name="EmptyText" Visibility="Collapsed" TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center" Margin="24"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                        Text="No other windows to add. Open the app you want, then try again." />
+            <!-- The selected window's live thumbnail is drawn by DWM over this area. -->
+            <Border x:Name="Preview" Grid.Column="1" Margin="10,0,0,0" SizeChanged="Preview_SizeChanged">
+                <TextBlock x:Name="PreviewText" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            </Border>
         </Grid>
     </DockPanel>
 </Window>

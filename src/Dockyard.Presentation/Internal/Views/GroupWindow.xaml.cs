@@ -651,7 +651,7 @@ internal partial class GroupWindow : Window, IGroupFrame
 
     private void PickAndAdopt(Pane pane, DockSide? side)
     {
-        var picker = new WindowPicker(_context.IsGrouped, _platform.Catalog) { Owner = this };
+        var picker = new WindowPicker(_context.IsGrouped, _platform.Catalog, _windows, side) { Owner = this };
         _picker = picker;
         bool picked;
         try
@@ -663,7 +663,7 @@ internal partial class GroupWindow : Window, IGroupFrame
             // Cleared before adopting: the dialog's window is gone now and cannot anchor the z-order.
             _picker = null;
         }
-        if (picked && picker.Selected is { } w && !_context.IsGrouped(w.Handle) && Controller.Adopt(w.Handle, pane, side))
+        if (picked && picker.Selected is { } w && !_context.IsGrouped(w.Handle) && Controller.Adopt(w.Handle, pane, picker.Side))
         {
             // ShowDialog returns focus to the owner; hand it to the new tab so it activates without a click.
             _windows.Focus(w.Handle);
