@@ -39,6 +39,7 @@ internal sealed class JsonSettingsStore : ISettingsStore
         var settings = JsonFile.Read<Settings>(FileName) ?? new();
         // A number in the file reads as a placement that does not exist.
         if (!Enum.IsDefined(settings.TabBarPlacement)) settings.TabBarPlacement = default;
+        settings.TitleBarHideDelayMs = Math.Clamp(settings.TitleBarHideDelayMs, 0, Settings.MaxTitleBarHideDelayMs);
         return settings;
     }
 

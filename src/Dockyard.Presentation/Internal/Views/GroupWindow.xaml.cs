@@ -753,7 +753,7 @@ internal partial class GroupWindow : Window, IGroupFrame
             tabBar.Items.Add(item);
         }
         menu.Items.Add(tabBar);
-        var autoHide = MenuItem("Auto-hide Title Bars (Prototype)", () =>
+        var autoHide = MenuItem("Auto-hide Title Bars", () =>
         {
             Controller.SetAutoHideTitleBars(!Controller.AutoHideTitleBars);
             SetCaptionVisible(true);

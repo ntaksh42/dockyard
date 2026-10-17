@@ -63,6 +63,12 @@ internal partial class SettingsWindow : Window
         // Closing with the box focused does not always move the focus first.
         Closing += (_, _) => CommitTitleBarApps();
         ((RadioButton)FindName($"{settings.TabBarPlacement}Option")).IsChecked = true;
+        AutoHideTitleBarsBox.IsChecked = settings.AutoHideTitleBars;
+        AutoHideTitleBarsBox.Checked += AutoHideTitleBars_Changed;
+        AutoHideTitleBarsBox.Unchecked += AutoHideTitleBars_Changed;
+        TitleBarHideDelaySlider.Value = settings.TitleBarHideDelayMs;
+        TitleBarHideDelayText.Text = $"{settings.TitleBarHideDelayMs} ms";
+        TitleBarHideDelaySlider.ValueChanged += TitleBarHideDelay_Changed;
         // Set after the initial check so opening the window does not report a change.
         _placementReported = true;
         _bindings = workspace.ShortcutBindings.ToDictionary();
@@ -394,6 +400,16 @@ internal partial class SettingsWindow : Window
     private void Placement_Checked(object sender, RoutedEventArgs e)
     {
         if (_placementReported) _workspace.SetTabBarPlacement(Enum.Parse<TabBarPlacement>((string)((RadioButton)sender).Tag));
+    }
+
+    private void AutoHideTitleBars_Changed(object sender, RoutedEventArgs e) =>
+        _workspace.SetAutoHideTitleBars(AutoHideTitleBarsBox.IsChecked == true);
+
+    private void TitleBarHideDelay_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        var milliseconds = (int)e.NewValue;
+        TitleBarHideDelayText.Text = $"{milliseconds} ms";
+        _workspace.SetTitleBarHideDelay(milliseconds);
     }
 
     private void TitleBarAppsBox_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) => CommitTitleBarApps();

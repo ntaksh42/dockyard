@@ -816,6 +816,54 @@ public class WorkspaceTests
     }
 
     [Fact]
+    public void ChangingTitleBarAutoHideReachesEveryGroupAndIsSaved()
+    {
+        Workspace.Start();
+        Workspace.NewGroup();
+
+        Workspace.SetAutoHideTitleBars(false);
+
+        Assert.All(_shell.Frames, f => Assert.False(f.Controller!.AutoHideTitleBars));
+        Assert.False(_platform.SettingsStore.Settings.AutoHideTitleBars);
+    }
+
+    [Fact]
+    public void NewGroup_TakesTitleBarAutoHideFromTheSettings()
+    {
+        _platform.SettingsStore.Settings.AutoHideTitleBars = false;
+        Workspace.Start();
+
+        Assert.False(Assert.Single(_shell.Frames).Controller!.AutoHideTitleBars);
+    }
+
+    [Fact]
+    public void AGroupsOwnTitleBarAutoHideIsSavedWithItsLayoutAndRestored()
+    {
+        Workspace.Start();
+        _shell.Frames[0].Controller!.SetAutoHideTitleBars(false);
+        _shell.Frames[0].UserSavesLayout();
+
+        var layout = Assert.Single(_platform.LayoutStore.Layouts);
+        Assert.False(layout.AutoHideTitleBars);
+
+        Workspace.OpenLayout(layout);
+
+        Assert.False(_shell.Frames[^1].Controller!.AutoHideTitleBars);
+    }
+
+    [Fact]
+    public void Start_AfterACrash_RestoresAGroupsTitleBarAutoHide()
+    {
+        Add(1, "notepad", "a");
+        _platform.SessionStore.Session = [Saved("Work",
+            new SavedTab(new ProcessName("notepad"), "a", Handle: Handle(1), OriginalBounds: Initial)) with { AutoHideTitleBars = false }];
+
+        Workspace.Start();
+
+        Assert.False(Assert.Single(_shell.Frames).Controller!.AutoHideTitleBars);
+    }
+
+    [Fact]
     public void ChangedShortcutsApplyRightAwayAndAreSavedAsDifferencesFromTheDefaults()
     {
         Workspace.Start();

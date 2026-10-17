@@ -175,6 +175,32 @@ public class GroupControllerTests
     }
 
     [Fact]
+    public void TitleBars_ChangingAutoHideIsReportedForTheSession()
+    {
+        var changes = 0;
+        _c.Changed += () => changes++;
+
+        _c.SetAutoHideTitleBars(false);
+        _c.SetAutoHideTitleBars(false);
+
+        Assert.Equal(1, changes);
+    }
+
+    [Fact]
+    public void TitleBarHover_ChangingTheDelayKeepsAPendingHide()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        var target = _view.ToScreen(PaneOf(A).Content);
+        _c.UpdateTitleBarHover(target.Left + 20, target.Top + 1, A);
+        _c.UpdateTitleBarHover(target.Left, target.Bottom - 1, A);
+
+        _c.SetTitleBarHideDelay(TimeSpan.FromSeconds(1));
+        _scheduler.FireTimers();
+
+        Assert.False(_ws.Windows[A].TitleBarVisible);
+    }
+
+    [Fact]
     public void TitleBars_AreRestoredWhenAnAppHidesItsWindow()
     {
         _c.Adopt(Window(A), RootPane, null);

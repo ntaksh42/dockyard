@@ -34,7 +34,7 @@ internal sealed class GroupController : IGroupControl
     private readonly IScheduler _scheduler;
     private readonly IRestartableTimer _settleTimer;
     private readonly IRestartableTimer _hiddenTimer;
-    private readonly IRestartableTimer _titleBarTimer;
+    private IRestartableTimer _titleBarTimer;
     private WindowHandle _revealedTitleBar;
     private bool _titleBarHidePending;
     private HashSet<ProcessName> _titleBarApps = Settings.DefaultTitleBarApps.ToHashSet();
@@ -63,14 +63,7 @@ internal sealed class GroupController : IGroupControl
         _scheduler = scheduler;
         _settleTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(300), CheckSettled);
         _hiddenTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(500), DropHidden);
-        _titleBarTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(400), () =>
-        {
-            _titleBarHidePending = false;
-            if (_closing || _live || !_dragged.IsNone || !_view.ZAnchor.IsNone) return;
-            _revealedTitleBar = WindowHandle.None;
-            RenderVisuals();
-            SyncWindows(raise: false);
-        });
+        _titleBarTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(Settings.DefaultTitleBarHideDelayMs), HideRevealedTitleBar);
     }
 
     public LayoutResult? Layout => _layout;
@@ -370,6 +363,25 @@ internal sealed class GroupController : IGroupControl
         AutoHideTitleBars = enabled;
         _titleBarTimer.Stop();
         _titleBarHidePending = false;
+        _revealedTitleBar = WindowHandle.None;
+        RenderVisuals();
+        SyncWindows(raise: false);
+        // The group's own choice goes into the session file.
+        Changed?.Invoke();
+    }
+
+    /// <summary>How long a revealed title bar stays after the pointer leaves it.</summary>
+    public void SetTitleBarHideDelay(TimeSpan delay)
+    {
+        _titleBarTimer.Stop();
+        _titleBarTimer = _scheduler.CreateTimer(delay, HideRevealedTitleBar);
+        if (_titleBarHidePending) _titleBarTimer.Restart();
+    }
+
+    private void HideRevealedTitleBar()
+    {
+        _titleBarHidePending = false;
+        if (_closing || _live || !_dragged.IsNone || !_view.ZAnchor.IsNone) return;
         _revealedTitleBar = WindowHandle.None;
         RenderVisuals();
         SyncWindows(raise: false);

@@ -17,6 +17,19 @@ public sealed class Settings
     public static IReadOnlyList<ProcessName> DefaultTitleBarApps { get; } =
         [new("chrome"), new("msedge"), new("firefox"), new("brave"), new("opera"), new("vivaldi"), new("Code"), new("WindowsTerminal"), new("explorer")];
 
+    /// <summary>
+    /// Whether a new group hides its members' title bars until the pointer reaches the top of a pane. A group can
+    /// change its own, which its saved layout keeps.
+    /// </summary>
+    public bool AutoHideTitleBars { get; set; } = true;
+
+    /// <summary>How long a revealed title bar stays after the pointer leaves it, in milliseconds.</summary>
+    public int TitleBarHideDelayMs { get; set; } = DefaultTitleBarHideDelayMs;
+
+    public const int DefaultTitleBarHideDelayMs = 400;
+
+    public const int MaxTitleBarHideDelayMs = 5000;
+
     /// <summary>When a layout is opened, start the apps whose windows are missing (from the exe paths saved with it).</summary>
     public bool LaunchMissingApps { get; set; }
 

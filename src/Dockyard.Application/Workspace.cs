@@ -236,6 +236,21 @@ public sealed class Workspace : IFrameContext
         foreach (var g in _groups) g.Frame.SetTabBarPlacement(placement);
     }
 
+    /// <summary>Sets the default for new groups and applies it to every open group, like the tab bar position.</summary>
+    public void SetAutoHideTitleBars(bool enabled)
+    {
+        _settings.AutoHideTitleBars = enabled;
+        SaveSettings();
+        foreach (var g in _groups) g.Controller.SetAutoHideTitleBars(enabled);
+    }
+
+    public void SetTitleBarHideDelay(int milliseconds)
+    {
+        _settings.TitleBarHideDelayMs = Math.Clamp(milliseconds, 0, Settings.MaxTitleBarHideDelayMs);
+        SaveSettings();
+        foreach (var g in _groups) g.Controller.SetTitleBarHideDelay(TimeSpan.FromMilliseconds(_settings.TitleBarHideDelayMs));
+    }
+
     /// <summary>Binds the key to the action, taking it from the other action or the layout that had it.</summary>
     public void BindShortcut(ShortcutAction action, ShortcutKey key)
     {
@@ -282,6 +297,8 @@ public sealed class Workspace : IFrameContext
         var g = new OpenGroup(frame, controller);
         frame.Bind(controller);
         controller.SetTitleBarApps(_settings.TitleBarApps ?? Settings.DefaultTitleBarApps);
+        controller.SetAutoHideTitleBars(_settings.AutoHideTitleBars);
+        controller.SetTitleBarHideDelay(TimeSpan.FromMilliseconds(_settings.TitleBarHideDelayMs));
         frame.FrameActivated += () => _lastGroup = g;
         frame.SaveLayoutRequested += _ => SaveLayout(g);
         frame.OpenLayoutRequested += (target, saved) =>
@@ -315,7 +332,8 @@ public sealed class Workspace : IFrameContext
     }
 
     private static SavedGroup Save(OpenGroup g, bool includeWindows) =>
-        new(g.Frame.GroupName, g.Frame.FrameBounds, g.Controller.SaveLayout(includeWindows), g.Controller.Metrics.TabBarPlacement);
+        new(g.Frame.GroupName, g.Frame.FrameBounds, g.Controller.SaveLayout(includeWindows), g.Controller.Metrics.TabBarPlacement,
+            AutoHideTitleBars: g.Controller.AutoHideTitleBars);
 
     /// <summary>The layout without the windows of the run that saved it: see <see cref="IGroupControl.SaveLayout"/>.</summary>
     private static SavedNode WithoutWindows(SavedNode node) => node with
@@ -325,11 +343,12 @@ public sealed class Workspace : IFrameContext
         Tabs = node.Tabs?.Select(tab => tab with { Handle = WindowHandle.None, OriginalBounds = null }).ToList(),
     };
 
-    /// <summary>Takes a saved group's name, tab bar placement and layout (see <see cref="GroupController.RestoreLayout"/>).</summary>
+    /// <summary>Takes a saved group's name, tab bar placement, title bar auto-hide and layout (see <see cref="GroupController.RestoreLayout"/>).</summary>
     private static int Restore(OpenGroup g, SavedGroup saved, Func<SavedTab, WindowHandle> resolve)
     {
         g.Frame.GroupName = saved.Name;
         if (saved.TabBarPlacement is { } placement) g.Frame.SetTabBarPlacement(placement);
+        if (saved.AutoHideTitleBars is { } autoHide) g.Controller.SetAutoHideTitleBars(autoHide);
         return g.Controller.RestoreLayout(saved.Layout, resolve);
     }
 

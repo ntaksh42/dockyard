@@ -24,6 +24,17 @@
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,10,0,4" TextWrapping="Wrap" HorizontalAlignment="Left" />
                         <TextBox x:Name="TitleBarAppsBox" LostKeyboardFocus="TitleBarAppsBox_LostKeyboardFocus" />
 
+                        <TextBlock Text="Title bars" FontWeight="SemiBold" Margin="0,20,0,2" />
+                        <TextBlock Text="Applies to every group. A group can change its own from its caption's right-click menu. The apps above always keep theirs."
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" TextWrapping="Wrap" />
+                        <CheckBox x:Name="AutoHideTitleBarsBox" Content="Hide the windows' title bars until the pointer reaches the top of a pane" />
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBlock Text="Hide again after" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <Slider x:Name="TitleBarHideDelaySlider" Width="200" Minimum="0" Maximum="2000" TickFrequency="100"
+                                    IsSnapToTickEnabled="True" VerticalAlignment="Center" AutomationProperties.Name="Hide title bars again after" />
+                            <TextBlock x:Name="TitleBarHideDelayText" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+
                         <TextBlock Text="Startup" FontWeight="SemiBold" Margin="0,20,0,8" />
                         <CheckBox x:Name="AutostartBox" Content="Start Dockyard when Windows starts" IsEnabled="False" />
                     </StackPanel>

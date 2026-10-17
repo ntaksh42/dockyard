@@ -21,8 +21,10 @@ public sealed record SavedNode(
 /// A <see cref="ShortcutKey"/> as text that opens the layout from anywhere; null for none. Only saved layouts have
 /// one: the session and last-groups files leave it out.
 /// </param>
+/// <param name="AutoHideTitleBars">The group's own title bar auto-hide; null (saved before) for the default.</param>
 public sealed record SavedGroup(
-    LayoutName Name, PixelRect Bounds, SavedNode Layout, TabBarPlacement? TabBarPlacement = null, string? Hotkey = null);
+    LayoutName Name, PixelRect Bounds, SavedNode Layout, TabBarPlacement? TabBarPlacement = null, string? Hotkey = null,
+    bool? AutoHideTitleBars = null);
 
 /// <summary>Saved layouts are known by their names, which stay unique.</summary>
 public static class LayoutLibrary
