@@ -7,7 +7,7 @@ using Dockyard.Application;
 namespace Dockyard.Exe;
 
 /// <summary>
-/// Hands a layout name from a second Dockyard, started by a shortcut file, to the first one over a named pipe,
+/// Hands a layout name or an empty message for a new group from a second Dockyard to the first over a named pipe,
 /// so that the second can end at once. The pipe is the user's own: nobody else can write to it.
 /// </summary>
 internal sealed class InstanceRelay : IDisposable
@@ -25,14 +25,14 @@ internal sealed class InstanceRelay : IDisposable
         }
     }
 
-    /// <summary>Asks the running Dockyard to open the layout. Returns false if it cannot be reached.</summary>
-    public static bool Send(LayoutName layoutName)
+    /// <summary>Asks the running Dockyard to open a layout, or a new group for null. Returns false if unreachable.</summary>
+    public static bool Send(LayoutName? layoutName)
     {
         try
         {
             using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out, PipeOptions.CurrentUserOnly);
             client.Connect(ConnectTimeout);
-            client.Write(Encoding.UTF8.GetBytes(layoutName.Value));
+            client.Write(Encoding.UTF8.GetBytes(layoutName?.Value ?? ""));
             return true;
         }
         catch (Exception ex) when (ex is TimeoutException or IOException)
@@ -41,8 +41,8 @@ internal sealed class InstanceRelay : IDisposable
         }
     }
 
-    /// <summary>Starts listening; <paramref name="received"/> gets each layout name, on a background thread.</summary>
-    public static InstanceRelay Listen(Action<LayoutName> received, ILog log)
+    /// <summary>Starts listening; the callback gets a layout name, or null for a new group, on a background thread.</summary>
+    public static InstanceRelay Listen(Action<LayoutName?> received, ILog log)
     {
         var relay = new InstanceRelay();
         _ = relay.ListenAsync(received, log);
@@ -51,7 +51,7 @@ internal sealed class InstanceRelay : IDisposable
 
     public void Dispose() => _stop.Cancel();
 
-    private async Task ListenAsync(Action<LayoutName> received, ILog log)
+    private async Task ListenAsync(Action<LayoutName?> received, ILog log)
     {
         while (!_stop.IsCancellationRequested)
         {
@@ -62,7 +62,7 @@ internal sealed class InstanceRelay : IDisposable
                 await server.WaitForConnectionAsync(_stop.Token);
                 using var reader = new StreamReader(server, Encoding.UTF8);
                 var name = await reader.ReadToEndAsync(_stop.Token);
-                if (name.Length > 0) received(new LayoutName(name));
+                received(name.Length > 0 ? new LayoutName(name) : null);
             }
             catch (OperationCanceledException)
             {

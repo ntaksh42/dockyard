@@ -50,6 +50,30 @@ public class WorkspaceTests
     }
 
     [Fact]
+    public void Start_NewGroupWithNothingToRestore_OpensOnlyOneEmptyGroup()
+    {
+        Workspace.Start(newGroup: true);
+
+        var frame = Assert.Single(_shell.Frames);
+        Assert.Empty(frame.Controller!.Members);
+    }
+
+    [Fact]
+    public void Start_NewGroupAfterACrash_AddsAnEmptyGroupToRestoredGroups()
+    {
+        Add(1, "notepad", "a");
+        _platform.SessionStore.Session = [Saved("Work",
+            new SavedTab(new ProcessName("notepad"), "a", Handle: Handle(1), OriginalBounds: Initial))];
+
+        Workspace.Start(newGroup: true);
+
+        Assert.Equal(2, _shell.Frames.Count);
+        Assert.Contains(Handle(1), _shell.Frames[0].Controller!.Members);
+        Assert.True(_shell.Frames[1].Shown);
+        Assert.Empty(_shell.Frames[1].Controller!.Members);
+    }
+
+    [Fact]
     public void Start_AfterACrash_PutsTheSameWindowsBackIntoTheirGroups()
     {
         Add(1, "notepad", "a");

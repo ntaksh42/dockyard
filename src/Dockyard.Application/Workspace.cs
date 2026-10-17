@@ -90,8 +90,9 @@ public sealed class Workspace : IFrameContext
     /// <summary>
     /// Starts listening and opens the groups: those of a crashed run, the last ones, the saved layout
     /// <paramref name="openLayout"/> if one is asked for (the shortcut file that started Dockyard), or an empty one.
+    /// <paramref name="newGroup"/> also opens an empty group when saved groups were restored.
     /// </summary>
-    public void Start(LayoutName? openLayout = null)
+    public void Start(LayoutName? openLayout = null, bool newGroup = false)
     {
         _platform.WindowEvents.ShiftMouseDown += (window, bounds) =>
         {
@@ -104,7 +105,7 @@ public sealed class Workspace : IFrameContext
         _foregroundPoll.Restart();
         var restored = RestoreSession() || (_settings.OpenLastGroups && OpenLastGroups());
         var opened = openLayout is not null && OpenLayoutByName(openLayout);
-        if (!restored && !opened) NewGroup();
+        if (newGroup || (!restored && !opened)) NewGroup();
     }
 
     /// <summary>Stops listening and puts every member window back where it was before it joined a group.</summary>

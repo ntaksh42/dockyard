@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Shell;
 using System.Windows.Threading;
 using Dockyard.Application;
 using Dockyard.Infrastructure;
@@ -9,6 +10,7 @@ namespace Dockyard.Exe;
 /// <summary>Starts Dockyard: one copy per user, error hooks, and the wiring of the three layers.</summary>
 public partial class App : System.Windows.Application
 {
+    private const string NewGroupOption = "--new-group";
     /// <summary>Held while this is the user's Dockyard; null in a second copy, which only exits.</summary>
     private Mutex? _instance;
     private PlatformServices? _platform;
@@ -21,13 +23,14 @@ public partial class App : System.Windows.Application
         base.OnStartup(e);
         // A shortcut file starts Dockyard with the layout to open (see LaunchCommand).
         var layout = LaunchCommand.ParseLayout(e.Args);
+        var newGroup = e.Args.Contains(NewGroupOption, StringComparer.OrdinalIgnoreCase);
         // Two copies would both take the same windows and write the same session file.
         var instance = new Mutex(true, @"Local\Dockyard", out var first);
         if (!first)
         {
             instance.Dispose();
             // The running Dockyard opens the layout; this copy has nothing more to do.
-            if (layout is not null) InstanceRelay.Send(layout);
+            if (layout is not null || newGroup) InstanceRelay.Send(layout);
             Shutdown();
             return;
         }
@@ -61,9 +64,43 @@ public partial class App : System.Windows.Application
         _shell.Attach(_workspace);
         // Before the apps close, or their closing would be written over the groups to reopen at the next start.
         SessionEnding += (_, _) => _workspace.SessionEnding();
-        _workspace.Start(layout);
+        _workspace.Start(layout, newGroup);
         // Later shortcut files reach this copy: their layout is opened on the UI thread.
-        _relay = InstanceRelay.Listen(name => Dispatcher.BeginInvoke(() => _workspace.OpenLayoutByName(name)), log);
+        _relay = InstanceRelay.Listen(name => Dispatcher.BeginInvoke(() =>
+        {
+            if (name is null) _workspace.NewGroup();
+            else _workspace.OpenLayoutByName(name);
+        }), log);
+        CreateJumpList();
+    }
+
+    private void CreateJumpList()
+    {
+        var executable = Environment.ProcessPath!;
+        var applicationPath = executable;
+        try
+        {
+            // Packaged executables must be launched through the execution alias.
+            _ = global::Windows.ApplicationModel.Package.Current;
+            applicationPath = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Microsoft", "WindowsApps", "dockyard.exe");
+        }
+        catch (InvalidOperationException)
+        {
+            // An unpackaged build has no package identity.
+        }
+        var jumpList = new JumpList();
+        jumpList.JumpItems.Add(new JumpTask
+        {
+            Title = "New Group",
+            Description = "Open a new empty group",
+            ApplicationPath = applicationPath,
+            Arguments = NewGroupOption,
+            IconResourcePath = executable,
+            IconResourceIndex = 0,
+        });
+        JumpList.SetJumpList(this, jumpList);
     }
 
     protected override void OnExit(ExitEventArgs e)
