@@ -74,6 +74,7 @@ internal sealed class FakeFrame(FakeView view, ManualScheduler scheduler) : IGro
     public event Action? SettingsRequested;
     public event Action<IGroupFrame>? SaveLayoutRequested;
     public event Action<IGroupFrame, SavedGroup>? OpenLayoutRequested;
+    public event Action<IGroupFrame, WindowHandle>? NewGroupWithTabRequested;
 
     public void UserActivates() => FrameActivated?.Invoke();
     public void UserMovesFrame() => FrameMoved?.Invoke();
@@ -88,6 +89,7 @@ internal sealed class FakeFrame(FakeView view, ManualScheduler scheduler) : IGro
     public void UserAsksForSettings() => SettingsRequested?.Invoke();
     public void UserSavesLayout() => SaveLayoutRequested?.Invoke(this);
     public void UserOpensLayout(SavedGroup saved) => OpenLayoutRequested?.Invoke(this, saved);
+    public void UserMovesTabToNewGroup(WindowHandle window) => NewGroupWithTabRequested?.Invoke(this, window);
 }
 
 internal sealed class FakeDockGuide : IDockGuide

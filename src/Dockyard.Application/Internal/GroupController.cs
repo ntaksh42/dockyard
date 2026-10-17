@@ -247,6 +247,27 @@ internal sealed class GroupController : IGroupControl
         Refresh(raise: true);
     }
 
+    public void RemoveOthers(WindowHandle window)
+    {
+        if (!Accepts(window, out _) || _tree.FindPane(window) is not { } pane) return;
+        foreach (var other in pane.Windows.Where(h => h != window).ToList()) Release(other);
+        Refresh(raise: true);
+    }
+
+    public void CloseWindow(WindowHandle window)
+    {
+        if (Accepts(window, out _)) _windows.RequestClose(window);
+    }
+
+    public void MoveTab(WindowHandle window, DockSide side)
+    {
+        if (Accepts(window, out _) && _tree.FindPane(window) is { } pane) MoveTab(window, pane, side);
+    }
+
+    /// <summary>Takes a tab of another group as the first tab of this one, which must still be empty.</summary>
+    public bool TakeFrom(GroupController source, WindowHandle window) =>
+        _members.Count == 0 && _tree.Panes.FirstOrDefault() is { } pane && Dock(window, pane, null, source);
+
     public void ActivateTab(WindowHandle window)
     {
         if (!_members.ContainsKey(window)) return;

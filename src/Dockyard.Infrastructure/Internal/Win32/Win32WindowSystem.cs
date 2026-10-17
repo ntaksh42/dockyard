@@ -70,6 +70,9 @@ internal sealed class Win32WindowSystem : IWindowSystem
     public void Hide(WindowHandle window) => Request(window, "hide", flags =>
         SetWindowPos(window.Value, 0, 0, 0, 0, 0, SWP_HIDEWINDOW | VisibilityFlags | flags));
 
+    // Posted, not sent: the app may show a "save changes?" dialog before it answers.
+    public void RequestClose(WindowHandle window) => PostMessage(window.Value, WM_CLOSE, 0, 0);
+
     public void Focus(WindowHandle window)
     {
         var watch = Stopwatch.StartNew();

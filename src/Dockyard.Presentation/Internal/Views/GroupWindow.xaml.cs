@@ -60,6 +60,7 @@ internal partial class GroupWindow : Window, IGroupFrame
     public event Action? SettingsRequested;
     public event Action<IGroupFrame>? SaveLayoutRequested;
     public event Action<IGroupFrame, SavedGroup>? OpenLayoutRequested;
+    public event Action<IGroupFrame, WindowHandle>? NewGroupWithTabRequested;
     /// <summary>The open window picker. Tabs must stay below it, so raising starts there instead of at the top.</summary>
     private WindowPicker? _picker;
     /// <summary>Draws the tab bars above the member windows with tab bar placement B; null otherwise.</summary>
@@ -467,6 +468,11 @@ internal partial class GroupWindow : Window, IGroupFrame
                 if (Surface.CaptureMouse()) _tabWindow = h;
                 e.Handled = true;
             };
+            tab.MouseRightButtonUp += (_, e) =>
+            {
+                OpenTabMenu(pane, h, tab);
+                e.Handled = true;
+            };
             strip.Children.Add(tab);
             if (active) tab.Loaded += (_, _) => tab.BringIntoView();
         }
@@ -542,6 +548,30 @@ internal partial class GroupWindow : Window, IGroupFrame
         menu.Items.Add(OpenLayoutMenu());
         menu.Items.Add(ShortcutsMenu());
         menu.Items.Add(MenuItem("Settings…", () => SettingsRequested?.Invoke()));
+        menu.IsOpen = true;
+    }
+
+    /// <summary>A tab's right-click menu: what is otherwise done by dragging it or with a shortcut.</summary>
+    private void OpenTabMenu(Pane pane, WindowHandle window, FrameworkElement anchor)
+    {
+        var menu = new ContextMenu { PlacementTarget = anchor, Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint };
+        var bindings = _context.ShortcutBindings();
+        MenuItem Item(string header, Action action, ShortcutAction? shortcut = null, bool enabled = true)
+        {
+            var item = MenuItem(header, action);
+            item.IsEnabled = enabled;
+            if (shortcut is { } a && bindings.TryGetValue(a, out var key)) item.InputGestureText = key.ToString();
+            return item;
+        }
+        // A lone tab would leave its group empty behind it.
+        var groupTabs = _rendered?.Panes.Sum(p => p.Pane.Windows.Count) ?? 0;
+        menu.Items.Add(Item("Move to New Group", () => NewGroupWithTabRequested?.Invoke(this, window), enabled: groupTabs > 1));
+        menu.Items.Add(Item("Move Right", () => Controller.MoveTab(window, DockSide.Right), ShortcutAction.MoveTabRight));
+        menu.Items.Add(Item("Move Down", () => Controller.MoveTab(window, DockSide.Bottom), ShortcutAction.MoveTabDown));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Item("Remove Other Tabs", () => Controller.RemoveOthers(window), enabled: pane.Windows.Count > 1));
+        menu.Items.Add(Item("Remove from Group", () => Controller.Remove(window), ShortcutAction.RemoveFromGroup));
+        menu.Items.Add(Item("Close Window", () => Controller.CloseWindow(window)));
         menu.IsOpen = true;
     }
 

@@ -28,6 +28,15 @@ public interface IGroupControl
 
     /// <summary>Takes a window out of the group (a tab's x button).</summary>
     void Remove(WindowHandle window);
+
+    /// <summary>Takes the other tabs of the window's pane out of the group.</summary>
+    void RemoveOthers(WindowHandle window);
+
+    /// <summary>Asks the app to close the window; it leaves the group once it is gone.</summary>
+    void CloseWindow(WindowHandle window);
+
+    /// <summary>Moves the tab to the neighbouring pane on <paramref name="side"/>, or splits it off there (as the shortcut does).</summary>
+    void MoveTab(WindowHandle window, DockSide side);
     void DragSplitter(SplitterLayout splitter, double pointer);
     void SetTabBarPlacement(TabBarPlacement placement);
     void SetAutoHideTitleBars(bool enabled);

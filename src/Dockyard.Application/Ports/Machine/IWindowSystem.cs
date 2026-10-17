@@ -49,6 +49,9 @@ public interface IWindowSystem
     void Show(WindowHandle window);
     void Hide(WindowHandle window);
 
+    /// <summary>Asks the app to close the window, as its own close button does: it may ask to save first.</summary>
+    void RequestClose(WindowHandle window);
+
     /// <summary>Gives the window the keyboard focus (makes it the foreground window).</summary>
     void Focus(WindowHandle window);
 

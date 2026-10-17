@@ -781,6 +781,25 @@ public class WorkspaceTests
     }
 
     [Fact]
+    public void MovingATabToANewGroup_OpensOneNextToTheOldGroupWithTheTab()
+    {
+        Add(1);
+        Add(2);
+        Workspace.Start();
+        var source = _shell.Frames[0];
+        source.Controller!.Adopt(Handle(1), PaneOf(source), null);
+        source.Controller.Adopt(Handle(2), PaneOf(source), null);
+
+        source.UserMovesTabToNewGroup(Handle(2));
+
+        var created = _shell.Frames[1];
+        Assert.Equal([Handle(2)], created.Controller!.Members);
+        Assert.Equal([Handle(1)], source.Controller.Members);
+        Assert.Equal(new PixelRect(132, 132, 1132, 832), created.ShownAt);
+        Assert.Equal(Handle(2), _platform.Desktop.Focused);
+    }
+
+    [Fact]
     public void ACancelledTabDragChangesNothing()
     {
         Add(1);

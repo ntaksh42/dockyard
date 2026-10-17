@@ -40,4 +40,7 @@ public interface IGroupFrame : IGroupView
     event Action? SettingsRequested;
     event Action<IGroupFrame>? SaveLayoutRequested;
     event Action<IGroupFrame, SavedGroup>? OpenLayoutRequested;
+
+    /// <summary>The user asked to move the tab of the window into a new group of its own.</summary>
+    event Action<IGroupFrame, WindowHandle>? NewGroupWithTabRequested;
 }

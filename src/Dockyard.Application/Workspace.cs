@@ -309,6 +309,7 @@ public sealed class Workspace : IFrameContext
         frame.TabDragStarted += (source, window) => _dockDrag.Begin(window, _groups.FirstOrDefault(x => x.Frame == source));
         frame.TabDragEnded += cancel => _dockDrag.Finish(cancel);
         frame.SettingsRequested += _shell.ShowSettings;
+        frame.NewGroupWithTabRequested += (_, window) => MoveToNewGroup(g, window);
         frame.FrameClosed += () =>
         {
             _groups.Remove(g);
@@ -318,6 +319,18 @@ public sealed class Workspace : IFrameContext
         frame.ShowAt(bounds);
         return g;
     }
+
+    /// <summary>Moves a tab into a new group, opened a little down and right of its group so both stay in view.</summary>
+    private void MoveToNewGroup(OpenGroup source, WindowHandle window)
+    {
+        if (!source.Controller.Owns(window)) return;
+        var b = source.Frame.FrameBounds;
+        var target = NewGroup(null, new PixelRect(b.Left + NewGroupOffset, b.Top + NewGroupOffset, b.Right + NewGroupOffset, b.Bottom + NewGroupOffset));
+        if (target.Controller.TakeFrom(source.Controller, window)) _windows.Focus(window);
+    }
+
+    /// <summary>How far a group made from a tab is moved from its old group, in pixels.</summary>
+    private const int NewGroupOffset = 32;
 
     /// <summary>
     /// "Group N" with the smallest N no open group has. Layouts are saved under the group's name, so a second

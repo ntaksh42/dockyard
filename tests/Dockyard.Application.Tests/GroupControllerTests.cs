@@ -358,6 +358,44 @@ public class GroupControllerTests
     }
 
     [Fact]
+    public void RemoveOthers_ReleasesTheOtherTabsOfThePaneOnly()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.Adopt(Window(B), RootPane, null);
+        _c.Adopt(Window(C), RootPane, DockSide.Right);
+
+        _c.RemoveOthers(A);
+
+        Assert.True(_c.Owns(A));
+        Assert.False(_c.Owns(B));
+        Assert.True(_c.Owns(C));
+        Assert.Equal(Initial, _ws.GetBounds(B));
+    }
+
+    [Fact]
+    public void CloseWindow_AsksTheAppAndKeepsTheTabUntilTheWindowIsGone()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+
+        _c.CloseWindow(A);
+
+        Assert.Equal([A], _ws.CloseRequests);
+        Assert.True(_c.Owns(A));
+    }
+
+    [Fact]
+    public void MoveTab_SplitsTheTabOffItsPane()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.Adopt(Window(B), RootPane, null);
+
+        _c.MoveTab(B, DockSide.Bottom);
+
+        Assert.Equal(2, _c.Layout!.Panes.Count);
+        Assert.NotEqual(PaneOf(A).Pane, PaneOf(B).Pane);
+    }
+
+    [Fact]
     public void Remove_KeepsAnAlwaysOnTopWindowAlwaysOnTop()
     {
         Window(A);
@@ -1353,6 +1391,7 @@ public class GroupControllerTests
         public bool IsMinimized(WindowHandle w) => inner.IsMinimized(w);
         public bool IsMaximized(WindowHandle w) => inner.IsMaximized(w);
         public bool IsTopmost(WindowHandle w) => inner.IsTopmost(w);
+        public void RequestClose(WindowHandle w) => inner.RequestClose(w);
         public string GetTitle(WindowHandle w) => inner.GetTitle(w);
         public WindowHandle GetForeground() => inner.GetForeground();
         public WindowHandle GetWindowAt(int x, int y) => inner.GetWindowAt(x, y);

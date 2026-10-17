@@ -79,6 +79,11 @@ internal sealed class FakeWindowSystem : IWindowSystem
     public void Show(WindowHandle window) => Windows[window].Visible = true;
     public void Hide(WindowHandle window) => Windows[window].Visible = false;
 
+    /// <summary>Windows asked to close, in order. The app decides when (or whether) it goes.</summary>
+    public List<WindowHandle> CloseRequests { get; } = [];
+
+    public void RequestClose(WindowHandle window) => CloseRequests.Add(window);
+
     public WindowHandle Focused { get; private set; }
 
     public void Focus(WindowHandle window)

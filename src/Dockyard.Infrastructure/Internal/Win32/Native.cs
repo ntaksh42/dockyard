@@ -52,6 +52,7 @@ internal static class Native
     }
 
     public const int WM_WINDOWPOSCHANGING = 0x0046;
+    public const uint WM_CLOSE = 0x0010;
 
     public delegate bool EnumWindowsProc(nint hwnd, nint lParam);
 
@@ -104,6 +105,7 @@ internal static class Native
         keybd_event(0xE8, 0, 2 /* KEYEVENTF_KEYUP */, OwnInput);
     }
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT point);
+    [DllImport("user32.dll")] public static extern bool PostMessage(nint hwnd, uint msg, nint wParam, nint lParam);
     [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] public static extern nint SetWindowLongPtr(nint hwnd, int index, nint value);
     [DllImport("user32.dll", SetLastError = true)] private static extern nint SendMessageTimeout(nint hwnd, uint msg, nint wParam, nint lParam, uint flags, uint timeout, out nint result);
