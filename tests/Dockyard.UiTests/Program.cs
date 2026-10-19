@@ -47,8 +47,10 @@ internal static partial class Program
         var features = args.Contains("--features");
         var stress = args.Contains("--stress");
         var rdp = args.Contains("--rdp");
-        var backup = features || stress || rdp || args.Contains("--perf") ? BackUpData() : null;
+        var snap = args.Contains("--snap");
+        var backup = features || stress || rdp || snap || args.Contains("--perf") ? BackUpData() : null;
         if (backup is not null) WriteTestSettings();
+        if (snap) File.WriteAllText(DataFile("settings.json"), """{ "TabBarPlacement": "Top", "AutoHideTitleBars": false, "TitleBarApps": ["Dockyard.UiTests"] }""");
 
         _app = Process.Start(_exe)!;
         try
@@ -60,6 +62,7 @@ internal static partial class Program
             else if (features) RunFeatures();
             else if (stress) RunStress();
             else if (rdp) RunRemoteDesktop();
+            else if (snap) RunSnap();
             else if (args.Contains("--perf")) RunPerf();
             else Run();
         }

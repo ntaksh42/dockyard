@@ -728,6 +728,13 @@ internal partial class GroupWindow : Window, IGroupFrame
         }
         if (msg != WM_WINDOWPOSCHANGING) return 0;
         var pos = Marshal.PtrToStructure<WINDOWPOS>(lParam);
+        if ((pos.flags & (SWP_NOMOVE | SWP_NOSIZE)) != (SWP_NOMOVE | SWP_NOSIZE) &&
+            (pos.flags & SWP_HIDEWINDOW) == 0 && !IsMinimized)
+        {
+            // Keyboard snapping changes the frame without entering the mouse move/size loop.
+            BeginLive();
+            EndLiveSoon();
+        }
         if ((pos.flags & SWP_NOZORDER) != 0) return 0;
         var change = new FrameZChange(
             pos.hwndInsertAfter switch

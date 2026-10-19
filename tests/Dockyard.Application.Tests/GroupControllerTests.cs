@@ -1146,6 +1146,34 @@ public class GroupControllerTests
     }
 
     [Fact]
+    public void GroupMinimized_StaysMinimizedWhileMemberHideIsPending()
+    {
+        SplitAC();
+        _view.Minimized = true;
+        _c.OnFrameMinimized();
+        // Win32 posts the hide to another thread, so the next foreground member can still be visible.
+        _ws.Show(C);
+
+        _c.OnForeground(C);
+
+        Assert.True(_view.Minimized);
+    }
+
+    [Fact]
+    public void MemberShownByItsAppAfterGroupHide_CanRestoreTheGroup()
+    {
+        SplitAC();
+        _view.Minimized = true;
+        _c.OnFrameMinimized();
+        _c.OnHidden(C);
+        _ws.Show(C);
+
+        _c.OnForeground(C);
+
+        Assert.False(_view.Minimized);
+    }
+
+    [Fact]
     public void MemberHiddenByItsApp_LeavesTheGroup()
     {
         SplitAC();

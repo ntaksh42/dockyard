@@ -486,9 +486,19 @@ public sealed class Workspace : IFrameContext
             _shell.Scheduler.Post(() => OpenLayoutByName(layoutName));
             return true;
         }
-        if (Shortcuts.Match(_shortcuts, key, modifiers) is not { } action) return false;
         var group = _groups.FirstOrDefault(g => g.Frame.CanDock &&
             (g.Controller.Owns(foreground) || g.Frame.Handle == foreground));
+        if (Shortcuts.Match(_shortcuts, key, modifiers) is not { } action)
+        {
+            if (modifiers == KeyModifiers.Win && key is >= 0x25 and <= 0x28 &&
+                group is not null && group.Controller.Owns(foreground))
+            {
+                // Windows must see the frame as foreground before this key leaves the hook, so its native
+                // snap/maximize/restore/minimize behavior moves the whole group rather than just one member.
+                _windows.Focus(group.Frame.Handle);
+            }
+            return false;
+        }
         if (group is null || (group.Frame.Handle == foreground && group.Frame.IsEditingText)) return false;
         if (Shortcuts.IsFrameAction(action))
         {

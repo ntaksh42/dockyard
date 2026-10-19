@@ -77,6 +77,77 @@ internal static partial class Program
 
     // ---- features -----------------------------------------------------------------------------------
 
+    private static void RunSnap()
+    {
+        var a = SpawnClientCaption(false);
+        var b = SpawnClientCaption(true);
+        Step("build two panes for Windows arrows", () =>
+        {
+            Invoke(FindIn(_frame, "Add Window…"));
+            Pick(a);
+            Settle();
+            AddVia(a, "Split Right…", b);
+        }, [a, b], [a, b]);
+
+        void Arrow(Subject member, byte key)
+        {
+            Activate(member.Hwnd);
+            Thread.Sleep(250);
+            if (GetForegroundWindow() != member.Hwnd) throw new InvalidOperationException("member did not receive focus");
+            try
+            {
+                keybd_event(0x5B, 0, 0, 0);
+                Thread.Sleep(100);
+                keybd_event(key, 0, 1, 0);
+                Thread.Sleep(100);
+            }
+            finally
+            {
+                keybd_event(key, 0, 3, 0);
+                keybd_event(0x5B, 0, 2, 0);
+            }
+            Thread.Sleep(300);
+        }
+
+        for (var i = 0; i < 2; i++)
+        {
+            ShowWindow(_frame, SW_RESTORE);
+            SetWindowPos(_frame, 0, 100, 60, 1400, 850, SWP_NOZORDER);
+            Settle();
+            Step($"Win+up maximizes group from member ({i + 1})", () => Arrow(b, 0x26), [a, b], [a, b],
+                extra: () => IsZoomed(_frame) ? null : "frame is not maximized");
+            Step($"Win+down restores maximized group from member ({i + 1})", () => Arrow(a, 0x28), [a, b], [a, b],
+                extra: () => !IsZoomed(_frame) && !IsIconic(_frame) ? null : "frame is not restored");
+            Step($"Win+down minimizes normal group from member ({i + 1})", () => Arrow(b, 0x28), [], [],
+                extra: () => IsIconic(_frame) && !IsWindowVisible(a.Hwnd) && !IsWindowVisible(b.Hwnd)
+                    ? null : "frame or members were not minimized together");
+            Step("restore minimized group", () =>
+            {
+                ShowWindow(_frame, SW_RESTORE);
+                Activate(_frame);
+            }, [a, b], [a, b]);
+        }
+        for (var i = 0; i < 2; i++)
+        {
+            foreach (var (key, name) in new (byte, string)[] { (0x25, "left"), (0x27, "right") })
+            {
+                if (i > 0 || key == 0x27)
+                {
+                    Step("opposite Windows arrow restores the snapped group", () => Arrow(a, key), [a, b], [a, b],
+                        extra: () => Visible(_frame).Width > WorkArea(_frame).Width / 2 + 10 ? null : "frame did not restore from side snap");
+                }
+                var work = WorkArea(_frame);
+                Step($"Win+{name} from member ({i + 1})", () => Arrow(a, key), [a, b], [a, b], extra: () =>
+                {
+                    var frame = Visible(_frame);
+                    var left = key == 0x25 ? work.Left : work.Left + work.Width / 2;
+                    return Math.Abs(frame.Left - left) <= 10 && Math.Abs(frame.Width - work.Width / 2) <= 10
+                        ? null : $"frame did not snap {name}: {frame}";
+                });
+            }
+        }
+    }
+
     private static void RunFeatures()
     {
         var a = Spawn("dyt-a", ProcessWindowStyle.Normal);

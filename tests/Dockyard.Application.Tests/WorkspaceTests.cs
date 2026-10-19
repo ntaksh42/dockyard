@@ -667,6 +667,70 @@ public class WorkspaceTests
 
     // ---- shortcuts --------------------------------------------------------------------------------
 
+    [Theory]
+    [InlineData(0x25)]
+    [InlineData(0x26)]
+    [InlineData(0x27)]
+    [InlineData(0x28)]
+    public void WindowsArrowOnMember_FocusesItsFrameBeforeWindowsReceivesTheKey(int key)
+    {
+        Add(1);
+        Workspace.Start();
+        Workspace.NewGroup();
+        var frame = _shell.Frames[1];
+        frame.Controller!.Adopt(Handle(1), PaneOf(frame), null);
+        _platform.Desktop.Focus(Handle(1));
+
+        Assert.False(_platform.KeyboardFake.Press(key, KeyModifiers.Win));
+        Assert.Equal(frame.Handle, _platform.Desktop.GetForeground());
+    }
+
+    [Theory]
+    [InlineData(KeyModifiers.Win)]
+    [InlineData(KeyModifiers.Win | KeyModifiers.Ctrl)]
+    [InlineData(KeyModifiers.Win | KeyModifiers.Alt)]
+    public void WindowsArrowOutsideGroup_DoesNotChangeFocus(KeyModifiers modifiers)
+    {
+        Add(1);
+        Workspace.Start();
+        _platform.Desktop.Focus(Handle(1));
+
+        Assert.False(_platform.KeyboardFake.Press(0x25, modifiers));
+        Assert.Equal(Handle(1), _platform.Desktop.GetForeground());
+    }
+
+    [Theory]
+    [InlineData(KeyModifiers.Win | KeyModifiers.Ctrl)]
+    [InlineData(KeyModifiers.Win | KeyModifiers.Alt)]
+    [InlineData(KeyModifiers.Win | KeyModifiers.Shift)]
+    public void WindowsArrowWithOtherModifiersOnMember_DoesNotRedirect(KeyModifiers modifiers)
+    {
+        Add(1);
+        Workspace.Start();
+        var frame = _shell.Frames[0];
+        frame.Controller!.Adopt(Handle(1), PaneOf(frame), null);
+        _platform.Desktop.Focus(Handle(1));
+
+        Assert.False(_platform.KeyboardFake.Press(0x25, modifiers));
+        Assert.Equal(Handle(1), _platform.Desktop.GetForeground());
+    }
+
+    [Fact]
+    public void WindowsArrowBoundByUser_RunsTheConfiguredShortcut()
+    {
+        Add(1);
+        Workspace.Start();
+        var frame = _shell.Frames[0];
+        frame.Controller!.Adopt(Handle(1), PaneOf(frame), null);
+        _platform.Desktop.Focus(Handle(1));
+        Workspace.BindShortcut(ShortcutAction.RenameGroup, new ShortcutKey(KeyModifiers.Win, 0x26));
+
+        Assert.True(_platform.KeyboardFake.Press(0x26, KeyModifiers.Win));
+        Assert.Equal(Handle(1), _platform.Desktop.GetForeground());
+        _scheduler.RunPosted();
+        Assert.Equal([ShortcutAction.RenameGroup], frame.ShortcutsRun);
+    }
+
     [Fact]
     public void AShortcutActsOnTheGroupOfTheForegroundWindow()
     {

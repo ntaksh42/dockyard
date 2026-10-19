@@ -26,6 +26,8 @@ internal sealed class GroupController : IGroupControl
         public PixelRect? LastTarget { get; set; }
         /// <summary>Visible bounds when the user started dragging the window.</summary>
         public PixelRect? DragStart { get; set; }
+        /// <summary>The frame minimized and the asynchronous member hide has not been reported yet.</summary>
+        public bool HidePending { get; set; }
         public SettleTracker Settle { get; set; } = new();
     }
 
@@ -504,12 +506,20 @@ internal sealed class GroupController : IGroupControl
 
     public void OnFrameMinimized()
     {
-        foreach (var h in _members.Keys) _windows.Hide(h);
+        foreach (var m in _members.Values)
+        {
+            m.HidePending = true;
+            _windows.Hide(m.Handle);
+        }
     }
 
     public void OnFrameRestored()
     {
-        foreach (var h in _members.Keys) _windows.Show(h);
+        foreach (var m in _members.Values)
+        {
+            m.HidePending = false;
+            _windows.Show(m.Handle);
+        }
         Refresh(raise: true);
     }
 
@@ -542,11 +552,11 @@ internal sealed class GroupController : IGroupControl
 
     public void OnForeground(WindowHandle window)
     {
-        if (!Accepts(window, out _)) return;
+        if (!Accepts(window, out var m)) return;
         Diagnostics.Trace?.Invoke($"foreground {window:X}");
         // Minimizing a member makes Windows activate the next window, often another member, and that report comes
         // after the one that minimized the group and hid its members. Restoring for it would undo the minimize.
-        if (!_windows.IsVisible(window)) return;
+        if (!_windows.IsVisible(window) || (_view.IsMinimized && m.HidePending)) return;
         _attention.Remove(window);
         if (_view.IsMinimized) _view.Restore();
         if (_tree.FindPane(window)!.ActiveWindow != window) _tree.Activate(window);
@@ -637,7 +647,9 @@ internal sealed class GroupController : IGroupControl
     /// </summary>
     public void OnHidden(WindowHandle window)
     {
-        if (!Accepts(window, out _) || _view.IsMinimized) return;
+        if (!Accepts(window, out var m)) return;
+        m.HidePending = false;
+        if (_view.IsMinimized) return;
         _hiddenTimer.Restart();
     }
 
