@@ -26,7 +26,7 @@ public sealed class Settings
     /// <summary>How long a revealed title bar stays after the pointer leaves it, in milliseconds.</summary>
     public int TitleBarHideDelayMs { get; set; } = DefaultTitleBarHideDelayMs;
 
-    public const int DefaultTitleBarHideDelayMs = 400;
+    public const int DefaultTitleBarHideDelayMs = 600;
 
     public const int MaxTitleBarHideDelayMs = 5000;
 

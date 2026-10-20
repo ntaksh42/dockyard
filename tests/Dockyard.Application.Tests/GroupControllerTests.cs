@@ -67,6 +67,11 @@ public class GroupControllerTests
         var order = _ws.ZOrder.ToArray();
 
         _c.UpdateTitleBarHover(target.Right - 20, target.Top + 1, A);
+        Assert.False(_ws.Windows[A].TitleBarVisible);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(299));
+        Assert.False(_ws.Windows[A].TitleBarVisible);
+        _c.UpdateTitleBarHover(target.Right - 20, target.Top + 1, A);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(1));
         Assert.True(_ws.Windows[A].TitleBarVisible);
         Assert.False(_ws.Windows[C].TitleBarVisible);
         Assert.Equal(order, _ws.ZOrder);
@@ -78,8 +83,151 @@ public class GroupControllerTests
 
         _c.UpdateTitleBarHover(target.Left, target.Bottom - 1, A);
         Assert.True(_ws.Windows[A].TitleBarVisible);
-        _scheduler.FireTimers();
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(599));
+        Assert.True(_ws.Windows[A].TitleBarVisible);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(1));
         Assert.False(_ws.Windows[A].TitleBarVisible);
+    }
+
+    [Fact]
+    public void CaptionHover_RequiresDwellAndDelaysHiding()
+    {
+        Assert.False(_c.UpdateCaptionHover(true));
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(299));
+        Assert.False(_c.UpdateCaptionHover(true));
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(1));
+        Assert.True(_c.UpdateCaptionHover(true));
+
+        Assert.True(_c.UpdateCaptionHover(false));
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(599));
+        Assert.True(_c.UpdateCaptionHover(false));
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(1));
+        Assert.False(_c.UpdateCaptionHover(false));
+    }
+
+    [Fact]
+    public void CaptionHover_PassingTheEdgeDoesNotRevealIt()
+    {
+        _c.UpdateCaptionHover(true);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(200));
+        _c.UpdateCaptionHover(false);
+        _scheduler.AdvanceBy(TimeSpan.FromSeconds(1));
+
+        Assert.False(_c.UpdateCaptionHover(true));
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(299));
+        Assert.False(_c.UpdateCaptionHover(true));
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(1));
+        Assert.True(_c.UpdateCaptionHover(true));
+    }
+
+    [Fact]
+    public void CaptionHover_ReenteringCancelsHide()
+    {
+        _c.UpdateCaptionHover(true);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(300));
+        _c.UpdateCaptionHover(false);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(500));
+        Assert.True(_c.UpdateCaptionHover(true));
+        _scheduler.AdvanceBy(TimeSpan.FromSeconds(1));
+
+        Assert.True(_c.UpdateCaptionHover(true));
+    }
+
+    [Fact]
+    public void CaptionHover_InteractionKeepsItVisibleAndRestartsTheHideDelayAfterwards()
+    {
+        Assert.True(_c.UpdateCaptionHover(false, interacting: true));
+        _c.UpdateCaptionHover(false);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(500));
+        _c.UpdateCaptionHover(false, interacting: true);
+        _scheduler.AdvanceBy(TimeSpan.FromSeconds(1));
+        Assert.True(_c.UpdateCaptionHover(false));
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(599));
+        Assert.True(_c.UpdateCaptionHover(false));
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(1));
+        Assert.False(_c.UpdateCaptionHover(false));
+    }
+
+    [Fact]
+    public void CaptionHover_UsesTheConfiguredHideDelay()
+    {
+        _c.UpdateCaptionHover(false, interacting: true);
+        _c.UpdateCaptionHover(false);
+        _c.SetTitleBarHideDelay(TimeSpan.FromSeconds(2));
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(1999));
+        Assert.True(_c.UpdateCaptionHover(false));
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(1));
+        Assert.False(_c.UpdateCaptionHover(false));
+    }
+
+    [Fact]
+    public void CaptionHover_DisablingAutoHideCancelsThePendingHide()
+    {
+        _c.UpdateCaptionHover(false, interacting: true);
+        _c.UpdateCaptionHover(false);
+        _c.SetAutoHideTitleBars(false);
+        _scheduler.AdvanceBy(TimeSpan.FromSeconds(1));
+        Assert.True(_c.UpdateCaptionHover(false));
+
+        _c.SetAutoHideTitleBars(true);
+        Assert.False(_c.UpdateCaptionHover(false));
+    }
+
+    [Fact]
+    public void TitleBarHover_LeavingBeforeTheDelayCancelsReveal()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        var target = _view.ToScreen(PaneOf(A).Content);
+        _c.UpdateTitleBarHover(target.Left + 20, target.Top + 1, A);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(200));
+
+        _c.UpdateTitleBarHover(target.Left, target.Bottom - 1, A);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(300));
+        Assert.False(_c.IsTitleBarVisible(A));
+
+        _c.UpdateTitleBarHover(target.Left + 20, target.Top + 1, A);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(299));
+        Assert.False(_c.IsTitleBarVisible(A));
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(1));
+        Assert.True(_c.IsTitleBarVisible(A));
+    }
+
+    [Fact]
+    public void TitleBarHover_MovingToAnotherPaneRestartsTheRevealDelay()
+    {
+        SplitAC();
+        var first = _view.ToScreen(PaneOf(A).Content);
+        var second = _view.ToScreen(PaneOf(C).Content);
+        _c.UpdateTitleBarHover(first.Left + 20, first.Top + 1, A);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(200));
+
+        _c.UpdateTitleBarHover(second.Left + 20, second.Top + 1, C);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(100));
+        Assert.False(_c.IsTitleBarVisible(A));
+        Assert.False(_c.IsTitleBarVisible(C));
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(200));
+        Assert.False(_c.IsTitleBarVisible(A));
+        Assert.True(_c.IsTitleBarVisible(C));
+    }
+
+    [Theory]
+    [InlineData(TabBarPlacement.Top)]
+    [InlineData(TabBarPlacement.TitleBar)]
+    [InlineData(TabBarPlacement.Left)]
+    public void TitleBarHover_MovingOntoTheTabBarKeepsItVisible(TabBarPlacement placement)
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.SetTabBarPlacement(placement);
+        var target = _view.ToScreen(PaneOf(A).Content);
+        _c.UpdateTitleBarHover(target.Left + 20, target.Top + 1, A);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(300));
+
+        _c.UpdateTitleBarHover(target.Left, target.Bottom - 1, A);
+        var tabBar = _view.ToScreen(PaneOf(A).TabBar);
+        _c.UpdateTitleBarHover(tabBar.Left + 10, tabBar.Top + 10, Frame);
+        _scheduler.AdvanceBy(TimeSpan.FromSeconds(1));
+
+        Assert.True(_c.IsTitleBarVisible(A));
     }
 
     [Fact]
@@ -88,6 +236,7 @@ public class GroupControllerTests
         _c.Adopt(Window(A), RootPane, null);
         var target = _view.ToScreen(PaneOf(A).Content);
         _c.UpdateTitleBarHover(target.Left + 20, target.Top + 1, A);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(300));
         _c.UpdateTitleBarHover(target.Left, target.Bottom - 1, A);
         _c.UpdateTitleBarHover(target.Left + 20, target.Top + 20, A);
 
@@ -105,6 +254,14 @@ public class GroupControllerTests
         var target = _view.ToScreen(PaneOf(A).Content);
 
         _c.UpdateTitleBarHover(target.Left + 20, target.Top + 1, new WindowHandle(hit));
+        _scheduler.FireTimers();
+
+        Assert.False(_ws.Windows[A].TitleBarVisible);
+
+        _c.UpdateTitleBarHover(target.Left + 20, target.Top + 1, A);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(200));
+        _c.UpdateTitleBarHover(target.Left + 20, target.Top + 1, new WindowHandle(hit));
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(300));
 
         Assert.False(_ws.Windows[A].TitleBarVisible);
     }
@@ -115,6 +272,7 @@ public class GroupControllerTests
         _c.Adopt(Window(A), RootPane, null);
         var target = _view.ToScreen(PaneOf(A).Content);
         _c.UpdateTitleBarHover(target.Left + 20, target.Top + 1, A);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(300));
         _c.UpdateTitleBarHover(target.Left, target.Bottom - 1, A);
         _c.OnMoveSizeStart(A);
 
@@ -192,6 +350,7 @@ public class GroupControllerTests
         _c.Adopt(Window(A), RootPane, null);
         var target = _view.ToScreen(PaneOf(A).Content);
         _c.UpdateTitleBarHover(target.Left + 20, target.Top + 1, A);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(300));
         _c.UpdateTitleBarHover(target.Left, target.Bottom - 1, A);
 
         _c.SetTitleBarHideDelay(TimeSpan.FromSeconds(1));

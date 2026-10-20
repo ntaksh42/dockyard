@@ -40,6 +40,8 @@ public interface IGroupControl
     void DragSplitter(SplitterLayout splitter, double pointer);
     void SetTabBarPlacement(TabBarPlacement placement);
     void SetAutoHideTitleBars(bool enabled);
+    /// <summary>Applies the frame caption's hover delays; interaction keeps it open.</summary>
+    bool UpdateCaptionHover(bool hovered, bool interacting = false);
     void UpdateTitleBarHover(int x, int y, WindowHandle hitWindow, bool interacting = false);
     void RevealTitleBar(WindowHandle window);
     bool IsTitleBarVisible(WindowHandle window);

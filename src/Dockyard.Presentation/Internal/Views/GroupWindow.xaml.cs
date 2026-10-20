@@ -22,7 +22,6 @@ internal partial class GroupWindow : Window, IGroupFrame
     private const double CaptionHeight = 24;
     private const double CaptionHotEdgeHeight = 4;
     private readonly System.Windows.Threading.DispatcherTimer _titleBarHover = new() { Interval = TimeSpan.FromMilliseconds(100) };
-    private long _captionLastHovered;
     private bool _captionMenuOpen;
     private static readonly Brush TabBarBrush = Brush("#D1D5DB"), TabBrush = Brush("#BCC2CB"), ActiveTabBrush = Brushes.White,
         InactiveTextBrush = Brush("#4B5563"), ActiveTextBrush = Brush("#111827"), AccentBrush = Brush("#3B82F6"), AttentionBrush = Brush("#F59E0B"), AttentionTabBrush = Brush("#FDE68A"), PlaceholderBrush = Brush("#1F2328"), SplitterBrush = Brush("#2B2F36"), MutedTextBrush = Brush("#9CA3AF");
@@ -683,14 +682,13 @@ internal partial class GroupWindow : Window, IGroupFrame
         var hit = _windows.GetWindowAt(x, y);
         Controller.UpdateTitleBarHover(x, y, hit, interacting: Mouse.Captured is not null);
         var pointer = PointFromScreen(new Point(x, y));
-        var ownWindow = hit == Handle || hit == TabOverlay;
-        var height = Caption.Height;
+        var ownWindow = hit == Handle || hit == TabOverlay
+            || (_rendered?.Panes.Any(p => p.Pane.ActiveWindow == hit) == true);
+        // Keep the frame steady while the pointer moves down from its caption to the first tab row.
+        var height = Caption.Height + (Caption.Height == CaptionHeight ? TabHeight : 0);
         var overCaption = ownWindow && pointer.X >= Root.Margin.Left && pointer.X < ActualWidth - Root.Margin.Right
             && pointer.Y >= Root.Margin.Top && pointer.Y < Root.Margin.Top + height;
-        if (overCaption) _captionLastHovered = Environment.TickCount64;
-        var visible = !Controller.AutoHideTitleBars || overCaption || GroupNameEdit.IsVisible || Mouse.Captured is not null
-            || Environment.TickCount64 - _captionLastHovered < 400;
-        SetCaptionVisible(visible);
+        SetCaptionVisible(Controller.UpdateCaptionHover(overCaption, interacting: GroupNameEdit.IsVisible || Mouse.Captured is not null));
     }
 
     private void SetCaptionVisible(bool visible)
@@ -777,11 +775,11 @@ internal partial class GroupWindow : Window, IGroupFrame
     {
         var menu = new ContextMenu { PlacementTarget = this, Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint };
         _captionMenuOpen = true;
-        SetCaptionVisible(true);
+        SetCaptionVisible(Controller.UpdateCaptionHover(false, interacting: true));
         menu.Closed += (_, _) =>
         {
             _captionMenuOpen = false;
-            _captionLastHovered = Environment.TickCount64;
+            Controller.UpdateCaptionHover(false);
         };
         // After the menu has closed: it takes the keyboard focus back as it goes, which would end the rename.
         menu.Items.Add(MenuItem("Rename Group", () => Dispatcher.BeginInvoke(BeginRename, System.Windows.Threading.DispatcherPriority.Input)));
@@ -798,7 +796,7 @@ internal partial class GroupWindow : Window, IGroupFrame
         var autoHide = MenuItem("Auto-hide Title Bars", () =>
         {
             Controller.SetAutoHideTitleBars(!Controller.AutoHideTitleBars);
-            SetCaptionVisible(true);
+            SetCaptionVisible(Controller.UpdateCaptionHover(false, interacting: true));
         });
         autoHide.IsChecked = Controller.AutoHideTitleBars;
         menu.Items.Add(autoHide);
@@ -817,7 +815,7 @@ internal partial class GroupWindow : Window, IGroupFrame
     private void BeginRename()
     {
         if (_closing || GroupNameEdit.IsVisible) return;
-        SetCaptionVisible(true);
+        SetCaptionVisible(Controller.UpdateCaptionHover(false, interacting: true));
         Activate();
         GroupNameEdit.Text = GroupName.Value;
         GroupNameText.Visibility = Visibility.Hidden;

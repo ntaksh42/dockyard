@@ -9,6 +9,8 @@ namespace Dockyard.Application.Internal;
 /// </summary>
 internal sealed class GroupController : IGroupControl
 {
+    private const int TitleBarShowDelayMs = 300;
+
     public LayoutMetrics Metrics { get; private set; } = new(SplitterThickness: 4, TabBarHeight: 24);
 
     private sealed class Member(WindowHandle handle, PixelRect originalBounds)
@@ -36,8 +38,15 @@ internal sealed class GroupController : IGroupControl
     private readonly IScheduler _scheduler;
     private readonly IRestartableTimer _settleTimer;
     private readonly IRestartableTimer _hiddenTimer;
+    private readonly IRestartableTimer _titleBarShowTimer;
     private IRestartableTimer _titleBarTimer;
+    private WindowHandle _titleBarToReveal;
     private WindowHandle _revealedTitleBar;
+    private readonly IRestartableTimer _captionShowTimer;
+    private IRestartableTimer _captionHideTimer;
+    private bool _captionVisible;
+    private bool _captionShowPending;
+    private bool _captionHidePending;
     /// <summary>Members that flashed while the user was elsewhere: their tabs are marked until looked at.</summary>
     private readonly HashSet<WindowHandle> _attention = [];
     private bool _titleBarHidePending;
@@ -67,7 +76,14 @@ internal sealed class GroupController : IGroupControl
         _scheduler = scheduler;
         _settleTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(300), CheckSettled);
         _hiddenTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(500), DropHidden);
+        _titleBarShowTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(TitleBarShowDelayMs), ShowHoveredTitleBar);
         _titleBarTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(Settings.DefaultTitleBarHideDelayMs), HideRevealedTitleBar);
+        _captionShowTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(TitleBarShowDelayMs), () =>
+        {
+            _captionShowPending = false;
+            if (!_closing && AutoHideTitleBars && _view.IsOnScreen && !_live) _captionVisible = true;
+        });
+        _captionHideTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(Settings.DefaultTitleBarHideDelayMs), HideCaption);
     }
 
     public LayoutResult? Layout => _layout;
@@ -391,9 +407,14 @@ internal sealed class GroupController : IGroupControl
     {
         if (AutoHideTitleBars == enabled) return;
         AutoHideTitleBars = enabled;
+        CancelTitleBarReveal();
         _titleBarTimer.Stop();
         _titleBarHidePending = false;
         _revealedTitleBar = WindowHandle.None;
+        _captionShowTimer.Stop();
+        _captionHideTimer.Stop();
+        _captionShowPending = _captionHidePending = false;
+        _captionVisible = !enabled;
         RenderVisuals();
         SyncWindows(raise: false);
         // The group's own choice goes into the session file.
@@ -406,6 +427,63 @@ internal sealed class GroupController : IGroupControl
         _titleBarTimer.Stop();
         _titleBarTimer = _scheduler.CreateTimer(delay, HideRevealedTitleBar);
         if (_titleBarHidePending) _titleBarTimer.Restart();
+        _captionHideTimer.Stop();
+        _captionHideTimer = _scheduler.CreateTimer(delay, HideCaption);
+        if (_captionHidePending) _captionHideTimer.Restart();
+    }
+
+    /// <summary>Returns whether the frame caption should be drawn after applying hover delays.</summary>
+    public bool UpdateCaptionHover(bool hovered, bool interacting = false)
+    {
+        if (_closing || !_view.IsOnScreen || _live) return _captionVisible;
+        if (!AutoHideTitleBars || interacting)
+        {
+            _captionShowTimer.Stop();
+            _captionHideTimer.Stop();
+            _captionShowPending = _captionHidePending = false;
+            _captionVisible = true;
+        }
+        else if (hovered)
+        {
+            _captionHideTimer.Stop();
+            _captionHidePending = false;
+            if (!_captionVisible && !_captionShowPending)
+            {
+                _captionShowPending = true;
+                _captionShowTimer.Restart();
+            }
+        }
+        else
+        {
+            _captionShowTimer.Stop();
+            _captionShowPending = false;
+            if (_captionVisible && !_captionHidePending)
+            {
+                _captionHidePending = true;
+                _captionHideTimer.Restart();
+            }
+        }
+        return _captionVisible;
+    }
+
+    private void HideCaption()
+    {
+        _captionHidePending = false;
+        if (!_closing && !_live) _captionVisible = false;
+    }
+
+    private void CancelTitleBarReveal()
+    {
+        _titleBarShowTimer.Stop();
+        _titleBarToReveal = WindowHandle.None;
+    }
+
+    private void ShowHoveredTitleBar()
+    {
+        var window = _titleBarToReveal;
+        CancelTitleBarReveal();
+        if (_closing || !AutoHideTitleBars || !_view.IsOnScreen || _live || !_dragged.IsNone || !_view.ZAnchor.IsNone) return;
+        if (_tree.FindPane(window)?.ActiveWindow == window) RevealTitleBar(window);
     }
 
     private void HideRevealedTitleBar()
@@ -423,6 +501,7 @@ internal sealed class GroupController : IGroupControl
     public void RevealTitleBar(WindowHandle window)
     {
         if (_closing || !Owns(window)) return;
+        CancelTitleBarReveal();
         _titleBarTimer.Stop();
         _titleBarHidePending = false;
         if (_revealedTitleBar == window) return;
@@ -431,16 +510,21 @@ internal sealed class GroupController : IGroupControl
         SyncWindows(raise: false);
     }
 
-    /// <summary>Reveals a pane's caption at its upper edge; a short delay lets the pointer cross into its buttons.</summary>
+    /// <summary>Requires a dwell at a pane's upper edge; its caption and tabs stay visible while being used.</summary>
     public void UpdateTitleBarHover(int x, int y, WindowHandle hitWindow, bool interacting = false)
     {
         if (interacting)
         {
+            CancelTitleBarReveal();
             _titleBarTimer.Stop();
             _titleBarHidePending = false;
             return;
         }
-        if (_closing || !AutoHideTitleBars || !_view.IsOnScreen || _layout is null || _live || !_dragged.IsNone || !_view.ZAnchor.IsNone) return;
+        if (_closing || !AutoHideTitleBars || !_view.IsOnScreen || _layout is null || _live || !_dragged.IsNone || !_view.ZAnchor.IsNone)
+        {
+            CancelTitleBarReveal();
+            return;
+        }
         var hovered = WindowHandle.None;
         if (!hitWindow.IsNone && (hitWindow == _view.Handle || hitWindow == _view.TabOverlay || Owns(hitWindow)))
         {
@@ -449,16 +533,28 @@ internal sealed class GroupController : IGroupControl
                 if (pane.Pane.ActiveWindow is not { } window) continue;
                 var bounds = _view.ToScreen(pane.Content);
                 var height = window == _revealedTitleBar ? 40 : pane.Placement == TabBarPlacement.TitleBar ? Metrics.TabBarHeight : 4;
-                if (x >= bounds.Left && x < bounds.Right && y >= bounds.Top && y < Math.Min(bounds.Bottom, bounds.Top + height * _view.Scale))
+                var tabs = _view.ToScreen(pane.TabBar);
+                var overTabs = window == _revealedTitleBar && x >= tabs.Left && x < tabs.Right && y >= tabs.Top && y < tabs.Bottom;
+                if (overTabs || (x >= bounds.Left && x < bounds.Right && y >= bounds.Top && y < Math.Min(bounds.Bottom, bounds.Top + height * _view.Scale)))
                 {
                     hovered = window;
                     break;
                 }
             }
         }
-        if (!hovered.IsNone)
+        if (hovered != _titleBarToReveal)
         {
-            RevealTitleBar(hovered);
+            CancelTitleBarReveal();
+            if (!hovered.IsNone && hovered != _revealedTitleBar)
+            {
+                _titleBarToReveal = hovered;
+                _titleBarShowTimer.Restart();
+            }
+        }
+        if (!hovered.IsNone && hovered == _revealedTitleBar)
+        {
+            _titleBarTimer.Stop();
+            _titleBarHidePending = false;
         }
         else if (!_revealedTitleBar.IsNone && !_titleBarHidePending)
         {
@@ -544,7 +640,10 @@ internal sealed class GroupController : IGroupControl
         _closing = true;
         _settleTimer.Stop();
         _hiddenTimer.Stop();
+        CancelTitleBarReveal();
         _titleBarTimer.Stop();
+        _captionShowTimer.Stop();
+        _captionHideTimer.Stop();
         ReleaseAll();
     }
 

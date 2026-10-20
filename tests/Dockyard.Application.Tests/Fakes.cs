@@ -211,12 +211,13 @@ internal sealed class ManualScheduler : IScheduler
 {
     private readonly Queue<Action> _posted = [];
     private readonly List<Timer> _timers = [];
+    private TimeSpan _elapsed;
 
     public void Post(Action action) => _posted.Enqueue(action);
 
     public IRestartableTimer CreateTimer(TimeSpan delay, Action tick)
     {
-        var t = new Timer(tick);
+        var t = new Timer(delay, tick, () => _elapsed);
         _timers.Add(t);
         return t;
     }
@@ -232,10 +233,26 @@ internal sealed class ManualScheduler : IScheduler
         foreach (var t in _timers.Where(t => t.Pending).ToList()) t.Fire();
     }
 
-    private sealed class Timer(Action tick) : IRestartableTimer
+    public void AdvanceBy(TimeSpan duration)
+    {
+        var target = _elapsed + duration;
+        while (_timers.Where(t => t.Pending && t.Due <= target).OrderBy(t => t.Due).FirstOrDefault() is { } timer)
+        {
+            _elapsed = timer.Due;
+            timer.Fire();
+        }
+        _elapsed = target;
+    }
+
+    private sealed class Timer(TimeSpan delay, Action tick, Func<TimeSpan> now) : IRestartableTimer
     {
         public bool Pending { get; private set; }
-        public void Restart() => Pending = true;
+        public TimeSpan Due { get; private set; }
+        public void Restart()
+        {
+            Pending = true;
+            Due = now() + delay;
+        }
         public void Stop() => Pending = false;
 
         public void Fire()
