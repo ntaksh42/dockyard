@@ -62,7 +62,7 @@ public static class LayoutEngine
                 // A split narrower than a splitter gives the splitter what there is, so nothing spills outside.
                 var t = Math.Min(m.SplitterThickness, r.Width);
                 var w = r.Width - t;
-                var w1 = Math.Round(w * Math.Clamp(s.Ratio, 0, 1));
+                var w1 = Math.Min(w, Math.Round(w * Math.Clamp(s.Ratio, 0, 1)));
                 Arrange(s.First, r with { Width = w1 }, m, panes, splitters);
                 splitters.Add(new SplitterLayout(s, r with { X = r.X + w1, Width = t }, r));
                 Arrange(s.Second, r with { X = r.X + w1 + t, Width = w - w1 }, m, panes, splitters);
@@ -72,7 +72,7 @@ public static class LayoutEngine
             {
                 var t = Math.Min(m.SplitterThickness, r.Height);
                 var h = r.Height - t;
-                var h1 = Math.Round(h * Math.Clamp(s.Ratio, 0, 1));
+                var h1 = Math.Min(h, Math.Round(h * Math.Clamp(s.Ratio, 0, 1)));
                 Arrange(s.First, r with { Height = h1 }, m, panes, splitters);
                 splitters.Add(new SplitterLayout(s, r with { Y = r.Y + h1, Height = t }, r));
                 Arrange(s.Second, r with { Y = r.Y + h1 + t, Height = h - h1 }, m, panes, splitters);

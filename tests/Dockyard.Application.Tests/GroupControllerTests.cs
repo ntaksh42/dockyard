@@ -1049,6 +1049,48 @@ public class GroupControllerTests
 
     // ---- settling and minimum sizes -------------------------------------------------------------
 
+    [Theory]
+    [InlineData(50, 0, 0, 0)]
+    [InlineData(0, 50, 0, 0)]
+    [InlineData(0, 0, 150, 0)]
+    [InlineData(0, 0, 0, 150)]
+    public void MemberChangesBoundsAfterSettling_IsPlacedBackInItsPane(int dx, int dy, int dw, int dh)
+    {
+        SplitAC();
+        _scheduler.FireTimers();
+        PixelRect target = _ws.GetVisibleBounds(A);
+        for (var i = 0; i < 4; i++)
+        {
+            _ws.Windows[A].Bounds = FakeWindowSystem.BoundsFor(new PixelRect(
+                target.Left + dx, target.Top + dy, target.Right + dx + dw, target.Bottom + dy + dh));
+
+            _c.OnLocationChanged(A);
+            _scheduler.FireTimers();
+
+            AssertPlaced(A);
+            AssertPlaced(C);
+            _scheduler.FireTimers();
+        }
+    }
+
+    [Fact]
+    public void MemberMinimumChangesAfterSettling_MakesRoomForIt()
+    {
+        SplitAC();
+        _scheduler.FireTimers();
+        _ws.Windows[C].MinWidth = 700;
+        PixelRect target = _ws.GetVisibleBounds(C);
+        _ws.PlaceVisible(C, target);
+
+        _c.OnLocationChanged(C);
+        _scheduler.FireTimers();
+        _scheduler.FireTimers();
+
+        Assert.True(PaneOf(C).Content.Width >= 700);
+        AssertPlaced(A);
+        AssertPlaced(C);
+    }
+
     [Fact]
     public void WindowThatKeepsALargerSize_IsLearnedAsMinimum_AndTheDividerMovesForIt()
     {

@@ -245,6 +245,29 @@ public class LayoutEngineTests
         Assert.Equal(new Rect(0, 104, 100, 100), result.Panes[1].Bounds);
     }
 
+    [Theory]
+    [InlineData(Orientation.Horizontal)]
+    [InlineData(Orientation.Vertical)]
+    public void Arrange_FractionalSpace_DoesNotRoundPastTheAvailableSize(Orientation orientation)
+    {
+        var split = new SplitNode(orientation, new Pane(), new Pane()) { Ratio = 1 };
+        var bounds = new Rect(10, 20, 4.75, 4.75);
+
+        LayoutResult result = LayoutEngine.Arrange(split, bounds, M);
+
+        foreach (Rect piece in result.Panes.SelectMany(p => new[] { p.Bounds, p.TabBar, p.Content })
+            .Concat(result.Splitters.Select(s => s.Bounds)))
+        {
+            Assert.InRange(piece.Width, 0, bounds.Width);
+            Assert.InRange(piece.Height, 0, bounds.Height);
+            Assert.InRange(piece.X + piece.Width, bounds.X, bounds.X + bounds.Width);
+            Assert.InRange(piece.Y + piece.Height, bounds.Y, bounds.Y + bounds.Height);
+        }
+        Assert.Equal(bounds.Width * bounds.Height,
+            result.Panes.Sum(p => p.Bounds.Width * p.Bounds.Height)
+            + result.Splitters.Sum(s => s.Bounds.Width * s.Bounds.Height), 9);
+    }
+
     [Fact]
     public void MinSize_CombinesWindowMinimumsAndSplits()
     {

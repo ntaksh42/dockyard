@@ -619,6 +619,11 @@ internal sealed class GroupController : IGroupControl
         {
             _view.Minimize();
         }
+        else if (_view.IsOnScreen)
+        {
+            // Apps can move or resize themselves after the previous placement has already settled.
+            _settleTimer.Restart();
+        }
     }
 
     public void OnTitleChanged(WindowHandle window)

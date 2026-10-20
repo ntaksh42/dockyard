@@ -114,6 +114,19 @@ public class SettleTrackerTests
     }
 
     [Fact]
+    public void ReachingTarget_ResetsRetriesForLaterDrift()
+    {
+        var tracker = new SettleTracker(maxRetries: 1);
+        Rect displaced = Target with { X = 50 };
+        Assert.Equal(SettleAction.Retry, tracker.Evaluate(Target, displaced));
+        Assert.Equal(SettleAction.None, tracker.Evaluate(Target, displaced));
+        Assert.Equal(SettleAction.None, tracker.Evaluate(Target, Target));
+
+        Assert.Equal(SettleAction.Retry, tracker.Evaluate(Target, displaced));
+        Assert.Equal(SettleAction.None, tracker.Evaluate(Target, displaced));
+    }
+
+    [Fact]
     public void LargerButDifferentSizeEachTime_DoesNotLearn()
     {
         var t = new SettleTracker(maxRetries: 5);
