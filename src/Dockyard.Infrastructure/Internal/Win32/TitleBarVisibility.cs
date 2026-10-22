@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Dockyard.Domain;
+using Dockyard.Infrastructure.Internal.Logging;
 using static Dockyard.Infrastructure.Internal.Win32.Native;
 
 namespace Dockyard.Infrastructure.Internal.Win32;
@@ -10,6 +11,51 @@ internal static class TitleBarVisibility
     private const string CaptionProperty = "Dockyard.OriginalCaption";
     private const int StyleIndex = -16;
     private const long CaptionStyle = 0x00C00000;
+    private static readonly Dictionary<WindowHandle, (bool Visible, Task<bool> Change)> s_pending = [];
+
+    public static Task<bool> SetVisibleAsync(WindowHandle window, bool visible)
+    {
+        lock (s_pending)
+        {
+            s_pending.TryGetValue(window, out var previous);
+            if (previous.Change is not null && previous.Visible == visible) return previous.Change;
+            if (previous.Change is null && !NeedsChange(window.Value, visible)) return Task.FromResult(false);
+            var thread = GetWindowThreadProcessId(window.Value, out var process);
+            var change = Task.Run(async () =>
+            {
+                if (previous.Change is not null) await previous.Change.ConfigureAwait(false);
+                try
+                {
+                    // An older request may outlive a destroyed window. Do not change a handle reused by another app.
+                    if (GetWindowThreadProcessId(window.Value, out var current) != thread || current != process) return false;
+                    return SetVisible(window, visible);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("Change title bar", ex);
+                    return false;
+                }
+            });
+            s_pending[window] = (visible, change);
+            _ = change.ContinueWith(_ =>
+            {
+                lock (s_pending)
+                {
+                    if (s_pending.TryGetValue(window, out var latest) && latest.Change == change) s_pending.Remove(window);
+                }
+            }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            return change;
+        }
+    }
+
+    private static bool NeedsChange(nint hwnd, bool visible)
+    {
+        if (visible || GetClassName(hwnd) is "WinUIDesktopWin32WindowClass" or "Chrome_WidgetWin_1")
+        {
+            return GetProp(hwnd, CaptionProperty) != 0;
+        }
+        return ((long)GetWindowLongPtr(hwnd, StyleIndex) & CaptionStyle) == CaptionStyle;
+    }
 
     public static bool SetVisible(WindowHandle window, bool visible)
     {

@@ -36,8 +36,13 @@ public sealed class PlatformServices : IPlatform, IDisposable
 
     public void Dispose()
     {
-        ((Win32WindowSystem)Windows).RestoreTitleBars();
         _keyboard.Dispose();
         _windowEvents.Dispose();
+        // Hooks are gone: give responsive apps a short, shared exit budget to restore their captions. A hung
+        // app cannot hold shutdown indefinitely; its recovery marker is retained for the next start.
+        if (!((Win32WindowSystem)Windows).RestoreTitleBarsAsync().Wait(TimeSpan.FromMilliseconds(250)))
+        {
+            Log.Trace("Title bar restoration still pending at exit");
+        }
     }
 }

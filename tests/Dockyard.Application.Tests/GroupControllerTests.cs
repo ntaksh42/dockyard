@@ -59,6 +59,200 @@ public class GroupControllerTests
     [InlineData(TabBarPlacement.Top)]
     [InlineData(TabBarPlacement.TitleBar)]
     [InlineData(TabBarPlacement.Left)]
+    public void ActivatingATab_MovesTheKeyboardFocusToItsWindow(TabBarPlacement placement)
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.Adopt(Window(B), RootPane, null);
+        _c.SetTabBarPlacement(placement);
+        _ws.Focus(B);
+
+        _c.ActivateTab(A);
+
+        Assert.Equal(A, RootPane.ActiveWindow);
+        Assert.Equal(A, _ws.GetForeground());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SwitchingTabs_KeepsTheRevealedTitleBarAndItsHideDelay(bool foreground)
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.Adopt(Window(B), RootPane, null);
+        _c.SetTabBarPlacement(TabBarPlacement.TitleBar);
+        _c.RevealTitleBar(B);
+        var target = _view.ToScreen(PaneOf(B).Content);
+        _c.UpdateTitleBarHover(target.Left + 20, target.Top + 10, B);
+
+        if (foreground) _c.OnForeground(A);
+        else _c.ActivateTab(A);
+
+        Assert.True(_c.IsTitleBarVisible(A));
+        Assert.True(_ws.Windows[A].TitleBarVisible);
+        Assert.False(_ws.Windows[B].TitleBarVisible);
+        _c.UpdateTitleBarHover(target.Left + 20, target.Top + 10, A);
+        _scheduler.AdvanceBy(TimeSpan.FromSeconds(1));
+        Assert.True(_c.IsTitleBarVisible(A));
+
+        _c.UpdateTitleBarHover(target.Left, target.Bottom - 1, A);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(599));
+        Assert.True(_c.IsTitleBarVisible(A));
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(1));
+        Assert.False(_c.IsTitleBarVisible(A));
+    }
+
+    [Fact]
+    public void SwitchingToAnotherPane_DoesNotRevealItsTitleBar()
+    {
+        SplitAC();
+        _c.SetTabBarPlacement(TabBarPlacement.TitleBar);
+        _c.RevealTitleBar(A);
+
+        _c.ActivateTab(C);
+
+        Assert.True(_c.IsTitleBarVisible(A));
+        Assert.False(_c.IsTitleBarVisible(C));
+    }
+
+    [Fact]
+    public void SwitchingTabs_AwayFromThePointerKeepsThePendingHideDeadline()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.Adopt(Window(B), RootPane, null);
+        _c.RevealTitleBar(B);
+        _c.UpdateTitleBarHover(0, 0, Other);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(500));
+
+        _c.ActivateTab(A);
+
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(99));
+        Assert.True(_c.IsTitleBarVisible(A));
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(1));
+        Assert.False(_c.IsTitleBarVisible(A));
+    }
+
+    [Fact]
+    public void PendingTitleBarChange_DoesNotPlaceOrLearnUntilItCompletes()
+    {
+        SplitAC();
+        var pending = new TaskCompletionSource<bool>();
+        _ws.ChangeTitleBar = (window, _) => window == A ? pending.Task : Task.FromResult(false);
+        _c.RevealTitleBar(A);
+        var before = _ws.GetBounds(A);
+        _view.Origin.X += 100;
+
+        _c.OnFrameMoved();
+        _scheduler.FireTimers();
+        _scheduler.FireTimers();
+
+        Assert.Equal(before, _ws.GetBounds(A));
+        AssertPlaced(C);
+        _ws.ChangeTitleBar = null;
+        _ws.Windows[A].TitleBarVisible = true;
+        pending.SetResult(true);
+        _scheduler.RunPosted();
+
+        AssertPlaced(A);
+        Assert.True(_ws.Windows[A].TitleBarVisible);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CompletedTitleBarChange_DoesNotMoveAReleasedWindow(bool closeGroup)
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        var pending = new TaskCompletionSource<bool>();
+        _ws.ChangeTitleBar = (_, _) => pending.Task;
+        _c.RevealTitleBar(A);
+        _ws.ChangeTitleBar = null;
+        if (closeGroup) _c.OnClosing();
+        else _c.Remove(A);
+
+        pending.SetResult(true);
+        _scheduler.RunPosted();
+
+        Assert.Empty(_c.Members);
+        Assert.Equal(Initial, _ws.GetBounds(A));
+        Assert.True(_ws.Windows[A].TitleBarVisible);
+    }
+
+    [Fact]
+    public void PendingTitleBarChange_FollowsATabIntoAnotherGroup()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        var pending = new TaskCompletionSource<bool>();
+        _ws.ChangeTitleBar = (_, _) => pending.Task;
+        _c.RevealTitleBar(A);
+        var view = new FakeView(new WindowHandle(2000)) { Origin = (500, 500) };
+        _ws.AddToZOrder(view.Handle);
+        var target = new GroupController(view, _ws, _scheduler);
+        target.OnSurfaceResized();
+        target.Dock(A, target.Layout!.Panes[0].Pane, null, _c);
+        _ws.ChangeTitleBar = null;
+        pending.SetResult(true);
+
+        _scheduler.RunPosted();
+
+        Assert.False(_c.Owns(A));
+        Assert.Equal(view.ToScreen(target.Layout!.Panes[0].Content), _ws.GetVisibleBounds(A));
+        Assert.False(_ws.Windows[A].TitleBarVisible);
+    }
+
+    [Fact]
+    public void AnOlderTitleBarCompletion_DoesNotReplaceTheLatestRequest()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        var reveal = new TaskCompletionSource<bool>();
+        var hide = new TaskCompletionSource<bool>();
+        _ws.ChangeTitleBar = (_, visible) => visible ? reveal.Task : hide.Task;
+        _c.RevealTitleBar(A);
+        _c.UpdateTitleBarHover(0, 0, Other);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(600));
+        var before = _ws.GetBounds(A);
+        _view.Origin.X += 100;
+
+        reveal.SetResult(true);
+        _scheduler.RunPosted();
+        Assert.Equal(before, _ws.GetBounds(A));
+        _c.OnFrameMoved();
+        Assert.Equal(before, _ws.GetBounds(A));
+
+        _ws.ChangeTitleBar = null;
+        hide.SetResult(true);
+        _scheduler.RunPosted();
+        AssertPlaced(A);
+        Assert.False(_ws.Windows[A].TitleBarVisible);
+    }
+
+    [Fact]
+    public void ACompletedTitleBarChange_ResetsTheMinimumBeforeItsPostedCallbackRuns()
+    {
+        Window(A);
+        _ws.Windows[A].MinHeight = 700;
+        _c.Adopt(A, RootPane, null);
+        _scheduler.FireTimers();
+        _scheduler.FireTimers();
+        Assert.True(_view.MinimumContent.Height >= 700);
+        var pending = new TaskCompletionSource<bool>();
+        _ws.ChangeTitleBar = (_, _) => pending.Task;
+        _c.RevealTitleBar(A);
+        _ws.Windows[A].MinHeight = 100;
+        _ws.Windows[A].TitleBarVisible = true;
+        _ws.ChangeTitleBar = null;
+        pending.SetResult(true);
+
+        _c.OnSurfaceResized();
+
+        Assert.Equal(64, _view.MinimumContent.Height);
+        _scheduler.RunPosted();
+        AssertPlaced(A);
+    }
+
+    [Theory]
+    [InlineData(TabBarPlacement.Top)]
+    [InlineData(TabBarPlacement.TitleBar)]
+    [InlineData(TabBarPlacement.Left)]
     public void TitleBarHover_RevealsOnlyTheHoveredPaneAndHidesAfterLeaving(TabBarPlacement placement)
     {
         SplitAC();
@@ -1678,7 +1872,7 @@ public class GroupControllerTests
         public string GetTitle(WindowHandle w) => inner.GetTitle(w);
         public WindowHandle GetForeground() => inner.GetForeground();
         public WindowHandle GetWindowAt(int x, int y) => inner.GetWindowAt(x, y);
-        public bool SetTitleBarVisible(WindowHandle w, bool visible) => inner.SetTitleBarVisible(w, visible);
+        public Task<bool> SetTitleBarVisibleAsync(WindowHandle w, bool visible) => inner.SetTitleBarVisibleAsync(w, visible);
         public bool IsTopLevel(WindowHandle w) => inner.IsTopLevel(w);
         public bool IsCaptionDrag(WindowHandle w) => inner.IsCaptionDrag(w);
         public IReadOnlyList<WindowHandle> GetTopLevelWindows() => inner.GetTopLevelWindows();

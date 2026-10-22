@@ -21,8 +21,11 @@ public interface IWindowSystem
     /// <summary>The top-level window under a screen position, including overlays.</summary>
     WindowHandle GetWindowAt(int x, int y);
 
-    /// <summary>Hides a standard title bar, or restores only the caption bits Dockyard removed. Returns whether the style changed.</summary>
-    bool SetTitleBarVisible(WindowHandle window, bool visible);
+    /// <summary>
+    /// Changes a standard title bar without waiting on the caller's thread. Requests for one window retain their
+    /// order. Returns whether the style changed; a failure is logged by the implementation and returns false.
+    /// </summary>
+    Task<bool> SetTitleBarVisibleAsync(WindowHandle window, bool visible);
 
     /// <summary>Whether the window is a top-level window rather than a child of another.</summary>
     bool IsTopLevel(WindowHandle window);

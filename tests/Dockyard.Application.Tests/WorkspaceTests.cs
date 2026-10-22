@@ -519,6 +519,66 @@ public class WorkspaceTests
 
     // ---- session ----------------------------------------------------------------------------------
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void CrashRecovery_KeepsWaitingGroupsAlongsideSurvivingWindows(bool hasMember, bool openLastGroups)
+    {
+        Workspace.Start();
+        if (hasMember)
+        {
+            Add(1, "app", "live");
+            _shell.Frames[0].Controller!.Adopt(Handle(1), PaneOf(_shell.Frames[0]), null);
+        }
+        var waiting = new SavedGroup(new LayoutName("Waiting"), SavedBounds,
+            new SavedNode(Orientation.Horizontal,
+                First: new SavedNode(Tabs: [new SavedTab(new ProcessName("editor"), "Code")]),
+                Second: new SavedNode(Tabs: [new SavedTab(new ProcessName("browser"), "Docs")])),
+            TabBarPlacement.Left, AutoHideTitleBars: false);
+        Workspace.OpenLayout(waiting);
+        _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(500));
+
+        var platform = new FakePlatform();
+        platform.SettingsStore.Settings.OpenLastGroups = openLastGroups;
+        platform.SessionStore.Session = _platform.SessionStore.Session;
+        platform.SessionStore.LastGroups = _platform.SessionStore.LastGroups;
+        if (hasMember)
+        {
+            platform.Desktop.Add(Handle(1), _platform.Desktop.GetBounds(Handle(1)), "live");
+        }
+        var scheduler = new ManualScheduler();
+        var shell = new FakeShell(scheduler) { Windows = platform.Desktop };
+        var restarted = new Workspace(platform, shell);
+
+        restarted.Start();
+
+        var open = shell.Frames.Where(f => !f.Closed).ToList();
+        Assert.Equal(hasMember ? 2 : 1, open.Count);
+        var restored = Assert.Single(open, f => f.GroupName == waiting.Name);
+        Assert.Equal(_shell.Frames[^1].FrameBounds, restored.ShownAt);
+        Assert.Equal(TabBarPlacement.Left, restored.Placement);
+        Assert.False(restored.Controller!.AutoHideTitleBars);
+        Assert.Equal(2, restored.Controller.Layout!.Panes.Count);
+        Assert.Equal(["Code", "Docs"], restored.Controller.WaitingTabs.Select(t => t.Title));
+        if (hasMember)
+        {
+            var memberGroup = Assert.Single(open, f => f.GroupName != waiting.Name);
+            Assert.Equal(Handle(1), Assert.Single(memberGroup.Controller!.Members));
+            memberGroup.Controller.Remove(Handle(1));
+            Assert.Equal(Initial, platform.Desktop.GetBounds(Handle(1)));
+        }
+
+        var handle = platform.Desktop.Add(Handle(2), Initial, "Code");
+        platform.Desktop.Windows[handle].ProcessName = "editor";
+        platform.CatalogFake.Windows.Add(new WindowInfo(handle, "Code", new ProcessName("editor"), true));
+        platform.Events.Raise(WindowEvent.Created, handle);
+        platform.Events.Raise(WindowEvent.Shown, handle);
+        Assert.Equal(handle, Assert.Single(restored.Controller.Members));
+        Assert.Equal("Docs", Assert.Single(restored.Controller.WaitingTabs).Title);
+    }
+
     [Fact]
     public void TheSessionIsWrittenOnceTheMouseIsReleased()
     {
