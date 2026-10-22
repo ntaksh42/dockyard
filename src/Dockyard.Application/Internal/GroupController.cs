@@ -31,6 +31,7 @@ internal sealed class GroupController : IGroupControl
         /// <summary>The frame minimized and the asynchronous member hide has not been reported yet.</summary>
         public bool HidePending { get; set; }
         public SettleTracker Settle { get; set; } = new();
+        public Task<bool>? TitleBarChange { get; set; }
     }
 
     private readonly IGroupView _view;
@@ -239,6 +240,8 @@ internal sealed class GroupController : IGroupControl
         source._members.Remove(window);
         source._dragged = WindowHandle.None;
         member.DragStart = null;
+        if (member.TitleBarChange is { IsCompleted: true } completed) ApplyTitleBarChange(member, completed);
+        member.TitleBarChange = null;
         _members.Add(window, member);
         if (side is { } s) _tree.Split(pane, s, window);
         else _tree.AddTab(pane, window);
@@ -294,13 +297,23 @@ internal sealed class GroupController : IGroupControl
 
     public void ActivateTab(WindowHandle window)
     {
-        if (!_members.ContainsKey(window)) return;
+        if (!Accepts(window, out _)) return;
         Diagnostics.Trace?.Invoke($"activate tab {window:X}");
         _attention.Remove(window);
+        SelectTab(window);
+        Raise(window);
+        if (_view.IsOnScreen) _windows.Focus(window);
+    }
+
+    private void SelectTab(WindowHandle window)
+    {
+        // A revealed pane keeps its tabs visible when another tab in that pane is selected.
+        var keepTitleBar = _tree.FindPane(window)?.ActiveWindow == _revealedTitleBar && !_revealedTitleBar.IsNone;
+        if (keepTitleBar) _revealedTitleBar = window;
         _tree.Activate(window);
         _lastActive = window;
         RenderVisuals();
-        Raise(window);
+        if (keepTitleBar) SyncWindows(raise: false);
     }
 
     /// <summary>Runs a keyboard shortcut on behalf of <paramref name="window"/>, a member that has the focus.</summary>
@@ -342,7 +355,6 @@ internal sealed class GroupController : IGroupControl
         }
         if (target is not { } t) return;
         ActivateTab(t);
-        _windows.Focus(t);
     }
 
     /// <summary>How far a pane grows or shrinks per key press.</summary>
@@ -658,9 +670,7 @@ internal sealed class GroupController : IGroupControl
         if (!_windows.IsVisible(window) || (_view.IsMinimized && m.HidePending)) return;
         _attention.Remove(window);
         if (_view.IsMinimized) _view.Restore();
-        if (_tree.FindPane(window)!.ActiveWindow != window) _tree.Activate(window);
-        _lastActive = window;
-        RenderVisuals();
+        SelectTab(window);
         Raise(window);
     }
 
@@ -770,7 +780,7 @@ internal sealed class GroupController : IGroupControl
         {
             Diagnostics.Trace?.Invoke($"hidden by its app {h:X}");
             if (_dragged == h) _dragged = WindowHandle.None;
-            _windows.SetTitleBarVisible(h, visible: true);
+            _ = _windows.SetTitleBarVisibleAsync(h, visible: true);
             _members.Remove(h);
             Detach(h);
         }
@@ -791,7 +801,7 @@ internal sealed class GroupController : IGroupControl
         if (_dragged == window) _dragged = WindowHandle.None;
         Detach(window);
         if (!_windows.Exists(window)) return;
-        _windows.SetTitleBarVisible(window, visible: true);
+        _ = _windows.SetTitleBarVisibleAsync(window, visible: true);
         _windows.SetBounds(window, m.OriginalBounds);
         if (m.Topmost) _windows.SetTopmost(window);
     }
@@ -830,19 +840,39 @@ internal sealed class GroupController : IGroupControl
                 // The window being dragged belongs to the user until the drag ends; moving it would fight the drag.
                 if (h == _dragged) continue;
                 var member = _members[h];
+                if (member.TitleBarChange is { IsCompleted: true } completed) ApplyTitleBarChange(member, completed);
                 var showTitleBar = IsTitleBarVisible(h);
-                if (_windows.SetTitleBarVisible(h, showTitleBar))
+                var change = _windows.SetTitleBarVisibleAsync(h, showTitleBar);
+                if (!change.IsCompleted)
                 {
-                    // A caption changes the app's minimum outer height; do not keep a minimum learned in the other state.
-                    member.MinSize = member.MinSize with { Height = 0 };
-                    member.Settle = new SettleTracker();
+                    if (member.TitleBarChange != change)
+                    {
+                        member.TitleBarChange = change;
+                        _ = change.ContinueWith(_ => _scheduler.Post(() =>
+                        {
+                            if (_closing || !_members.TryGetValue(h, out var current) || current != member || member.TitleBarChange != change) return;
+                            ApplyTitleBarChange(member, change);
+                            Refresh(raise: false);
+                        }), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+                    }
+                    continue;
                 }
+                ApplyTitleBarChange(member, change);
                 _members[h].LastTarget = target;
                 _windows.PlaceVisible(h, target);
             }
         }
         if (raise) Raise(top);
         _settleTimer.Restart();
+    }
+
+    private static void ApplyTitleBarChange(Member member, Task<bool> change)
+    {
+        member.TitleBarChange = null;
+        if (!change.GetAwaiter().GetResult()) return;
+        // A caption changes the app's minimum outer height; do not keep a minimum learned in the other state.
+        member.MinSize = member.MinSize with { Height = 0 };
+        member.Settle = new SettleTracker();
     }
 
     /// <summary>Z-order: [top, other active tabs..., frame, inactive tabs...].</summary>
@@ -966,7 +996,7 @@ internal sealed class GroupController : IGroupControl
         bool retry = false, learned = false;
         foreach (var m in _members.Values)
         {
-            if (m.LastTarget is not { } t || m.Handle == _dragged || _windows.IsMinimized(m.Handle) || !_windows.IsVisible(m.Handle)) continue;
+            if (m.TitleBarChange is not null || m.LastTarget is not { } t || m.Handle == _dragged || _windows.IsMinimized(m.Handle) || !_windows.IsVisible(m.Handle)) continue;
             var now = _windows.GetVisibleBounds(m.Handle);
             switch (m.Settle.Evaluate(t.ToRect(), now.ToRect()))
             {

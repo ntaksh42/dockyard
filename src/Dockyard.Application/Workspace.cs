@@ -422,7 +422,8 @@ public sealed class Workspace : IFrameContext
     private void SaveSession()
     {
         if (_quitting || _sessionEnding) return;
-        var groups = _groups.Where(g => g.Controller.Members.Any()).Select(g => Save(g, includeWindows: true)).ToList();
+        var groups = _groups.Where(g => g.Controller.Members.Any() || g.Controller.WaitingTabs.Count > 0)
+            .Select(g => Save(g, includeWindows: true)).ToList();
         if (groups.Count == 0) _platform.Sessions.ClearSession();
         else _platform.Sessions.SaveSession(groups);
         // Groups still waiting for all their apps (e.g. just opened at login) count as open too.
@@ -462,8 +463,10 @@ public sealed class Workspace : IFrameContext
                     ? WindowMatcher.Match(tab, [new WindowCandidate(h, _windows.GetProcessName(h), "")], claimed, sameWindowOnly: true)
                     : WindowHandle.None;
             });
-            if (count == 0) g.Frame.Close();
-            restored |= count > 0;
+            // A missing handle was already a waiting tab, rather than a window lost since the crash.
+            var keepWaiting = WindowMatcher.TabsOf(s.Layout).Any(tab => tab.Handle.IsNone);
+            if (count == 0 && !keepWaiting) g.Frame.Close();
+            restored |= count > 0 || keepWaiting;
         }
         return restored;
     }

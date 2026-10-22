@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Dockyard.Domain;
 using Dockyard.Application.Internal;
 
@@ -24,6 +25,7 @@ internal sealed class FakeWindowSystem : IWindowSystem
     public Dictionary<WindowHandle, Window> Windows { get; } = [];
     public List<WindowHandle> ZOrder { get; } = [];
     public bool IsStacking { get; set; }
+    public Func<WindowHandle, bool, Task<bool>>? ChangeTitleBar { get; set; }
 
     public WindowHandle Add(WindowHandle handle, PixelRect bounds, string title = "")
     {
@@ -55,12 +57,13 @@ internal sealed class FakeWindowSystem : IWindowSystem
     public WindowHandle GetForeground() => Focused;
     public WindowHandle GetWindowAt(int x, int y) => ZOrder.FirstOrDefault(h => Windows.TryGetValue(h, out var w) && w.Visible
         && x >= w.Bounds.Left && x < w.Bounds.Right && y >= w.Bounds.Top && y < w.Bounds.Bottom);
-    public bool SetTitleBarVisible(WindowHandle window, bool visible)
+    public Task<bool> SetTitleBarVisibleAsync(WindowHandle window, bool visible)
     {
+        if (ChangeTitleBar is { } change) return change(window, visible);
         var w = Windows[window];
         var changed = w.HasTitleBar && w.TitleBarVisible != visible;
         if (w.HasTitleBar) w.TitleBarVisible = visible;
-        return changed;
+        return Task.FromResult(changed);
     }
     public bool IsTopLevel(WindowHandle window) => Windows.ContainsKey(window);
     public bool IsCaptionDrag(WindowHandle window) => false;
@@ -209,7 +212,7 @@ internal sealed class FakeView(WindowHandle handle) : IGroupView
 /// <summary>Runs posted work and timers only when the test says so.</summary>
 internal sealed class ManualScheduler : IScheduler
 {
-    private readonly Queue<Action> _posted = [];
+    private readonly ConcurrentQueue<Action> _posted = [];
     private readonly List<Timer> _timers = [];
     private TimeSpan _elapsed;
 
