@@ -984,7 +984,17 @@ object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
     private List<MenuItem> OpenLayoutItems()
     {
         var items = _context.SavedLayouts().OrderBy(l => l.Name.Value, StringComparer.CurrentCultureIgnoreCase)
-            .Select(layout => MenuItem(layout.Name.Value, () => OpenLayoutRequested?.Invoke(this, layout))).ToList();
+            .Select(layout =>
+            {
+                var item = MenuItem(layout.Name.Value, () => OpenLayoutRequested?.Invoke(this, layout));
+                item.ToolTip = new TextBlock
+                {
+                    Text = LayoutDescription.Describe(layout.Layout).Details,
+                    MaxWidth = 480,
+                    TextWrapping = TextWrapping.Wrap,
+                };
+                return item;
+            }).ToList();
         if (items.Count == 0) items.Add(new MenuItem { Header = "(No saved layouts)", IsEnabled = false });
         return items;
     }

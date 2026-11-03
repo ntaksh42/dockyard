@@ -151,7 +151,7 @@ internal partial class SettingsWindow : Window
         var background = RowBackground(layout.Name);
         Grid.SetColumnSpan(background, 3);
         AddLayoutCell(background, row, column: 0);
-        AddLayoutCell(NameCell(layout.Name), row, column: 0);
+        AddLayoutCell(NameCell(layout), row, column: 0);
         AddLayoutCell(HotkeyCell(layout), row, column: 1);
         AddLayoutCell(ActionsCell(layout.Name), row, column: 2);
     }
@@ -172,14 +172,35 @@ internal partial class SettingsWindow : Window
         return background;
     }
 
-    private FrameworkElement NameCell(LayoutName name)
+    private FrameworkElement NameCell(SavedGroup layout)
     {
+        var name = layout.Name;
         FrameworkElement cell = _renaming == name
             ? RenameBox(name)
             : new TextBlock { Text = name.Value, TextTrimming = TextTrimming.CharacterEllipsis };
-        cell.Margin = new Thickness(8, 4, 12, 4);
-        cell.VerticalAlignment = VerticalAlignment.Center;
-        return cell;
+        var description = LayoutDescription.Describe(layout.Layout);
+        var summary = new TextBlock
+        {
+            Text = description.Summary,
+            FontSize = 11,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 2, 0, 0),
+        };
+        summary.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        var content = new StackPanel
+        {
+            Margin = new Thickness(8, 4, 12, 4),
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = new TextBlock
+            {
+                Text = description.Summary + Environment.NewLine + description.Details,
+                MaxWidth = 480,
+                TextWrapping = TextWrapping.Wrap,
+            },
+        };
+        content.Children.Add(cell);
+        content.Children.Add(summary);
+        return content;
     }
 
     private StackPanel HotkeyCell(SavedGroup layout)

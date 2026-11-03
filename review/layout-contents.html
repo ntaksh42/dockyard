@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- review-sheet-format: v5 -->
+<title>レイアウトを選ぶ画面に中身の要約を出す — レビュー</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#212529;--muted:#64707C;--line:#DEE2E6;--paper:#FFFFFF;--paper-dim:#F6F8FA;--accent:#2563EB;--red:#DC2626}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:'IBM Plex Sans JP','Hiragino Kaku Gothic ProN','Hiragino Sans',-apple-system,sans-serif;font-size:15px;line-height:1.8;margin:0;border-top:3px solid var(--red);padding:8px 24px 40px}
+main{max-width:1200px;margin:0 auto}
+.kicker{font-family:'IBM Plex Mono',Menlo,monospace;font-size:12.5px;letter-spacing:.08em;color:var(--red);font-weight:600}
+h1{font-size:25px;line-height:1.45;margin:8px 0 12px}
+h2{font-size:19px;line-height:1.45;margin:30px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+p{margin:8px 0}
+a{color:var(--accent)}
+.concl{border:1px solid var(--line);border-left:3px solid var(--red);border-radius:10px;padding:12px 18px}
+.red{color:var(--red)}
+.m{color:var(--muted);font-size:12.5px;line-height:1.7}
+.mono{font-family:'IBM Plex Mono',Menlo,monospace;font-size:13.5px}
+figure{margin:14px 0 6px}
+figcaption{font-size:12.5px;color:var(--muted);line-height:1.6;padding-top:4px}
+svg{max-width:100%;height:auto;display:block}
+details{border:1px solid var(--line);border-radius:10px;padding:10px 16px;margin:24px 0 10px}
+summary{cursor:pointer;color:var(--accent);font-weight:500;font-size:13.5px}
+.pt{border-left:3px solid var(--red);padding-left:16px;margin:22px 0}
+.pt .no{font-family:'IBM Plex Mono',Menlo,monospace;font-weight:600;color:var(--red);margin-right:6px}
+.ab{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.ab figure{margin:0}.ab figcaption{font-size:12.5px;color:var(--muted);line-height:1.6;padding-top:4px}
+@media (max-width:900px){.ab{grid-template-columns:1fr}}
+del{color:var(--muted)}
+@media print{summary{color:var(--ink)}details{border:none;padding:0}details[open] summary{display:none}}
+</style></head>
+<body><main>
+
+<div class="kicker">✎ REVIEW — 2026-11-03</div>
+<h1>レイアウトを選ぶ画面に、中身の要約を出す</h1>
+<div class="concl"><b>結論:</b> 保存済みのタブ情報（アプリ名・ウィンドウタイトル・分割）を、設定画面の表と「Open Layout」メニューに要約して出す。保存形式は変えない。</div>
+
+<figure>
+<svg viewBox="0 0 1100 290" role="img" aria-label="現状の設定画面 Layouts タブと Open Layout メニュー。どちらも名前しか出ない">
+  <style>
+    .t{font:400 13px 'Segoe UI','IBM Plex Sans JP',sans-serif;fill:#E6E6E6}
+    .ts{font:400 12px 'Segoe UI','IBM Plex Sans JP',sans-serif;fill:#9A9A9A}
+    .tb{font:600 13px 'Segoe UI','IBM Plex Sans JP',sans-serif;fill:#E6E6E6}
+    .cap{font:500 13px 'IBM Plex Sans JP',sans-serif;fill:#64707C}
+    .num{font:600 13px 'IBM Plex Mono',monospace;fill:#DC2626}
+    .btn{fill:#3A3A3A;stroke:#4A4A4A}
+    .mt{font:400 13px 'Segoe UI',sans-serif;fill:#222}
+  </style>
+  <text x="20" y="18" class="cap">現状: 設定画面 › Layouts タブ</text>
+  <rect x="20" y="28" width="640" height="200" rx="8" fill="#202020" stroke="#3A3A3A"/>
+  <text x="40" y="58" class="tb">Saved layouts</text>
+  <text x="40" y="78" class="ts">Save a layout with the save button on a group's caption. …</text>
+  <rect x="34" y="96" width="612" height="36" rx="4" fill="#2D2D2D"/>
+  <text x="46" y="119" class="t">Dev</text>
+  <rect x="250" y="102" width="150" height="24" rx="4" class="btn"/><text x="260" y="119" class="t">Ctrl+Alt+1</text>
+  <text x="408" y="119" class="t">✕</text>
+  <rect x="430" y="102" width="50" height="24" rx="4" class="btn"/><text x="440" y="119" class="t">Open</text>
+  <rect x="486" y="102" width="122" height="24" rx="4" class="btn"/><text x="494" y="119" class="t">Desktop shortcut</text>
+  <rect x="614" y="102" width="26" height="24" rx="4" class="btn"/><text x="620" y="119" class="t">⋯</text>
+  <text x="46" y="159" class="t">Docs</text>
+  <rect x="250" y="142" width="150" height="24" rx="4" class="btn"/><text x="260" y="159" class="ts">Click, then press keys</text>
+  <rect x="430" y="142" width="50" height="24" rx="4" class="btn"/><text x="440" y="159" class="t">Open</text>
+  <rect x="486" y="142" width="122" height="24" rx="4" class="btn"/><text x="494" y="159" class="t">Desktop shortcut</text>
+  <rect x="614" y="142" width="26" height="24" rx="4" class="btn"/><text x="620" y="159" class="t">⋯</text>
+  <text x="46" y="199" class="t">Work2</text>
+  <rect x="250" y="182" width="150" height="24" rx="4" class="btn"/><text x="260" y="199" class="ts">Click, then press keys</text>
+  <rect x="430" y="182" width="50" height="24" rx="4" class="btn"/><text x="440" y="199" class="t">Open</text>
+  <rect x="486" y="182" width="122" height="24" rx="4" class="btn"/><text x="494" y="199" class="t">Desktop shortcut</text>
+  <rect x="614" y="182" width="26" height="24" rx="4" class="btn"/><text x="620" y="199" class="t">⋯</text>
+  <rect x="38" y="100" width="200" height="110" rx="6" fill="none" stroke="#DC2626" stroke-width="2" stroke-dasharray="5 4"/>
+  <circle cx="238" cy="100" r="13" fill="#fff" stroke="#DC2626" stroke-width="2.5"/><text x="234" y="105" class="num">1</text>
+  <circle cx="238" cy="210" r="13" fill="#fff" stroke="#DC2626" stroke-width="2.5"/><text x="234" y="215" class="num">3</text>
+
+  <text x="720" y="18" class="cap">現状: トレイ / 「+」の Open Layout</text>
+  <rect x="720" y="28" width="170" height="130" rx="6" fill="#F3F3F3" stroke="#CCCCCC"/>
+  <text x="736" y="54" class="mt">New Group</text>
+  <rect x="724" y="64" width="162" height="26" fill="#DDE7F5"/>
+  <text x="736" y="82" class="mt">Open Layout</text><text x="868" y="82" class="mt">›</text>
+  <text x="736" y="110" class="mt">Layouts…</text>
+  <text x="736" y="136" class="mt">Settings…</text>
+  <rect x="890" y="64" width="150" height="90" rx="6" fill="#F3F3F3" stroke="#CCCCCC"/>
+  <text x="906" y="90" class="mt">Dev</text>
+  <text x="906" y="116" class="mt">Docs</text>
+  <text x="906" y="142" class="mt">Work2</text>
+  <rect x="894" y="70" width="142" height="80" rx="6" fill="none" stroke="#DC2626" stroke-width="2" stroke-dasharray="5 4"/>
+  <circle cx="1040" cy="70" r="13" fill="#fff" stroke="#DC2626" stroke-width="2.5"/><text x="1036" y="75" class="num">2</text>
+  <text x="720" y="195" class="cap">名前だけでは「Work2」に何が入っているか分からない</text>
+</svg>
+<figcaption>赤枠が変える場所。どちらも今は名前しか出ない</figcaption>
+</figure>
+
+<section class="pt" id="p1">
+  <h2><span class="no">①</span>設定画面の表で中身を見せる形</h2>
+  <div class="ab">
+    <figure>
+<svg viewBox="0 0 560 170" role="img" aria-label="A: 名前の下に要約の 1 行">
+  <style>.a1{font:400 13px 'Segoe UI',sans-serif;fill:#E6E6E6}.a2{font:400 11.5px 'Segoe UI',sans-serif;fill:#F87171}.a3{font:400 12px 'Segoe UI',sans-serif;fill:#9A9A9A}.ab1{fill:#3A3A3A;stroke:#4A4A4A}</style>
+  <rect x="0" y="0" width="560" height="170" rx="8" fill="#202020"/>
+  <rect x="10" y="10" width="540" height="48" rx="4" fill="#2D2D2D"/>
+  <text x="20" y="30" class="a1">Dev</text>
+  <text x="20" y="49" class="a2">Code, WindowsTerminal, chrome · 3 panes, 5 tabs</text>
+  <rect x="300" y="22" width="120" height="24" rx="4" class="ab1"/><text x="308" y="39" class="a1">Ctrl+Alt+1</text>
+  <rect x="430" y="22" width="44" height="24" rx="4" class="ab1"/><text x="437" y="39" class="a1">Open</text>
+  <text x="482" y="39" class="a3">…</text>
+  <text x="20" y="84" class="a1">Docs</text>
+  <text x="20" y="103" class="a2">WINWORD, msedge · 2 panes, 2 tabs</text>
+  <rect x="430" y="76" width="44" height="24" rx="4" class="ab1"/><text x="437" y="93" class="a1">Open</text>
+  <text x="20" y="138" class="a1">Work2</text>
+  <text x="20" y="157" class="a2">EXCEL, OUTLOOK, Teams · 2 panes, 3 tabs</text>
+  <rect x="430" y="130" width="44" height="24" rx="4" class="ab1"/><text x="437" y="147" class="a1">Open</text>
+</svg>
+      <figcaption>A — 名前の下に要約を 1 行（赤字が追加）</figcaption></figure>
+    <figure>
+<svg viewBox="0 0 560 170" role="img" aria-label="C: 行の左に分割の縮小図">
+  <style>.c1{font:400 13px 'Segoe UI',sans-serif;fill:#E6E6E6}.c2{font:400 9.5px 'Segoe UI',sans-serif;fill:#F87171}.c3{font:400 12px 'Segoe UI',sans-serif;fill:#9A9A9A}.cb{fill:#3A3A3A;stroke:#4A4A4A}.pn{fill:#2A1A1A;stroke:#F87171;stroke-width:1}</style>
+  <rect x="0" y="0" width="560" height="170" rx="8" fill="#202020"/>
+  <rect x="10" y="10" width="540" height="70" rx="4" fill="#2D2D2D"/>
+  <rect x="20" y="18" width="70" height="54" class="pn"/><text x="26" y="48" class="c2">Code</text>
+  <rect x="92" y="18" width="50" height="26" class="pn"/><text x="96" y="35" class="c2">Terminal</text>
+  <rect x="92" y="46" width="50" height="26" class="pn"/><text x="96" y="63" class="c2">chrome</text>
+  <text x="156" y="50" class="c1">Dev</text>
+  <rect x="300" y="33" width="120" height="24" rx="4" class="cb"/><text x="308" y="50" class="c1">Ctrl+Alt+1</text>
+  <rect x="430" y="33" width="44" height="24" rx="4" class="cb"/><text x="437" y="50" class="c1">Open</text>
+  <text x="482" y="50" class="c3">…</text>
+  <rect x="20" y="92" width="60" height="54" class="pn"/><text x="24" y="122" class="c2">WINWORD</text>
+  <rect x="82" y="92" width="60" height="54" class="pn"/><text x="88" y="122" class="c2">msedge</text>
+  <text x="156" y="124" class="c1">Docs</text>
+  <rect x="430" y="107" width="44" height="24" rx="4" class="cb"/><text x="437" y="124" class="c1">Open</text>
+</svg>
+      <figcaption>C — 分割の縮小図。形は分かるが行が倍の高さ</figcaption></figure>
+  </div>
+</section>
+
+<section class="pt" id="p2">
+  <h2><span class="no">②</span>「Open Layout」メニューでの見え方</h2>
+  <div class="ab">
+    <figure>
+<svg viewBox="0 0 560 150" role="img" aria-label="A: 項目にカーソルを置くとタブ一覧のツールチップ">
+  <style>.m1{font:400 13px 'Segoe UI',sans-serif;fill:#222}.m2{font:400 12px 'Segoe UI','IBM Plex Sans JP',sans-serif;fill:#DC2626}</style>
+  <rect x="10" y="10" width="150" height="90" rx="6" fill="#F3F3F3" stroke="#CCCCCC"/>
+  <text x="26" y="36" class="m1">Dev</text>
+  <rect x="14" y="44" width="142" height="26" fill="#DDE7F5"/>
+  <text x="26" y="62" class="m1">Docs</text>
+  <text x="26" y="88" class="m1">Work2</text>
+  <rect x="170" y="56" width="370" height="60" rx="4" fill="#FFFFFF" stroke="#DC2626" stroke-width="1.5"/>
+  <text x="182" y="80" class="m2">Left:  WINWORD — 企画書.docx</text>
+  <text x="182" y="102" class="m2">Right: msedge — 社内 Wiki</text>
+</svg>
+      <figcaption>A — カーソルを置くとタブ一覧のツールチップ</figcaption></figure>
+    <figure>
+<svg viewBox="0 0 560 150" role="img" aria-label="B: 名前だけのまま">
+  <style>.n1{font:400 13px 'Segoe UI',sans-serif;fill:#222}.n2{font:400 12px 'IBM Plex Sans JP',sans-serif;fill:#9A9A9A}</style>
+  <rect x="10" y="10" width="150" height="90" rx="6" fill="#F3F3F3" stroke="#CCCCCC"/>
+  <text x="26" y="36" class="n1">Dev</text>
+  <rect x="14" y="44" width="142" height="26" fill="#DDE7F5"/>
+  <text x="26" y="62" class="n1">Docs</text>
+  <text x="26" y="88" class="n1">Work2</text>
+  <text x="182" y="62" class="n2">変更なし。中身は設定画面の表で見る</text>
+</svg>
+      <figcaption>B — 現状のまま（名前だけ）</figcaption></figure>
+  </div>
+</section>
+
+<section class="pt" id="p3">
+  <h2><span class="no">③</span>表の要約に出す情報の量</h2>
+  <div class="ab">
+    <figure>
+<svg viewBox="0 0 560 70" role="img" aria-label="A: アプリ名だけ">
+  <rect x="0" y="0" width="560" height="70" rx="8" fill="#202020"/>
+  <text x="16" y="28" font-family="Segoe UI, sans-serif" font-size="13" fill="#E6E6E6">Work2</text>
+  <text x="16" y="50" font-family="Segoe UI, sans-serif" font-size="11.5" fill="#F87171">EXCEL, OUTLOOK, Teams · 2 panes, 3 tabs</text>
+</svg>
+      <figcaption>A — アプリ名だけ。タイトルはツールチップに回す</figcaption></figure>
+    <figure>
+<svg viewBox="0 0 560 70" role="img" aria-label="B: アプリ名とタイトル">
+  <rect x="0" y="0" width="560" height="70" rx="8" fill="#202020"/>
+  <text x="16" y="28" font-family="Segoe UI, sans-serif" font-size="13" fill="#E6E6E6">Work2</text>
+  <text x="16" y="50" font-family="Segoe UI, IBM Plex Sans JP, sans-serif" font-size="11.5" fill="#F87171">EXCEL — 予算2026.xlsx, OUTLOOK — 受信トレイ, Teams — チャ…</text>
+</svg>
+      <figcaption>B — タイトルも出す。行が長くなり末尾が切れる</figcaption></figure>
+  </div>
+</section>
+
+<details><summary>判断から外した前提 3 点</summary>
+<p class="m">・要約の元データは <span class="mono">layouts.json</span> にすでにある（<span class="mono">SavedTab</span> の ProcessName・Title、<span class="mono">SavedNode</span> の分割）。保存形式は変えない。<br>
+・要約の文字列は Application 層の関数 1 つで作り、表とメニューの両方から使う。偽実装で単体テストする。<br>
+・ツールチップのペイン名（Left / Right）は分割の向きから付ける。3 分割以上は「Pane 1, 2…」にする。</p>
+</details>
+
+</main>
+</body>
+</html>

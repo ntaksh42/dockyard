@@ -99,7 +99,14 @@ public sealed class WpfShell : IShell, IDisposable
         {
             open.DropDownItems.Clear();
             foreach (var saved in _platform.Layouts.Load())
-                open.DropDownItems.Add(saved.Name.Value, null, (_, _) => workspace.OpenLayout(saved));
+            {
+                var item = new Forms.ToolStripMenuItem(saved.Name.Value, null, (_, _) => workspace.OpenLayout(saved))
+                {
+                    ToolTipText = LayoutDescription.Describe(saved.Layout).Details,
+                };
+                open.DropDownItems.Add(item);
+            }
+            open.DropDown.ShowItemToolTips = true;
             if (open.DropDownItems.Count == 0) open.DropDownItems.Add(new Forms.ToolStripMenuItem("(No saved layouts)") { Enabled = false });
         };
         // A placeholder: without any item the menu shows no submenu to open.
