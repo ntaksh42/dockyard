@@ -1499,6 +1499,23 @@ public class GroupControllerTests
     }
 
     [Fact]
+    public void GroupMinimizedByAMember_RestoresThatMemberWithTheGroup()
+    {
+        SplitAC();
+        _ws.Windows[A].Minimized = true;
+        _c.OnLocationChanged(A);
+        _c.OnFrameMinimized();
+
+        _view.Minimized = false;
+        _c.OnFrameRestored();
+        _c.OnLocationChanged(A);
+
+        Assert.False(_ws.IsMinimized(A));
+        Assert.False(_view.Minimized);
+        Assert.True(_ws.IsVisible(A) && _ws.IsVisible(C));
+    }
+
+    [Fact]
     public void GroupMinimizedAndRestored_HidesThenShowsMembersInPlace()
     {
         SplitAC();

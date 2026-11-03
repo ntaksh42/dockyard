@@ -626,6 +626,9 @@ internal sealed class GroupController : IGroupControl
         foreach (var m in _members.Values)
         {
             m.HidePending = false;
+            // A member minimized by the user minimized the group; showing it alone would leave it minimized, and its
+            // next location change would minimize the group again.
+            if (_windows.IsMinimized(m.Handle)) _windows.Restore(m.Handle);
             _windows.Show(m.Handle);
         }
         Refresh(raise: true);
