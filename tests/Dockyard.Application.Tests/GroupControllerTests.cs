@@ -1065,9 +1065,8 @@ public class GroupControllerTests
 
     [Theory]
     [InlineData(ShortcutAction.NextTab, 1, 2)]
-    [InlineData(ShortcutAction.NextTab, 2, 1)]
-    [InlineData(ShortcutAction.PreviousTab, 1, 2)]
-    public void TabShortcuts_CycleWithinThePane(ShortcutAction action, int from, int expected)
+    [InlineData(ShortcutAction.PreviousTab, 2, 1)]
+    public void TabShortcuts_SwitchWithinThePane(ShortcutAction action, int from, int expected)
     {
         _c.Adopt(Window(A), RootPane, null);
         _c.Adopt(Window(B), RootPane, null);
@@ -1078,6 +1077,20 @@ public class GroupControllerTests
         Assert.Equal(new WindowHandle(expected), RootPane.ActiveWindow);
         Assert.Equal(new WindowHandle(expected), _ws.Focused);
         Assert.True(_ws.Z(new WindowHandle(expected)) < _ws.Z(Frame));
+    }
+
+    [Theory]
+    [InlineData(ShortcutAction.NextTab, 2)]
+    [InlineData(ShortcutAction.PreviousTab, 1)]
+    public void TabShortcuts_StopAtTheEnds(ShortcutAction action, int edge)
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        _c.Adopt(Window(B), RootPane, null);
+        _c.ActivateTab(new WindowHandle(edge));
+
+        _c.Execute(action, new WindowHandle(edge));
+
+        Assert.Equal(new WindowHandle(edge), RootPane.ActiveWindow);
     }
 
     [Fact]

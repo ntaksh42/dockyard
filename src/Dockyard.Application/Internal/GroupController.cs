@@ -345,9 +345,9 @@ internal sealed class GroupController : IGroupControl
         }
         else if (action is ShortcutAction.PreviousTab or ShortcutAction.NextTab)
         {
-            var step = action == ShortcutAction.NextTab ? 1 : -1;
-            var count = pane.Windows.Count;
-            target = pane.Windows[(pane.Windows.IndexOf(window) + step + count) % count];
+            // Stops at the first and last tab instead of wrapping around.
+            var index = pane.Windows.IndexOf(window) + (action == ShortcutAction.NextTab ? 1 : -1);
+            if (index >= 0 && index < pane.Windows.Count) target = pane.Windows[index];
         }
         else if (Shortcuts.Direction(action) is { } side && _layout is not null)
         {
