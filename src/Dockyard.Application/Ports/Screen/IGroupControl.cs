@@ -23,6 +23,9 @@ public interface IGroupControl
     int RestoreLayout(SavedNode layout, Func<SavedTab, WindowHandle> resolve);
 
     bool Adopt(WindowHandle window, Pane pane, DockSide? side, PixelRect? originalBounds = null);
+
+    /// <summary>Adds the windows picked together; with a side, they share one new pane as its tabs. Returns the ones added.</summary>
+    IReadOnlyList<WindowHandle> AdoptAll(IReadOnlyList<WindowHandle> windows, Pane pane, DockSide? side);
     void PickerCancelled();
     void ActivateTab(WindowHandle window);
 

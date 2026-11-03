@@ -44,6 +44,37 @@ public class GroupControllerTests
     // ---- adding and removing ----------------------------------------------------------------------
 
     [Fact]
+    public void AdoptAll_WithASide_PutsTheWindowsAsTabsOfOneNewPane()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+        var target = RootPane;
+
+        var added = _c.AdoptAll([Window(B), Window(C)], target, DockSide.Right);
+
+        Assert.Equal(new[] { B, C }, added);
+        Assert.Equal(2, _c.Layout!.Panes.Count);
+        Assert.Equal(new[] { A }, target.Windows);
+        var pane = PaneOf(B).Pane;
+        Assert.Equal(new[] { B, C }, pane.Windows);
+        Assert.Equal(C, pane.ActiveWindow);
+        Assert.Equal(C, _c.LastActive);
+        AssertPlaced(A);
+        AssertPlaced(C);
+    }
+
+    [Fact]
+    public void AdoptAll_AsTabs_SkipsWindowsThatAreGoneOrAlreadyMembers()
+    {
+        _c.Adopt(Window(A), RootPane, null);
+
+        var added = _c.AdoptAll([A, B, Window(C)], RootPane, null);
+
+        Assert.Equal(new[] { C }, added);
+        Assert.Equal(new[] { A, C }, RootPane.Windows);
+        Assert.Equal(C, RootPane.ActiveWindow);
+    }
+
+    [Fact]
     public void TitleBars_AreHiddenOnAdoptionAndRestoredOnRelease()
     {
         _c.Adopt(Window(A), RootPane, null);
