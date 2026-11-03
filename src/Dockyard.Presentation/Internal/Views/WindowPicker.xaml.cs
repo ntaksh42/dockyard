@@ -11,11 +11,12 @@ namespace Dockyard.Presentation.Internal.Views;
 /// <summary>
 /// Picks a window to add: typing narrows the list, and the selected window shows as a live thumbnail.
 /// Shift+Enter and Ctrl+Enter add it in a new pane to the right or below instead of the way the picker was opened.
+/// Windows checked with Ctrl+Space or Ctrl+click are added together, in list order, instead of the selected one.
 /// </summary>
 internal partial class WindowPicker : Window
 {
     private readonly IWindowSystem _windows;
-    private readonly List<WindowInfo> _candidates;
+    private readonly List<WindowPickerItem> _candidates;
     private nint _thumbnail;
     private WindowHandle _thumbnailSource = WindowHandle.None;
 
@@ -26,7 +27,7 @@ internal partial class WindowPicker : Window
         InitializeComponent();
         _windows = windows;
         Side = side;
-        _candidates = catalog.GetCandidates().Where(w => !isGrouped(w.Handle)).ToList();
+        _candidates = catalog.GetCandidates().Where(w => !isGrouped(w.Handle)).Select(w => new WindowPickerItem(w)).ToList();
         ShowCandidates();
         Loaded += (_, _) =>
         {
@@ -36,28 +37,59 @@ internal partial class WindowPicker : Window
         Closed += (_, _) => ClearThumbnail();
     }
 
-    public WindowInfo? Selected => List.SelectedItem as WindowInfo;
+    /// <summary>The windows to add: the checked ones, or else the selected one.</summary>
+    public IReadOnlyList<WindowInfo> Picked
+    {
+        get
+        {
+            var checkedWindows = _candidates.Where(c => c.IsChecked).Select(c => c.Window).ToList();
+            if (checkedWindows.Count > 0) return checkedWindows;
+            return Selected is { Controllable: true } selected ? [selected] : [];
+        }
+    }
+
+    private WindowInfo? Selected => (List.SelectedItem as WindowPickerItem)?.Window;
 
     /// <summary>Where the picked window goes: null for a tab, otherwise the side of the pane to split off.</summary>
     public DockSide? Side { get; private set; }
 
     private void ShowCandidates()
     {
-        var shown = _candidates.Where(w => w.Matches(FilterBox.Text)).ToList();
+        var shown = _candidates.Where(c => c.Window.Matches(FilterBox.Text)).ToList();
         List.ItemsSource = shown;
-        List.SelectedItem = shown.FirstOrDefault(w => w.Controllable);
+        List.SelectedItem = shown.FirstOrDefault(c => c.Window.Controllable);
         EmptyText.Text = _candidates.Count == 0
             ? "No other windows to add. Open the app you want, then try again."
             : "No windows match.";
         EmptyText.Visibility = shown.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        AddButton.IsEnabled = Selected is { Controllable: true };
+        UpdateAddButton();
+    }
+
+    private void UpdateAddButton() => AddButton.IsEnabled = Picked.Count > 0;
+
+    private void Toggle(WindowPickerItem item)
+    {
+        if (!item.Window.Controllable) return;
+        item.IsChecked = !item.IsChecked;
+        UpdateAddButton();
+    }
+
+    private void CheckBox_Click(object sender, RoutedEventArgs e) => UpdateAddButton();
+
+    private void List_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.Control) return;
+        if (ItemsControl.ContainerFromElement(List, (DependencyObject)e.OriginalSource) is not ListBoxItem { DataContext: WindowPickerItem item }) return;
+        List.SelectedItem = item;
+        Toggle(item);
+        e.Handled = true;
     }
 
     private void FilterBox_TextChanged(object sender, TextChangedEventArgs e) => ShowCandidates();
 
     private void List_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        AddButton.IsEnabled = Selected is { Controllable: true };
+        UpdateAddButton();
         if (List.SelectedItem is not null) List.ScrollIntoView(List.SelectedItem);
         UpdatePreview();
     }
@@ -74,6 +106,12 @@ internal partial class WindowPicker : Window
             e.Handled = true;
             return;
         }
+        if (e.Key == Key.Space && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            if (List.SelectedItem is WindowPickerItem item) Toggle(item);
+            e.Handled = true;
+            return;
+        }
         if (e.Key != Key.Enter) return;
         if (Keyboard.Modifiers == ModifierKeys.Shift) Side = DockSide.Right;
         else if (Keyboard.Modifiers == ModifierKeys.Control) Side = DockSide.Bottom;
@@ -86,7 +124,7 @@ internal partial class WindowPicker : Window
 
     private void Accept()
     {
-        if (Selected is { Controllable: true }) DialogResult = true;
+        if (Picked.Count > 0) DialogResult = true;
     }
 
     /// <summary>Draws the selected window's live thumbnail over the preview area, fitted and centred.</summary>

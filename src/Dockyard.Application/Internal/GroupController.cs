@@ -201,8 +201,38 @@ internal sealed class GroupController : IGroupControl
     /// <summary>Adds a window as a tab of <paramref name="pane"/>, or in a new pane split off it on <paramref name="side"/>.</summary>
     public bool Adopt(WindowHandle window, Pane pane, DockSide? side, PixelRect? originalBounds = null)
     {
-        // The picker is modal and pumps events: the window or its target pane may have gone away meanwhile.
-        if (_closing || !_windows.Exists(window) || _members.ContainsKey(window) || !_tree.Panes.Contains(pane)) return false;
+        if (!CanAdopt(window, pane)) return false;
+        Join(window, pane, side, originalBounds);
+        Refresh(raise: true, top: window);
+        return true;
+    }
+
+    /// <summary>
+    /// Adds the windows in order as tabs of <paramref name="pane"/>, or as tabs of one new pane split off it on
+    /// <paramref name="side"/>, and returns the ones added: windows gone meanwhile are skipped.
+    /// </summary>
+    public IReadOnlyList<WindowHandle> AdoptAll(IReadOnlyList<WindowHandle> windows, Pane pane, DockSide? side)
+    {
+        var added = new List<WindowHandle>();
+        foreach (WindowHandle window in windows)
+        {
+            if (!CanAdopt(window, pane)) continue;
+            // Only the first one splits: the rest join it as tabs of the new pane.
+            pane = Join(window, pane, added.Count == 0 ? side : null);
+            added.Add(window);
+        }
+        // One refresh for all of them, so the z-order is not rearranged once per window.
+        if (added.Count > 0) Refresh(raise: true, top: added[^1]);
+        return added;
+    }
+
+    // The picker is modal and pumps events: the window or its target pane may have gone away meanwhile.
+    private bool CanAdopt(WindowHandle window, Pane pane) =>
+        !_closing && _windows.Exists(window) && !_members.ContainsKey(window) && _tree.Panes.Contains(pane);
+
+    /// <summary>Makes the window a member and puts it in the layout; returns the pane it went into.</summary>
+    private Pane Join(WindowHandle window, Pane pane, DockSide? side, PixelRect? originalBounds = null)
+    {
         if (_windows.IsMinimized(window) || _windows.IsMaximized(window)) _windows.Restore(window);
         _members[window] = new Member(window, originalBounds ?? _windows.GetBounds(window))
         {
@@ -211,13 +241,12 @@ internal sealed class GroupController : IGroupControl
             ProcessPath = _windows.GetProcessPath(window),
             Topmost = _windows.IsTopmost(window),
         };
-        if (side is { } s) _tree.Split(pane, s, window);
+        if (side is { } s) pane = _tree.Split(pane, s, window);
         else _tree.AddTab(pane, window);
         _lastActive = window;
         // The group's other windows are hidden while it is minimized: this one is shown again, placed, with them.
         if (_view.IsMinimized) _windows.Hide(window);
-        Refresh(raise: true, top: window);
-        return true;
+        return pane;
     }
 
     /// <summary>Moves a tab without losing its original bounds or learned minimum size.</summary>
