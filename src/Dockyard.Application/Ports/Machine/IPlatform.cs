@@ -15,6 +15,7 @@ public interface IPlatform
     ISessionStore Sessions { get; }
     ISettingsStore Settings { get; }
     IAppLauncher Launcher { get; }
+    IRemoteDesktops RemoteDesktops { get; }
     ILayoutShortcuts LayoutShortcuts { get; }
     IAutostart Autostart { get; }
     ILog Log { get; }

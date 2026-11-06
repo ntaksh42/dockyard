@@ -32,7 +32,7 @@ pwsh installer/build.ps1 -Dev                  # 署名せず layout フォル�
 | `Dockyard.Exe` | 入口。多重起動の判定、例外フック、3 層の組み立て（`App.xaml.cs` は 60 行ほど） | Application、Infrastructure、Presentation | なし | `net10.0-windows10.0.19041.0` |
 
 - **書く場所の目安。** 制御ロジックは Application に置く（偽実装で単体テストできる）。XAML のコードビハインドには描画と入力の受付だけを置く。Win32 やファイルに触るものは Infrastructure に実装し、インターフェースを Application に置く。
-- **ポートは Application が定義する。** `IWindowSystem`（他アプリのウィンドウ操作）・`IWindowCatalog`・`IInputState`・`IWindowEventSource`・`IKeyboardSource`・各ストア・`IAppLauncher`・`IAutostart`・`ILog` は機械側、`IShell`・`IGroupFrame`・`IDockGuide`・`IScheduler` は画面側。`Workspace` は `IPlatform` と `IShell` だけを受け取る。
+- **ポートは Application が定義する。** `IWindowSystem`（他アプリのウィンドウ操作）・`IWindowCatalog`・`IInputState`・`IWindowEventSource`・`IKeyboardSource`・各ストア・`IAppLauncher`・`IRemoteDesktops`・`IAutostart`・`ILog` は機械側、`IShell`・`IGroupFrame`・`IDockGuide`・`IScheduler` は画面側。`Workspace` は `IPlatform` と `IShell` だけを受け取る。
 - **外へ出す型を増やすとき。** ルート名前空間に置く。`tests/Dockyard.Architecture.Tests/PublicApi.cs` が各アセンブリの公開一覧で、`ArchitectureTests` が「公開型はルート名前空間にだけある」ことと、一覧との一致、参照関係（Domain は何も参照しない、Application は Domain だけ、Presentation は Infrastructure を参照しない）を検査する。型を public にしたらそこも直す。
 - `tests/Dockyard.Application.Tests/Fakes.cs`・`WorkspaceFakes.cs` が偽の機械・画面。内部の `GroupController` は `InternalsVisibleTo` でテストから使う。
 
@@ -46,6 +46,7 @@ pwsh installer/build.ps1 -Dev                  # 署名せず layout フォル�
 - 重なり順の `SetWindowPos` に `SWP_NOOWNERZORDER` を付けない。付けるとオーナーだけが動いてオーナー付きのダイアログの上に出て、モーダルダイアログが本体の背後に隠れる。
 - UWP アプリの枠（`ApplicationFrameWindow`）は全部 ApplicationFrameHost.exe のウィンドウなので、アプリの識別（exe 名・パス）には `Native.GetAppProcessId` で求めた実プロセスを使う。
 - WinEvent のコールバックで例外が漏れるとプロセスが即終了するので、インフラ層の受け口で受け止めて記録する。
+- RDP のタブは、Dockyard が自分のプロセスで開く枠なしのウィンドウ（`Infrastructure/Internal/RemoteDesktop/`。mstscax を WinForms の AxHost で載せる）。WinEvent のフックは自プロセスのイベントを除くので、閉じた・タイトルが変わったは `RemoteDesktopService` が `WinEventHook.Report` で流す。描画で UI スレッド（低レベルのキー・マウスフックも動く）を遅らせないよう、セッションは専用の STA スレッドで動かす。セッションは Dockyard と一緒に終わるため、タブを外すと元の位置へ戻さずに閉じ、レイアウトや強制終了後の組み直しでは接続名（`SavedTab.RemoteDesktop`）から接続し直す。
 - 強制終了に備え、グループとメンバー（ハンドルと追加前の位置）を `session.json` に書き続け、正常終了で消す。起動時に残っていれば組み直す。閉じたウィンドウは追加前の位置・サイズに戻す。
 - 保存ファイルは `%LOCALAPPDATA%\Dockyard\` の `settings.json` / `layouts.json` / `session.json` / `last-groups.json`。
 

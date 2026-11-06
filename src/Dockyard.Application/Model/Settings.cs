@@ -33,6 +33,9 @@ public sealed class Settings
     /// <summary>When a layout is opened, start the apps whose windows are missing (from the exe paths saved with it).</summary>
     public bool LaunchMissingApps { get; set; }
 
+    /// <summary>Computers to connect to with Remote Desktop, offered by the "+" menu of a pane.</summary>
+    public List<RemoteDesktopConnection> RemoteDesktops { get; set; } = [];
+
     /// <summary>At startup, open the groups that were open when Dockyard last exited (matched like a layout).</summary>
     public bool OpenLastGroups { get; set; }
 }

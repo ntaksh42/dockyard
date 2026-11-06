@@ -257,8 +257,45 @@ internal sealed class NullLog : ILog
     public void Trace(string message) { }
 }
 
+/// <summary>Opens each session as a new window of the fake desktop, and remembers what was closed and saved.</summary>
+internal sealed class FakeRemoteDesktops(FakeWindowSystem desktop) : IRemoteDesktops
+{
+    private int _next = 9000;
+
+    public Dictionary<WindowHandle, RemoteDesktopConnection> Sessions { get; } = [];
+    public List<WindowHandle> Closed { get; } = [];
+    public Dictionary<string, string> Passwords { get; } = [];
+    public bool Available { get; set; } = true;
+
+    public WindowHandle Open(RemoteDesktopConnection connection)
+    {
+        if (!Available) return WindowHandle.None;
+        var window = desktop.Add(new WindowHandle(_next++), new PixelRect(100, 100, 1380, 900), connection.Name);
+        Sessions[window] = connection;
+        return window;
+    }
+
+    public RemoteDesktopConnection? ConnectionOf(WindowHandle window) => Sessions.GetValueOrDefault(window);
+
+    public void Close(WindowHandle window) => Closed.Add(window);
+
+    public void SavePassword(string connectionName, string? password)
+    {
+        if (string.IsNullOrEmpty(password)) Passwords.Remove(connectionName);
+        else Passwords[connectionName] = password;
+    }
+
+    public void RenamePassword(string oldName, string newName)
+    {
+        if (!Passwords.Remove(oldName, out var password)) return;
+        Passwords[newName] = password;
+    }
+}
+
 internal sealed class FakePlatform : IPlatform
 {
+    private FakeRemoteDesktops? _remoteDesktops;
+
     public FakeWindowSystem Desktop { get; } = new();
     public FakeCatalog CatalogFake { get; } = new();
     public FakeInput InputFake { get; } = new();
@@ -279,6 +316,8 @@ internal sealed class FakePlatform : IPlatform
     public ISessionStore Sessions => SessionStore;
     public ISettingsStore Settings => SettingsStore;
     public IAppLauncher Launcher => LauncherFake;
+    public FakeRemoteDesktops RemoteDesktopsFake => _remoteDesktops ??= new(Desktop);
+    public IRemoteDesktops RemoteDesktops => RemoteDesktopsFake;
     public ILayoutShortcuts LayoutShortcuts => ShortcutsFake;
     public IAutostart Autostart { get; } = new FakeAutostart();
     public ILog Log { get; } = new NullLog();

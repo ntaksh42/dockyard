@@ -20,6 +20,8 @@ internal sealed class GroupController : IGroupControl
         public string Title { get; set; } = "";
         public ProcessName ProcessName { get; init; } = new("");
         public string? ProcessPath { get; init; }
+        /// <summary>The connection, for a Remote Desktop session Dockyard opened itself; such a window is closed rather than given back.</summary>
+        public RemoteDesktopConnection? RemoteDesktop { get; init; }
         /// <summary>Whether the window was always on top before it joined; stacking it in the group ends that, so it is given back on release.</summary>
         public bool Topmost { get; init; }
         /// <summary>Smallest content size the app accepted, in layout units. Learned by observation.</summary>
@@ -36,6 +38,7 @@ internal sealed class GroupController : IGroupControl
 
     private readonly IGroupView _view;
     private readonly IWindowSystem _windows;
+    private readonly IRemoteDesktops? _remoteDesktops;
     private readonly IScheduler _scheduler;
     private readonly IRestartableTimer _settleTimer;
     private readonly IRestartableTimer _hiddenTimer;
@@ -70,10 +73,11 @@ internal sealed class GroupController : IGroupControl
     /// </summary>
     private bool _live;
 
-    public GroupController(IGroupView view, IWindowSystem windows, IScheduler scheduler)
+    public GroupController(IGroupView view, IWindowSystem windows, IScheduler scheduler, IRemoteDesktops? remoteDesktops = null)
     {
         _view = view;
         _windows = windows;
+        _remoteDesktops = remoteDesktops;
         _scheduler = scheduler;
         _settleTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(300), CheckSettled);
         _hiddenTimer = scheduler.CreateTimer(TimeSpan.FromMilliseconds(500), DropHidden);
@@ -124,13 +128,19 @@ internal sealed class GroupController : IGroupControl
     {
         SplitNode s => new SavedNode(s.Orientation, s.Ratio, Save(s.First, includeWindows), Save(s.Second, includeWindows)),
         Pane p => new SavedNode(
-            Tabs: p.Windows.Select(h => includeWindows
-                    ? new SavedTab(_members[h].ProcessName, _members[h].Title, h, _members[h].OriginalBounds, _members[h].ProcessPath)
-                    : new SavedTab(_members[h].ProcessName, _members[h].Title, Path: _members[h].ProcessPath))
-                .Concat(Waiting(p)).ToList(),
+            Tabs: p.Windows.Select(h => SaveTab(_members[h], includeWindows)).Concat(Waiting(p)).ToList(),
             ActiveIndex: p.ActiveIndex),
         _ => throw new InvalidOperationException(),
     };
+
+    private static SavedTab SaveTab(Member m, bool includeWindows)
+    {
+        // A Remote Desktop session is opened again from its connection; its exe is Dockyard itself, not an app to start.
+        var tab = m.RemoteDesktop is { } remote
+            ? new SavedTab(m.ProcessName, m.Title, RemoteDesktop: remote.Name)
+            : new SavedTab(m.ProcessName, m.Title, Path: m.ProcessPath);
+        return includeWindows ? tab with { Handle = m.Handle, OriginalBounds = m.OriginalBounds } : tab;
+    }
 
     private LayoutNode Build(SavedNode node, Func<SavedTab, WindowHandle> resolve)
     {
@@ -157,6 +167,7 @@ internal sealed class GroupController : IGroupControl
                 Title = _windows.GetTitle(h),
                 ProcessName = _windows.GetProcessName(h),
                 ProcessPath = _windows.GetProcessPath(h),
+                RemoteDesktop = _remoteDesktops?.ConnectionOf(h),
                 Topmost = _windows.IsTopmost(h),
             };
             if (i == node.ActiveIndex) pane.ActiveIndex = pane.Windows.Count;
@@ -239,6 +250,7 @@ internal sealed class GroupController : IGroupControl
             Title = _windows.GetTitle(window),
             ProcessName = _windows.GetProcessName(window),
             ProcessPath = _windows.GetProcessPath(window),
+            RemoteDesktop = _remoteDesktops?.ConnectionOf(window),
             Topmost = _windows.IsTopmost(window),
         };
         if (side is { } s) pane = _tree.Split(pane, s, window);
@@ -440,7 +452,12 @@ internal sealed class GroupController : IGroupControl
     {
         var apps = processNames.ToHashSet();
         _titleBarApps = apps;
-        Metrics = Metrics with { KeepsTitleBar = pane => pane.Windows.Any(h => _members.TryGetValue(h, out var m) && apps.Contains(m.ProcessName)) };
+        // A Remote Desktop session has no title bar to put the tabs over: they would cover the remote screen.
+        Metrics = Metrics with
+        {
+            KeepsTitleBar = pane => pane.Windows.Any(h =>
+                _members.TryGetValue(h, out var m) && (apps.Contains(m.ProcessName) || m.RemoteDesktop is not null)),
+        };
         Refresh(raise: true);
     }
 
@@ -833,6 +850,12 @@ internal sealed class GroupController : IGroupControl
         if (_dragged == window) _dragged = WindowHandle.None;
         Detach(window);
         if (!_windows.Exists(window)) return;
+        // Outside a group the session would be a window without a border to move it by.
+        if (m.RemoteDesktop is not null)
+        {
+            _remoteDesktops?.Close(window);
+            return;
+        }
         _ = _windows.SetTitleBarVisibleAsync(window, visible: true);
         _windows.SetBounds(window, m.OriginalBounds);
         if (m.Topmost) _windows.SetTopmost(window);

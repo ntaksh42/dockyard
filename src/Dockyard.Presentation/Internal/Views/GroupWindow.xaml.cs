@@ -61,7 +61,8 @@ internal partial class GroupWindow : Window, IGroupFrame
     public event Action<IGroupFrame, SavedGroup>? OpenLayoutRequested;
     public event Action<IGroupFrame, WindowHandle>? NewGroupWithTabRequested;
     /// <summary>The open window picker. Tabs must stay below it, so raising starts there instead of at the top.</summary>
-    private WindowPicker? _picker;
+    /// <summary>The dialog that picks what to add to a pane, while it is open.</summary>
+    private Window? _picker;
     /// <summary>Draws the tab bars above the member windows with tab bar placement B; null otherwise.</summary>
     private Window? _overlay;
     private Canvas? _overlaySurface;
@@ -548,6 +549,7 @@ internal partial class GroupWindow : Window, IGroupFrame
         menu.Items.Add(MenuItem("Add as Tab…", () => PickAndAdopt(pane, null)));
         menu.Items.Add(MenuItem("Split Right…", () => PickAndAdopt(pane, DockSide.Right)));
         menu.Items.Add(MenuItem("Split Down…", () => PickAndAdopt(pane, DockSide.Bottom)));
+        menu.Items.Add(MenuItem("Remote Desktop…", () => PickRemoteDesktop(pane)));
         menu.Items.Add(new Separator());
         menu.Items.Add(OpenLayoutMenu());
         menu.Items.Add(ShortcutsMenu());
@@ -673,6 +675,25 @@ internal partial class GroupWindow : Window, IGroupFrame
         {
             Controller.PickerCancelled();
         }
+    }
+
+    /// <summary>Opens a Remote Desktop session for a saved connection as a tab of the pane.</summary>
+    private void PickRemoteDesktop(Pane pane)
+    {
+        var picker = new RemoteDesktopPicker(_context) { Owner = this };
+        _picker = picker;
+        bool picked;
+        try
+        {
+            picked = picker.ShowDialog() == true;
+        }
+        finally
+        {
+            _picker = null;
+        }
+        var session = picked && picker.Selected is { } connection ? _context.OpenRemoteDesktop(connection) : WindowHandle.None;
+        if (!session.IsNone && Controller.Adopt(session, pane, null)) _windows.Focus(session);
+        else Controller.PickerCancelled();
     }
 
     // ---- frame window -------------------------------------------------------------------------

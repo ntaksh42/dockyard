@@ -1071,4 +1071,115 @@ public class WorkspaceTests
 
         Assert.Equal(frame.Controller.LastActive, _platform.Desktop.Focused);
     }
+
+    // ---- remote desktop ---------------------------------------------------------------------------
+
+    private static readonly RemoteDesktopConnection DevBox = new("dev-box", "dev-box.corp");
+
+    private IFrameContext Context => Workspace;
+
+    private static SavedTab RemoteTab(string connection) =>
+        new(new ProcessName("Dockyard"), connection, Path: @"C:\Dockyard\Dockyard.exe", RemoteDesktop: connection);
+
+    [Fact]
+    public void OpenLayout_ConnectsAgainForARemoteDesktopTab()
+    {
+        _platform.SettingsStore.Settings.RemoteDesktops.Add(DevBox);
+        Workspace.Start();
+
+        Workspace.OpenLayout(Saved("Remote", RemoteTab("dev-box")));
+
+        var session = Assert.Single(_platform.RemoteDesktopsFake.Sessions);
+        Assert.Equal(DevBox, session.Value);
+        Assert.Contains(session.Key, _shell.Frames[1].Controller!.Members);
+    }
+
+    [Fact]
+    public void OpenLayout_LeavesTheTabOfADeletedConnectionWaitingWithoutStartingDockyard()
+    {
+        _platform.LayoutStore.Layouts.Add(Saved("Remote", RemoteTab("gone")));
+        Workspace.Start();
+
+        // By name, the layout starts the apps it lacks whatever the setting says.
+        Workspace.OpenLayoutByName(new LayoutName("Remote"));
+
+        Assert.Empty(_platform.RemoteDesktopsFake.Sessions);
+        Assert.Single(_shell.Frames[1].Controller!.WaitingTabs);
+        Assert.Empty(_platform.LauncherFake.Launched);
+    }
+
+    [Fact]
+    public void SaveLayout_KeepsTheConnectionOfARemoteDesktopTabButNoExeToStart()
+    {
+        _platform.SettingsStore.Settings.RemoteDesktops.Add(DevBox);
+        Workspace.Start();
+        var frame = _shell.Frames[0];
+        var session = Context.OpenRemoteDesktop(DevBox);
+        frame.Controller!.Adopt(session, PaneOf(frame), null);
+
+        frame.UserSavesLayout();
+
+        var tab = Assert.Single(Assert.Single(_platform.LayoutStore.Layouts).Layout.Tabs!);
+        Assert.Equal("dev-box", tab.RemoteDesktop);
+        Assert.Null(tab.Path);
+    }
+
+    [Fact]
+    public void RemovingARemoteDesktopTab_ClosesTheSessionInsteadOfPuttingItBack()
+    {
+        Workspace.Start();
+        var frame = _shell.Frames[0];
+        var session = Context.OpenRemoteDesktop(DevBox);
+        frame.Controller!.Adopt(session, PaneOf(frame), null);
+
+        frame.Controller.Remove(session);
+
+        Assert.Equal([session], _platform.RemoteDesktopsFake.Closed);
+        Assert.DoesNotContain(session, frame.Controller.Members);
+    }
+
+    [Fact]
+    public void ARemoteDesktopPane_KeepsItsTabsAboveTheRemoteScreen()
+    {
+        Workspace.Start();
+        var frame = _shell.Frames[0];
+        var session = Context.OpenRemoteDesktop(DevBox);
+        frame.Controller!.Adopt(session, PaneOf(frame), null);
+
+        Assert.True(frame.Controller.Metrics.KeepsTitleBar!(PaneOf(frame)));
+    }
+
+    [Fact]
+    public void OpenRemoteDesktop_TellsTheUserWhenRemoteDesktopIsMissing()
+    {
+        _platform.RemoteDesktopsFake.Available = false;
+        Workspace.Start();
+
+        Assert.True(Context.OpenRemoteDesktop(DevBox).IsNone);
+        Assert.Equal(["Remote Desktop is not available on this PC."], _shell.Notifications);
+    }
+
+    [Fact]
+    public void SaveRemoteDesktop_RenamesTheConnectionAndKeepsItsPassword()
+    {
+        Workspace.Start();
+        Context.SaveRemoteDesktop(DevBox, previousName: null, password: "secret");
+
+        Context.SaveRemoteDesktop(DevBox with { Name = "dev" }, previousName: "dev-box", password: null);
+
+        Assert.Equal([DevBox with { Name = "dev" }], Context.RemoteDesktops());
+        Assert.Equal(new Dictionary<string, string> { ["dev"] = "secret" }, _platform.RemoteDesktopsFake.Passwords);
+    }
+
+    [Fact]
+    public void DeleteRemoteDesktop_ForgetsItsPassword()
+    {
+        Workspace.Start();
+        Context.SaveRemoteDesktop(DevBox, previousName: null, password: "secret");
+
+        Context.DeleteRemoteDesktop("dev-box");
+
+        Assert.Empty(Context.RemoteDesktops());
+        Assert.Empty(_platform.RemoteDesktopsFake.Passwords);
+    }
 }

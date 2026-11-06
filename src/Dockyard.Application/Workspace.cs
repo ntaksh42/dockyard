@@ -286,6 +286,51 @@ public sealed class Workspace : IFrameContext
 
     IReadOnlyDictionary<ShortcutAction, ShortcutKey> IFrameContext.ShortcutBindings() => _shortcuts;
 
+    IReadOnlyList<RemoteDesktopConnection> IFrameContext.RemoteDesktops() => _settings.RemoteDesktops;
+
+    void IFrameContext.SaveRemoteDesktop(RemoteDesktopConnection connection, string? previousName, string? password)
+    {
+        var connections = _settings.RemoteDesktops;
+        // Names tell the connections apart: another one with the new name is replaced.
+        connections.RemoveAll(c => c.Name == connection.Name && c.Name != previousName);
+        var index = previousName is null ? -1 : connections.FindIndex(c => c.Name == previousName);
+        if (index >= 0) connections[index] = connection;
+        else connections.Add(connection);
+        if (previousName is not null && previousName != connection.Name)
+            _platform.RemoteDesktops.RenamePassword(previousName, connection.Name);
+        if (password is not null) _platform.RemoteDesktops.SavePassword(connection.Name, password);
+        SaveSettings();
+    }
+
+    void IFrameContext.DeleteRemoteDesktop(string name)
+    {
+        if (_settings.RemoteDesktops.RemoveAll(c => c.Name == name) == 0) return;
+        _platform.RemoteDesktops.SavePassword(name, null);
+        SaveSettings();
+    }
+
+    WindowHandle IFrameContext.OpenRemoteDesktop(RemoteDesktopConnection connection) => OpenRemoteDesktop(connection);
+
+    private WindowHandle OpenRemoteDesktop(RemoteDesktopConnection connection)
+    {
+        var window = _platform.RemoteDesktops.Open(connection);
+        if (window.IsNone) _shell.Notify("Remote Desktop is not available on this PC.");
+        return window;
+    }
+
+    /// <summary>
+    /// Opens a session for each saved tab of a Remote Desktop connection: there is no window to look for, the
+    /// session ended with the run that saved it. A tab whose connection was deleted is left to wait.
+    /// </summary>
+    private Dictionary<SavedTab, WindowHandle> OpenRemoteDesktops(SavedNode layout)
+    {
+        var opened = new Dictionary<SavedTab, WindowHandle>(ReferenceEqualityComparer.Instance);
+        foreach (var tab in WindowMatcher.TabsOf(layout))
+            if (tab.RemoteDesktop is { } name && _settings.RemoteDesktops.Find(c => c.Name == name) is { } connection)
+                opened[tab] = OpenRemoteDesktop(connection);
+        return opened;
+    }
+
     // ---- groups ---------------------------------------------------------------------------------
 
     private bool IsGrouped(WindowHandle window) => _groups.Any(g => g.Controller.Owns(window));
@@ -293,7 +338,7 @@ public sealed class Workspace : IFrameContext
     private OpenGroup NewGroup(LayoutName? name, PixelRect? bounds)
     {
         var frame = _shell.CreateFrame(name ?? NextGroupName(), _settings.TabBarPlacement, this);
-        var controller = new GroupController(frame, _windows, _shell.Scheduler);
+        var controller = new GroupController(frame, _windows, _shell.Scheduler, _platform.RemoteDesktops);
         var g = new OpenGroup(frame, controller);
         frame.Bind(controller);
         controller.SetTitleBarApps(_settings.TitleBarApps ?? Settings.DefaultTitleBarApps);
@@ -390,11 +435,12 @@ public sealed class Workspace : IFrameContext
             .Select(w => new WindowCandidate(w.Handle, w.ProcessName, w.Title)).ToList();
         var g = into is not null && !into.Controller.Members.Any() ? into : NewGroup(saved.Name, saved.Bounds);
         var assigned = WindowMatcher.MatchAll([.. WindowMatcher.TabsOf(saved.Layout)], candidates, claimed, sameWindowOnly: false);
-        Restore(g, saved, tab => assigned.GetValueOrDefault(tab));
+        var remote = OpenRemoteDesktops(saved.Layout);
+        Restore(g, saved, tab => remote.TryGetValue(tab, out var session) ? session : assigned.GetValueOrDefault(tab));
         // Their windows then fill the waiting tabs as they appear.
         if (launchMissing)
             foreach (var tab in g.Controller.WaitingTabs)
-                if (tab.Path is { } path) _platform.Launcher.Launch(path);
+                if (tab is { Path: { } path, RemoteDesktop: null }) _platform.Launcher.Launch(path);
     }
 
     private void RefreshLayoutHotkeys() => _layoutHotkeys = LayoutLibrary.Hotkeys(_platform.Layouts.Load());
@@ -456,8 +502,12 @@ public sealed class Workspace : IFrameContext
         foreach (var s in saved)
         {
             var g = NewGroup(s.Name, s.Bounds);
+            var remote = OpenRemoteDesktops(s.Layout);
             var count = Restore(g, s, tab =>
             {
+                if (remote.TryGetValue(tab, out var session)) return session;
+                // Its session went down with the crashed run; the handle may belong to another window by now.
+                if (tab.RemoteDesktop is not null) return WindowHandle.None;
                 var h = tab.Handle;
                 return _windows.Exists(h)
                     ? WindowMatcher.Match(tab, [new WindowCandidate(h, _windows.GetProcessName(h), "")], claimed, sameWindowOnly: true)

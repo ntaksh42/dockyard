@@ -7,8 +7,13 @@ namespace Dockyard.Application;
 /// window and where it was before it joined, so a restart after a crash can give it back.
 /// </summary>
 /// <param name="Path">The app's exe, to start it when a layout is opened without it; null if unknown.</param>
+/// <param name="RemoteDesktop">
+/// For a Remote Desktop session Dockyard opened itself, the name of its connection: opening the layout connects
+/// again instead of looking for a window.
+/// </param>
 public sealed record SavedTab(
-    ProcessName ProcessName, string Title, WindowHandle Handle = default, PixelRect? OriginalBounds = null, string? Path = null);
+    ProcessName ProcessName, string Title, WindowHandle Handle = default, PixelRect? OriginalBounds = null, string? Path = null,
+    string? RemoteDesktop = null);
 
 /// <summary>A layout tree node: a split when <see cref="Split"/> is set, otherwise a pane with tabs.</summary>
 public sealed record SavedNode(

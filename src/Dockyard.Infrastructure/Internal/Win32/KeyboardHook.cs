@@ -28,12 +28,15 @@ internal sealed class KeyboardHook : IKeyboardSource, IDisposable
     private readonly HashSet<uint> _heldElsewhere = [];
     private nint _foreground;
     private bool _remoteDesktopInFront;
+    /// <summary>Whether a window is a remote desktop session Dockyard opened itself (see <c>RemoteDesktopService</c>).</summary>
+    private readonly Func<nint, bool> _isOwnSession;
 
     /// <summary>A key pressed with Ctrl, Alt or Win held, and the modifiers held. Returns true to take the key.</summary>
     public Func<int, KeyModifiers, bool>? KeyPressed { get; set; }
 
-    public KeyboardHook()
+    public KeyboardHook(Func<nint, bool> isOwnSession)
     {
+        _isOwnSession = isOwnSession;
         _proc = OnKey;
         _hook = Install();
     }
@@ -56,7 +59,8 @@ internal sealed class KeyboardHook : IKeyboardSource, IDisposable
         {
             _foreground = foreground;
             GetWindowThreadProcessId(foreground, out var pid);
-            _remoteDesktopInFront = foreground != 0 && RemoteDesktopClients.Contains(Win32WindowCatalog.ProcessNameOf(pid));
+            _remoteDesktopInFront = foreground != 0 &&
+                (_isOwnSession(foreground) || RemoteDesktopClients.Contains(Win32WindowCatalog.ProcessNameOf(pid)));
             // A release the client took while the secure desktop (Ctrl+Alt+Del) was up never reaches any hook.
             if (!_remoteDesktopInFront) _heldElsewhere.Clear();
         }

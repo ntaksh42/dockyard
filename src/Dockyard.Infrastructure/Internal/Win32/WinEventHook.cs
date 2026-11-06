@@ -107,6 +107,22 @@ internal sealed class WinEventHook : IWindowEventSource, IDisposable
         Raise(eventType, hwnd);
     }
 
+    /// <summary>
+    /// Raises an event for one of Dockyard's own windows that a group holds (a remote desktop session): the hooks
+    /// skip this process. Call on the UI thread.
+    /// </summary>
+    public void Report(WindowEvent evt, WindowHandle window)
+    {
+        try
+        {
+            Received?.Invoke(evt, window);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Own window event {evt} hwnd=0x{window.Value:X}", ex);
+        }
+    }
+
     private void Raise(uint eventType, nint hwnd)
     {
         var watch = Stopwatch.StartNew();

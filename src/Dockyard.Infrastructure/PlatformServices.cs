@@ -1,6 +1,7 @@
 using Dockyard.Application;
 using Dockyard.Infrastructure.Internal.Launching;
 using Dockyard.Infrastructure.Internal.Logging;
+using Dockyard.Infrastructure.Internal.RemoteDesktop;
 using Dockyard.Infrastructure.Internal.Storage;
 using Dockyard.Infrastructure.Internal.Win32;
 
@@ -14,10 +15,14 @@ namespace Dockyard.Infrastructure;
 public sealed class PlatformServices : IPlatform, IDisposable
 {
     private readonly WinEventHook _windowEvents = new();
-    private readonly KeyboardHook _keyboard = new();
+    private readonly KeyboardHook _keyboard;
+    private readonly RemoteDesktopService _remoteDesktops;
 
+    /// <summary>Create on the UI thread: events of the remote desktop windows are reported to it.</summary>
     public PlatformServices()
     {
+        _remoteDesktops = new RemoteDesktopService(_windowEvents.Report);
+        _keyboard = new KeyboardHook(_remoteDesktops.IsSession);
         _windowEvents.ForegroundChecked += _keyboard.StayAheadOf;
     }
 
@@ -30,12 +35,14 @@ public sealed class PlatformServices : IPlatform, IDisposable
     public ISessionStore Sessions { get; } = new JsonSessionStore();
     public ISettingsStore Settings { get; } = new JsonSettingsStore();
     public IAppLauncher Launcher { get; } = new ProcessLauncher();
+    public IRemoteDesktops RemoteDesktops => _remoteDesktops;
     public ILayoutShortcuts LayoutShortcuts { get; } = new LayoutShortcuts();
     public IAutostart Autostart { get; } = new Autostart();
     public ILog Log { get; } = new FileLog();
 
     public void Dispose()
     {
+        _remoteDesktops.Dispose();
         _keyboard.Dispose();
         _windowEvents.Dispose();
         // Hooks are gone: give responsive apps a short, shared exit budget to restore their captions. A hung
