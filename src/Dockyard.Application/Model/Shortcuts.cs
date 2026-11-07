@@ -13,6 +13,7 @@ public enum ShortcutAction
     MoveTabLeft, MoveTabRight, MoveTabUp, MoveTabDown, GrowPane, ShrinkPane,
     SaveLayout, RenameGroup, ChangeTabBar, MaximizeGroup, MinimizeGroup, CloseGroup, OpenMenu,
     AddTab, SplitRight, SplitDown, OpenLayout, NewGroup, ManageLayouts, OpenSettings, Quit,
+    AddRemoteDesktop,
 }
 
 /// <summary>A key with the modifiers that must be held. Written as e.g. "Ctrl+Alt+Left".</summary>
@@ -98,7 +99,8 @@ public static class Shortcuts
         [ShortcutAction.MoveTabDown] = new(KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Win, 0x28),
         [ShortcutAction.GrowPane] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0xDD),
         [ShortcutAction.ShrinkPane] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0xDB),
-        [ShortcutAction.RenameGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x52),
+        [ShortcutAction.RenameGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x71),
+        [ShortcutAction.AddRemoteDesktop] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x52),
         [ShortcutAction.ChangeTabBar] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x42),
         [ShortcutAction.MaximizeGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x26),
         [ShortcutAction.MinimizeGroup] = new(KeyModifiers.Ctrl | KeyModifiers.Alt, 0x28),
@@ -148,6 +150,7 @@ public static class Shortcuts
         [ShortcutAction.CloseGroup] = "Close group",
         [ShortcutAction.OpenMenu] = "Open the + menu",
         [ShortcutAction.AddTab] = "Add window as tab",
+        [ShortcutAction.AddRemoteDesktop] = "Add Remote Desktop as tab",
         [ShortcutAction.SplitRight] = "Add window in a split to the right",
         [ShortcutAction.SplitDown] = "Add window in a split below",
         [ShortcutAction.OpenLayout] = "Open saved layout",
@@ -161,7 +164,7 @@ public static class Shortcuts
     public static bool IsFrameAction(ShortcutAction action) =>
         action is ShortcutAction.SaveLayout or ShortcutAction.RenameGroup or ShortcutAction.ChangeTabBar or ShortcutAction.MaximizeGroup
             or ShortcutAction.MinimizeGroup or ShortcutAction.CloseGroup or ShortcutAction.OpenMenu
-            or ShortcutAction.AddTab or ShortcutAction.SplitRight or ShortcutAction.SplitDown or ShortcutAction.OpenLayout
+            or ShortcutAction.AddTab or ShortcutAction.AddRemoteDesktop or ShortcutAction.SplitRight or ShortcutAction.SplitDown or ShortcutAction.OpenLayout
             or ShortcutAction.NewGroup or ShortcutAction.ManageLayouts or ShortcutAction.OpenSettings or ShortcutAction.Quit;
 
     /// <summary>The action bound to the key, or null if it is not a shortcut.</summary>

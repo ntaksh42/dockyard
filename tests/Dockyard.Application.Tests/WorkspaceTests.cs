@@ -840,7 +840,7 @@ public class WorkspaceTests
         Assert.True(_platform.KeyboardFake.Press(0x52 /* R */, CtrlAlt));
         _scheduler.RunPosted();
 
-        Assert.Equal([ShortcutAction.RenameGroup], frame.ShortcutsRun);
+        Assert.Equal([ShortcutAction.AddRemoteDesktop], frame.ShortcutsRun);
     }
 
     [Fact]

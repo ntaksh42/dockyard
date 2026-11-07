@@ -1254,7 +1254,7 @@ public class GroupControllerTests
         var bindings = Shortcuts.Load(new Dictionary<string, string> { ["NextTab"] = "Ctrl+Alt+R" });
 
         Assert.Equal(ShortcutAction.NextTab, Shortcuts.Match(bindings, 0x52, KeyModifiers.Ctrl | KeyModifiers.Alt));
-        Assert.False(bindings.ContainsKey(ShortcutAction.RenameGroup));
+        Assert.False(bindings.ContainsKey(ShortcutAction.AddRemoteDesktop));
         Assert.True(bindings.ContainsKey(ShortcutAction.ChangeTabBar));
     }
 

@@ -618,6 +618,9 @@ internal partial class GroupWindow : Window, IGroupFrame
             case ShortcutAction.AddTab:
                 OnActivePane((pane, _) => PickAndAdopt(pane, null));
                 break;
+            case ShortcutAction.AddRemoteDesktop:
+                OnActivePane((pane, _) => PickRemoteDesktop(pane));
+                break;
             case ShortcutAction.SplitRight:
                 OnActivePane((pane, _) => PickAndAdopt(pane, DockSide.Right));
                 break;
